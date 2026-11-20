@@ -45,6 +45,7 @@ func newAccount(account domain.Account) Account {
 
 type ListAccountsInput struct {
 	PageParams
+	ConnectionID string `query:"connectionId" format:"uuid" doc:"Only accounts of this connection"`
 }
 
 type AccountHandler struct {
@@ -67,7 +68,18 @@ func (h *AccountHandler) Register(api huma.API) {
 }
 
 func (h *AccountHandler) list(ctx context.Context, input *ListAccountsInput) (*PageOutput[Account], error) {
-	accounts, total, err := h.accounts.ListByUser(ctx, UserFrom(ctx).ID, input.Limit(), input.Offset())
+	var filter repository.AccountFilter
+
+	if input.ConnectionID != "" {
+		connectionID, err := uuid.Parse(input.ConnectionID)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity("connectionId must be a UUID")
+		}
+
+		filter.ConnectionID = &connectionID
+	}
+
+	accounts, total, err := h.accounts.ListByUser(ctx, UserFrom(ctx).ID, filter, input.Limit(), input.Offset())
 	if err != nil {
 		return nil, problem(ctx, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tahminator/fin/internal/domain"
+	"github.com/tahminator/fin/internal/repository"
 )
 
 type AccountRepository struct {
@@ -160,19 +161,26 @@ SELECT
 FROM accounts AS a
 JOIN connections AS c ON c.id = a.connection_id
 WHERE a.user_id = $1
+  AND ($2::uuid IS NULL OR a.connection_id = $2)
 ORDER BY c.institution_name, a.name, a.id
-LIMIT $2
-OFFSET $3;
+LIMIT $3
+OFFSET $4;
 `
 
 const countAccountsByUser = `
 SELECT COUNT(*) AS count
 FROM accounts AS a
-WHERE a.user_id = $1;
+WHERE a.user_id = $1
+  AND ($2::uuid IS NULL OR a.connection_id = $2);
 `
 
-func (r *AccountRepository) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Account, int, error) {
-	rows, err := r.pool.Query(ctx, listAccountsByUser, userID, limit, offset)
+func (r *AccountRepository) ListByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	filter repository.AccountFilter,
+	limit, offset int,
+) ([]domain.Account, int, error) {
+	rows, err := r.pool.Query(ctx, listAccountsByUser, userID, filter.ConnectionID, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query accounts: %w", err)
 	}
@@ -182,7 +190,7 @@ func (r *AccountRepository) ListByUser(ctx context.Context, userID uuid.UUID, li
 		return nil, 0, fmt.Errorf("collect accounts: %w", err)
 	}
 
-	total, err := count(ctx, r.pool, countAccountsByUser, userID)
+	total, err := count(ctx, r.pool, countAccountsByUser, userID, filter.ConnectionID)
 	if err != nil {
 		return nil, 0, err
 	}

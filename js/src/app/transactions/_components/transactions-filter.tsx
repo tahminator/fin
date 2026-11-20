@@ -61,7 +61,7 @@ function ConnectionGroupFields({
       </label>
       <div className="flex flex-col gap-1 pl-6">
         {group.accounts.map((account) => (
-          <label key={account.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+          <label key={account.id} className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={!hidden.has(account.id)}
               onCheckedChange={(checked) => {

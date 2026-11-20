@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import type { CurrencyBalance, Summary } from "@/lib/types/api";
@@ -35,9 +36,10 @@ export function BalanceSummary({ summary }: { summary: Summary }) {
       {summary.balances.map((balance) => (
         <CurrencyCard key={balance.currency} balance={balance} />
       ))}
-      <p className="text-sm text-muted-foreground">
-        {summary.accountCount} accounts across {summary.connectionCount} connections
-      </p>
+      <div className="flex items-center gap-2">
+        <Badge variant="secondary">{summary.accountCount} accounts</Badge>
+        <Badge variant="secondary">{summary.connectionCount} / 10 connections</Badge>
+      </div>
     </section>
   );
 }

@@ -1,0 +1,59 @@
+name: Revert production
+run-name: Revert production from PR #${{ inputs.prId }}
+
+permissions:
+  contents: read
+
+# slash-command-dispatch requires the `<command>-command.yml` file name
+on:
+  workflow_dispatch:
+    inputs:
+      prId:
+        description: PR the command was issued from
+        required: true
+        type: string
+      repository:
+        description: The repository from which the slash command was dispatched
+        required: true
+        type: string
+      comment-id:
+        description: The comment-id of the slash command
+        required: true
+        type: string
+      author:
+        description: The author that triggered this action
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  revert:
+    name: Restore last release in production
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+
+      - name: Restore last release
+        env:
+          PR_ID: ${{ inputs.prId }}
+          AUTHOR: ${{ inputs.author }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bun run .github/scripts/src/revert \
+            --prId "$PR_ID" \
+            --author "$AUTHOR" \
+            --runUrl "$RUN_URL"

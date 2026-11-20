@@ -2,15 +2,8 @@ import { GitHubClient } from "@tahminator/pipeline";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import {
-  DOCKER_HUB_USERNAME,
-  DOCKER_REPOSITORY,
-  GITHUB_OWNER,
-  GITHUB_REPOSITORY,
-  K8S_MANIFESTS_REPOSITORY,
-  KUSTOMIZATION_FILE_PATH,
-} from "../lib/consts";
 import { parseCiEnv } from "../lib/env";
+import { deployToProduction } from "../lib/production";
 
 const { releaseTag } = await yargs(hideBin(process.argv))
   .option("releaseTag", {
@@ -34,14 +27,7 @@ async function main() {
     privateKey: _GITHUB_APP_PEM_CONTENT,
   });
 
-  await ghClient.updateK8sTagWithPR({
-    manifestRepo: [GITHUB_OWNER, K8S_MANIFESTS_REPOSITORY],
-    originRepo: [GITHUB_OWNER, GITHUB_REPOSITORY],
-    kustomizationFilePath: KUSTOMIZATION_FILE_PATH,
-    imageName: `${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}`,
-    newTag: releaseTag,
-    environment: "production",
-  });
+  await deployToProduction(ghClient, releaseTag);
 }
 
 main()

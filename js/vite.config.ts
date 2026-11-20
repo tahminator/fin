@@ -40,19 +40,16 @@ export default defineConfig({
             src: "pwa-64x64-dark.png",
             sizes: "64x64",
             type: "image/png",
-            media: "(prefers-color-scheme: dark)",
           },
           {
             src: "pwa-192x192-dark.png",
             sizes: "192x192",
             type: "image/png",
-            media: "(prefers-color-scheme: dark)",
           },
           {
             src: "pwa-512x512-dark.png",
             sizes: "512x512",
             type: "image/png",
-            media: "(prefers-color-scheme: dark)",
           },
           {
             src: "maskable-icon-512x512.png",
@@ -65,7 +62,6 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
-            media: "(prefers-color-scheme: dark)",
           },
         ],
       },

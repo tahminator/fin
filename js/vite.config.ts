@@ -15,7 +15,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon-180x180.png", "logo.svg"],
+      includeAssets: [
+        "favicon.ico",
+        "favicon-dark.ico",
+        "apple-touch-icon-180x180.png",
+        "apple-touch-icon-180x180-dark.png",
+        "logo.svg",
+        "logo-dark.svg",
+      ],
       manifest: {
         name: "fin",
         short_name: "fin",
@@ -30,10 +37,35 @@ export default defineConfig({
           { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
           { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
           {
+            src: "pwa-64x64-dark.png",
+            sizes: "64x64",
+            type: "image/png",
+            media: "(prefers-color-scheme: dark)",
+          },
+          {
+            src: "pwa-192x192-dark.png",
+            sizes: "192x192",
+            type: "image/png",
+            media: "(prefers-color-scheme: dark)",
+          },
+          {
+            src: "pwa-512x512-dark.png",
+            sizes: "512x512",
+            type: "image/png",
+            media: "(prefers-color-scheme: dark)",
+          },
+          {
             src: "maskable-icon-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
+          },
+          {
+            src: "maskable-icon-512x512-dark.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+            media: "(prefers-color-scheme: dark)",
           },
         ],
       },

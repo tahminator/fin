@@ -7,6 +7,7 @@ const (
 	SyncTriggerManual
 	SyncTriggerScheduled
 	SyncTriggerReauth
+	SyncTriggerAccountSelection
 )
 
 func (t SyncTrigger) String() string {
@@ -19,13 +20,15 @@ func (t SyncTrigger) String() string {
 		return "scheduled"
 	case SyncTriggerReauth:
 		return "reauth"
+	case SyncTriggerAccountSelection:
+		return "account_selection"
 	}
 
 	return "unknown"
 }
 
 func allSyncTriggers() []SyncTrigger {
-	return []SyncTrigger{SyncTriggerLink, SyncTriggerManual, SyncTriggerScheduled, SyncTriggerReauth}
+	return []SyncTrigger{SyncTriggerLink, SyncTriggerManual, SyncTriggerScheduled, SyncTriggerReauth, SyncTriggerAccountSelection}
 }
 
 type SyncOutcome int

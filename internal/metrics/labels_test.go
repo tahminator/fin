@@ -12,8 +12,8 @@ func TestEnumLabels(t *testing.T) {
 		{
 			name:       "SyncTrigger",
 			labels:     labelValues(allSyncTriggers()),
-			declared:   int(SyncTriggerReauth) + 1,
-			outOfRange: []string{SyncTrigger(-1).String(), (SyncTriggerReauth + 1).String()},
+			declared:   int(SyncTriggerAccountSelection) + 1,
+			outOfRange: []string{SyncTrigger(-1).String(), (SyncTriggerAccountSelection + 1).String()},
 		},
 		{
 			name:       "SyncOutcome",

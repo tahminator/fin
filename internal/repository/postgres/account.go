@@ -125,6 +125,22 @@ func (r *AccountRepository) Upsert(ctx context.Context, userID, connectionID uui
 	return ids, nil
 }
 
+const deleteAccountsExcept = `
+DELETE FROM accounts
+WHERE user_id = $1
+  AND connection_id = $2
+  AND id <> ALL(COALESCE($3::uuid[], '{}'));
+`
+
+func (r *AccountRepository) DeleteExcept(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, deleteAccountsExcept, userID, connectionID, keepIDs)
+	if err != nil {
+		return fmt.Errorf("delete accounts: %w", err)
+	}
+
+	return nil
+}
+
 const listAccountsByUser = `
 SELECT
     a.id,

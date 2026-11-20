@@ -28,16 +28,14 @@ func (p *Provider) CreateLinkToken(ctx context.Context, creds domain.Credential,
 }
 
 func (p *Provider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
-	started := time.Now()
+	return p.createUpdateLinkToken(ctx, creds, p.updateLinkTokenRequest(userID, accessToken, redirectURI))
+}
 
-	request := p.linkTokenRequest(userID, redirectURI)
-	request.AccessToken = &accessToken
+func (p *Provider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+	request := p.updateLinkTokenRequest(userID, accessToken, redirectURI)
+	request.Update = &plaidsdk.LinkTokenCreateRequestUpdate{AccountSelectionEnabled: new(true)}
 
-	token, err := p.createLinkToken(ctx, creds, request)
-
-	p.observe(metrics.OperationCreateUpdateLinkToken, started, err)
-
-	return token, err
+	return p.createUpdateLinkToken(ctx, creds, request)
 }
 
 func (p *Provider) Exchange(ctx context.Context, creds domain.Credential, publicToken string) (provider.LinkedItem, error) {
@@ -79,6 +77,23 @@ func (p *Provider) linkTokenRequest(userID, redirectURI string) *plaidsdk.LinkTo
 		User:         &plaidsdk.LinkTokenCreateRequestUser{ClientUserID: userID},
 		RedirectURI:  &redirectURI,
 	}
+}
+
+func (p *Provider) updateLinkTokenRequest(userID, accessToken, redirectURI string) *plaidsdk.LinkTokenCreateRequest {
+	request := p.linkTokenRequest(userID, redirectURI)
+	request.AccessToken = &accessToken
+
+	return request
+}
+
+func (p *Provider) createUpdateLinkToken(ctx context.Context, creds domain.Credential, request *plaidsdk.LinkTokenCreateRequest) (string, error) {
+	started := time.Now()
+
+	token, err := p.createLinkToken(ctx, creds, request)
+
+	p.observe(metrics.OperationCreateUpdateLinkToken, started, err)
+
+	return token, err
 }
 
 func (p *Provider) createLinkToken(ctx context.Context, creds domain.Credential, request *plaidsdk.LinkTokenCreateRequest) (string, error) {

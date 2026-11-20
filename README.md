@@ -14,11 +14,15 @@ Install Go, Node, pnpm, just, Docker, golangci-lint, golang-migrate and jq. Dock
 
 The local Postgres container listens on port 5433. `just --list` shows all available commands. `just lint` runs Go and frontend checks; `just test` runs backend tests. To use your own Postgres instead of the Docker container, set `DATABASE_URL` and run `just dev --no-db`, which skips `just db` but still runs migrations, codegen, the API and web against it.
 
+For optional local sample data, after migrating run `just seed-dev your-google-email@example.com`. It uses `DATABASE_URL` from `.env` and requires `psql`. The script creates the allowed user if needed and adds a fictional bank connection, accounts and transactions; rerunning it does not duplicate them or replace existing data. The sample connection has no usable Plaid token: do not sync or reauthenticate it. Set `SYNC_CRON=off` locally to avoid scheduled sync attempts. The script is never run automatically and must not be used against production.
+
 The frontend uses React Router with an explicit route table in `js/src/router.ts`. `js/src/app` mirrors the URL structure, with page entry points named `name.Page.tsx`; `_`-prefixed files and directories are implementation details rather than routes.
 
 ## Operations
 
 `SYNC_CRON` controls scheduled account refreshes. The default is `0 */6 * * *`; use `off` to disable scheduled refreshes. Users can also refresh manually. Re-authentication requirements appear in the app after a sync detects them.
+
+**Edit accounts** on an active connection reopens Plaid Link in update mode with Account Select, so users can share additional accounts or stop sharing existing ones without relinking. Completing it syncs the connection and deletes de-selected accounts and their transactions from fin. Whether individual accounts can be de-selected depends on the Account Select setting of the Link customization in each user's Plaid dashboard; when it shares all accounts, Link only confirms the full account list.
 
 The API listens on `:8080`; `/openapi.json` and `/swagger` expose its schema. The separate operations listener defaults to `:9090`: `/healthz` is liveness, `/readyz` checks Postgres, and `/metrics` exposes Prometheus metrics. Keep the operations listener private because metrics include per-user data.
 

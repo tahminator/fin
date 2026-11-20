@@ -135,11 +135,16 @@ func (f *fakeConnections) UpdateInstitutionURL(ctx context.Context, userID, id u
 
 type fakeAccounts struct {
 	repository.AccountRepository
-	upsert func(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error)
+	upsert       func(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error)
+	deleteExcept func(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error
 }
 
 func (f *fakeAccounts) Upsert(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error) {
 	return f.upsert(ctx, userID, connectionID, accounts)
+}
+
+func (f *fakeAccounts) DeleteExcept(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error {
+	return f.deleteExcept(ctx, userID, connectionID, keepIDs)
 }
 
 type fakeTransactions struct {
@@ -158,13 +163,14 @@ func (f *fakeTransactions) DeleteByExternalIDs(ctx context.Context, userID uuid.
 
 type fakeProvider struct {
 	provider.Provider
-	createLinkToken       func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
-	createUpdateLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
-	exchange              func(ctx context.Context, creds domain.Credential, publicToken string) (provider.LinkedItem, error)
-	accounts              func(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.Account, error)
-	syncTransactions      func(ctx context.Context, creds domain.Credential, accessToken, cursor string) (provider.SyncResult, error)
-	remove                func(ctx context.Context, creds domain.Credential, accessToken string) error
-	institution           func(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error)
+	createLinkToken                 func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
+	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	createAccountSelectionLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	exchange                        func(ctx context.Context, creds domain.Credential, publicToken string) (provider.LinkedItem, error)
+	accounts                        func(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.Account, error)
+	syncTransactions                func(ctx context.Context, creds domain.Credential, accessToken, cursor string) (provider.SyncResult, error)
+	remove                          func(ctx context.Context, creds domain.Credential, accessToken string) error
+	institution                     func(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error)
 }
 
 func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {
@@ -173,6 +179,10 @@ func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credent
 
 func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
 	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI)
+}
+
+func (f *fakeProvider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+	return f.createAccountSelectionLinkToken(ctx, creds, userID, accessToken, redirectURI)
 }
 
 func (f *fakeProvider) Exchange(ctx context.Context, creds domain.Credential, publicToken string) (provider.LinkedItem, error) {

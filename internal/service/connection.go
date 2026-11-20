@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"time"
 	"uuid"
@@ -97,21 +98,15 @@ func (s *ConnectionService) Link(ctx context.Context, userID uuid.UUID, publicTo
 		return domain.Connection{}, fmt.Errorf("create connection: %w", err)
 	}
 
-	return s.syncAndReload(ctx, userID, connection.ID, metrics.SyncTriggerLink)
+	return s.syncAndReload(ctx, userID, connection.ID, metrics.SyncTriggerLink, false)
 }
 
 func (s *ConnectionService) Sync(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger) error {
-	started := s.now()
-
-	err := s.sync(ctx, userID, connectionID)
-
-	s.recorder.ConnectionSynced(trigger, syncOutcomeOf(err), s.now().Sub(started))
-
-	return err
+	return s.recordSync(ctx, userID, connectionID, trigger, false)
 }
 
 func (s *ConnectionService) SyncOne(ctx context.Context, userID, connectionID uuid.UUID) (domain.Connection, error) {
-	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerManual)
+	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerManual, false)
 }
 
 func (s *ConnectionService) SyncAll(ctx context.Context, userID uuid.UUID, trigger metrics.SyncTrigger) (SyncSummary, error) {
@@ -148,12 +143,7 @@ func (s *ConnectionService) CreateReauthLinkToken(ctx context.Context, userID, c
 		return "", fmt.Errorf("%w: connection does not need to be reconnected", domain.ErrConflict)
 	}
 
-	credential, err := s.credential(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-
-	accessToken, err := s.cipher.Decrypt(connection.AccessTokenCiphertext)
+	credential, accessToken, err := s.credentialAndAccessToken(ctx, connection)
 	if err != nil {
 		return "", err
 	}
@@ -166,7 +156,29 @@ func (s *ConnectionService) CompleteReauth(ctx context.Context, userID, connecti
 		return domain.Connection{}, err
 	}
 
-	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerReauth)
+	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerReauth, false)
+}
+
+func (s *ConnectionService) CreateAccountSelectionLinkToken(ctx context.Context, userID, connectionID uuid.UUID) (string, error) {
+	connection, err := s.connections.Get(ctx, userID, connectionID)
+	if err != nil {
+		return "", err
+	}
+
+	if connection.Status != domain.ConnectionStatusActive {
+		return "", fmt.Errorf("%w: reconnect this bank before changing its accounts", domain.ErrConflict)
+	}
+
+	credential, accessToken, err := s.credentialAndAccessToken(ctx, connection)
+	if err != nil {
+		return "", err
+	}
+
+	return s.provider.CreateAccountSelectionLinkToken(ctx, credential, userID.String(), accessToken, s.redirectURI)
+}
+
+func (s *ConnectionService) CompleteAccountSelection(ctx context.Context, userID, connectionID uuid.UUID) (domain.Connection, error) {
+	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerAccountSelection, true)
 }
 
 func (s *ConnectionService) Remove(ctx context.Context, userID, connectionID uuid.UUID) error {
@@ -175,12 +187,7 @@ func (s *ConnectionService) Remove(ctx context.Context, userID, connectionID uui
 		return err
 	}
 
-	credential, err := s.credential(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	accessToken, err := s.cipher.Decrypt(connection.AccessTokenCiphertext)
+	credential, accessToken, err := s.credentialAndAccessToken(ctx, connection)
 	if err != nil {
 		return err
 	}
@@ -192,8 +199,8 @@ func (s *ConnectionService) Remove(ctx context.Context, userID, connectionID uui
 	return s.connections.Delete(ctx, userID, connectionID)
 }
 
-func (s *ConnectionService) syncAndReload(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger) (domain.Connection, error) {
-	err := s.Sync(ctx, userID, connectionID, trigger)
+func (s *ConnectionService) syncAndReload(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger, pruneAccounts bool) (domain.Connection, error) {
+	err := s.recordSync(ctx, userID, connectionID, trigger, pruneAccounts)
 	if errors.Is(err, domain.ErrNotFound) {
 		return domain.Connection{}, err
 	}
@@ -201,13 +208,23 @@ func (s *ConnectionService) syncAndReload(ctx context.Context, userID, connectio
 	return s.connections.Get(ctx, userID, connectionID)
 }
 
-func (s *ConnectionService) sync(ctx context.Context, userID, connectionID uuid.UUID) error {
+func (s *ConnectionService) recordSync(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger, pruneAccounts bool) error {
+	started := s.now()
+
+	err := s.sync(ctx, userID, connectionID, pruneAccounts)
+
+	s.recorder.ConnectionSynced(trigger, syncOutcomeOf(err), s.now().Sub(started))
+
+	return err
+}
+
+func (s *ConnectionService) sync(ctx context.Context, userID, connectionID uuid.UUID, pruneAccounts bool) error {
 	connection, err := s.connections.Get(ctx, userID, connectionID)
 	if err != nil {
 		return err
 	}
 
-	err = s.pull(ctx, connection)
+	err = s.pull(ctx, connection, pruneAccounts)
 
 	switch {
 	case err == nil:
@@ -221,7 +238,7 @@ func (s *ConnectionService) sync(ctx context.Context, userID, connectionID uuid.
 	}
 }
 
-func (s *ConnectionService) pull(ctx context.Context, connection domain.Connection) error {
+func (s *ConnectionService) pull(ctx context.Context, connection domain.Connection, pruneAccounts bool) error {
 	credential, err := s.credential(ctx, connection.UserID)
 	if err != nil {
 		return err
@@ -242,6 +259,12 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 	accountIDs, err := s.accounts.Upsert(ctx, connection.UserID, connection.ID, toDomainAccounts(accounts))
 	if err != nil {
 		return fmt.Errorf("save accounts: %w", err)
+	}
+
+	if pruneAccounts {
+		if err := s.accounts.DeleteExcept(ctx, connection.UserID, connection.ID, slices.Collect(maps.Values(accountIDs))); err != nil {
+			return fmt.Errorf("delete deselected accounts: %w", err)
+		}
 	}
 
 	result, err := s.provider.SyncTransactions(ctx, credential, accessToken, connection.SyncCursor)
@@ -277,6 +300,20 @@ func (s *ConnectionService) credential(ctx context.Context, userID uuid.UUID) (d
 	}
 
 	return credential, nil
+}
+
+func (s *ConnectionService) credentialAndAccessToken(ctx context.Context, connection domain.Connection) (domain.Credential, string, error) {
+	credential, err := s.credential(ctx, connection.UserID)
+	if err != nil {
+		return domain.Credential{}, "", err
+	}
+
+	accessToken, err := s.cipher.Decrypt(connection.AccessTokenCiphertext)
+	if err != nil {
+		return domain.Credential{}, "", err
+	}
+
+	return credential, accessToken, nil
 }
 
 func (s *ConnectionService) lookupInstitutionURL(ctx context.Context, credential domain.Credential, institutionID *string) *string {

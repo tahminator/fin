@@ -43,6 +43,7 @@ type connectionFixture struct {
 	savedAt     time.Time
 	upsertedTx  []domain.Transaction
 	deletedTx   []string
+	keptAccount []uuid.UUID
 
 	credentials  *fakeCredentials
 	connections  *fakeConnections
@@ -182,6 +183,17 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 
 			return ids, nil
 		},
+		deleteExcept: func(_ context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error {
+			f.record("accounts.deleteExcept")
+
+			if userID != f.userID || connectionID != f.connection.ID {
+				t.Errorf("accounts.DeleteExcept got (%v, %v), want (%v, %v)", userID, connectionID, f.userID, f.connection.ID)
+			}
+
+			f.keptAccount = keepIDs
+
+			return nil
+		},
 	}
 
 	f.transactions = &fakeTransactions{
@@ -210,6 +222,12 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 			f.tokens = append(f.tokens, accessToken)
 
 			return "update-link-token", nil
+		},
+		createAccountSelectionLinkToken: func(_ context.Context, _ domain.Credential, _, accessToken, _ string) (string, error) {
+			f.record("provider.createAccountSelectionLinkToken")
+			f.tokens = append(f.tokens, accessToken)
+
+			return "account-selection-link-token", nil
 		},
 		accounts: func(_ context.Context, _ domain.Credential, accessToken string) ([]provider.Account, error) {
 			f.record("provider.accounts")
@@ -480,6 +498,16 @@ func TestProviderAlwaysReceivesDecryptedToken(t *testing.T) {
 				return err
 			},
 			wantCalls: []string{"provider.createUpdateLinkToken"},
+		},
+		{
+			name:   "create account selection link token",
+			status: domain.ConnectionStatusActive,
+			run: func(f *connectionFixture, ctx context.Context) error {
+				_, err := f.service.CreateAccountSelectionLinkToken(ctx, f.userID, f.connection.ID)
+
+				return err
+			},
+			wantCalls: []string{"provider.createAccountSelectionLinkToken"},
 		},
 		{
 			name:   "remove",
@@ -806,6 +834,13 @@ func TestEverySyncOutcomeIsRecordedWithItsTrigger(t *testing.T) {
 			},
 		},
 		{
+			name:    "complete account selection",
+			trigger: metrics.SyncTriggerAccountSelection,
+			run: func(f *connectionFixture, ctx context.Context) {
+				_, _ = f.service.CompleteAccountSelection(ctx, f.userID, f.connection.ID)
+			},
+		},
+		{
 			name:    "sync all",
 			trigger: metrics.SyncTriggerManual,
 			run: func(f *connectionFixture, ctx context.Context) {
@@ -1020,6 +1055,22 @@ func TestAnotherUsersConnectionIsNotFound(t *testing.T) {
 			},
 		},
 		{
+			name: "create account selection link token",
+			run: func(f *connectionFixture, ctx context.Context, userID uuid.UUID) error {
+				_, err := f.service.CreateAccountSelectionLinkToken(ctx, userID, f.connection.ID)
+
+				return err
+			},
+		},
+		{
+			name: "complete account selection",
+			run: func(f *connectionFixture, ctx context.Context, userID uuid.UUID) error {
+				_, err := f.service.CompleteAccountSelection(ctx, userID, f.connection.ID)
+
+				return err
+			},
+		},
+		{
 			name: "remove",
 			run: func(f *connectionFixture, ctx context.Context, userID uuid.UUID) error {
 				return f.service.Remove(ctx, userID, f.connection.ID)
@@ -1100,6 +1151,139 @@ func TestCreateReauthLinkTokenRequiresNeedsReauth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAccountSelectionLinkTokenRequiresActive(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    domain.ConnectionStatus
+		wantErr   error
+		wantToken string
+	}{
+		{name: "needs reauth connection conflicts", status: domain.ConnectionStatusNeedsReauth, wantErr: domain.ErrConflict},
+		{name: "active connection gets account selection token", status: domain.ConnectionStatusActive, wantToken: "account-selection-link-token"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newConnectionFixture(t)
+			f.connection.Status = tt.status
+
+			var gotUserID, gotRedirect string
+
+			f.provider.createAccountSelectionLinkToken = func(_ context.Context, _ domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+				f.record("provider.createAccountSelectionLinkToken")
+				f.tokens = append(f.tokens, accessToken)
+				gotUserID, gotRedirect = userID, redirectURI
+
+				return "account-selection-link-token", nil
+			}
+
+			token, err := f.service.CreateAccountSelectionLinkToken(t.Context(), f.userID, f.connection.ID)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
+			}
+
+			if token != tt.wantToken {
+				t.Errorf("token = %q, want %q", token, tt.wantToken)
+			}
+
+			if tt.wantErr != nil {
+				if calls := f.providerCalls(); len(calls) != 0 {
+					t.Errorf("provider calls = %v, want none", calls)
+				}
+
+				return
+			}
+
+			if gotUserID != f.userID.String() || gotRedirect != testRedirectURI {
+				t.Errorf("provider got (%q, %q), want (%q, %q)", gotUserID, gotRedirect, f.userID.String(), testRedirectURI)
+			}
+		})
+	}
+}
+
+func TestCompleteAccountSelectionKeepsOnlySelectedAccounts(t *testing.T) {
+	f := newConnectionFixture(t)
+
+	selected := map[string]uuid.UUID{"acct-1": uuid.New(), "acct-2": uuid.New()}
+
+	f.provider.accounts = func(context.Context, domain.Credential, string) ([]provider.Account, error) {
+		f.record("provider.accounts")
+
+		return []provider.Account{
+			{ExternalID: "acct-1", Name: "Checking", Type: domain.AccountTypeDepository},
+			{ExternalID: "acct-2", Name: "Savings", Type: domain.AccountTypeDepository},
+		}, nil
+	}
+
+	f.accounts.upsert = func(context.Context, uuid.UUID, uuid.UUID, []domain.Account) (map[string]uuid.UUID, error) {
+		f.record("accounts.upsert")
+
+		return selected, nil
+	}
+
+	connection, err := f.service.CompleteAccountSelection(t.Context(), f.userID, f.connection.ID)
+	if err != nil {
+		t.Fatalf("CompleteAccountSelection: %v", err)
+	}
+
+	wantCalls := []string{
+		"connections.get",
+		"credentials.find",
+		"provider.accounts",
+		"accounts.upsert",
+		"accounts.deleteExcept",
+		"provider.syncTransactions",
+		"transactions.upsert",
+		"transactions.deleteByExternalIDs",
+		"connections.updateSyncState",
+		"connections.get",
+	}
+
+	if !slices.Equal(f.calls, wantCalls) {
+		t.Errorf("call order = %v, want %v", f.calls, wantCalls)
+	}
+
+	if len(f.keptAccount) != len(selected) {
+		t.Fatalf("kept accounts = %v, want the %d selected accounts", f.keptAccount, len(selected))
+	}
+
+	for externalID, id := range selected {
+		if !slices.Contains(f.keptAccount, id) {
+			t.Errorf("selected account %s (%v) not kept: %v", externalID, id, f.keptAccount)
+		}
+	}
+
+	if connection.ID != f.connection.ID {
+		t.Errorf("returned connection = %v, want %v", connection.ID, f.connection.ID)
+	}
+
+	f.assertSynced(t, syncedCall{trigger: metrics.SyncTriggerAccountSelection, outcome: metrics.SyncOutcomeSuccess})
+}
+
+func TestCompleteAccountSelectionDeleteFailureKeepsCursor(t *testing.T) {
+	f := newConnectionFixture(t)
+
+	f.accounts.deleteExcept = func(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID) error {
+		f.record("accounts.deleteExcept")
+
+		return errProviderDown
+	}
+
+	if _, err := f.service.CompleteAccountSelection(t.Context(), f.userID, f.connection.ID); err != nil {
+		t.Fatalf("CompleteAccountSelection: %v", err)
+	}
+
+	if f.called("provider.syncTransactions") || f.savedCursor != "" {
+		t.Errorf("transactions synced after account delete failed: calls %v, cursor %q", f.calls, f.savedCursor)
+	}
+
+	if len(f.lastErrors) != 1 || !strings.Contains(f.lastErrors[0], errProviderDown.Error()) {
+		t.Errorf("last errors = %v, want the delete failure", f.lastErrors)
+	}
+
+	f.assertSynced(t, syncedCall{trigger: metrics.SyncTriggerAccountSelection, outcome: metrics.SyncOutcomeError})
 }
 
 func TestCompleteReauthActivatesThenSyncs(t *testing.T) {

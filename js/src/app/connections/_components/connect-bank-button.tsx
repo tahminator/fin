@@ -8,7 +8,10 @@ import { useLinkToken } from "@/lib/queries/connections";
 
 export function ConnectBankButton() {
   const linkToken = useLinkToken();
-  const launcher = usePlaidLauncher({ linkToken: linkToken.data?.linkToken, connectionId: null });
+  const launcher = usePlaidLauncher({
+    linkToken: linkToken.data?.linkToken,
+    flow: { kind: "connect" },
+  });
 
   return (
     <div className="flex flex-col items-end gap-1">

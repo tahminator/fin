@@ -18,6 +18,8 @@ func TestRouteGroupOf(t *testing.T) {
 		{path: "/api", group: metrics.RouteGroupAPI},
 		{path: "/api/x", group: metrics.RouteGroupAPI},
 		{path: "/api/connections/123/sync", group: metrics.RouteGroupAPI},
+		{path: "/version", group: metrics.RouteGroupAPI},
+		{path: "/versions", group: metrics.RouteGroupStatic},
 		{path: "/apiary", group: metrics.RouteGroupStatic},
 		{path: "/auth/google/login", group: metrics.RouteGroupAuth},
 		{path: "/auth/google/callback", group: metrics.RouteGroupAuth},

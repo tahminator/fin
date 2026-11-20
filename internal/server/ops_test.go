@@ -37,7 +37,7 @@ func TestWithOpsServesOpsRoutesBeforeApp(t *testing.T) {
 		{name: "readiness", method: http.MethodGet, path: "/readyz", reachesApp: false},
 		{name: "metrics", method: http.MethodGet, path: "/metrics", reachesApp: false},
 		{name: "client route", method: http.MethodGet, path: "/transactions", reachesApp: true},
-		{name: "api route", method: http.MethodGet, path: "/api/version", reachesApp: true},
+		{name: "version route", method: http.MethodGet, path: "/version", reachesApp: true},
 		{name: "non-get ops path", method: http.MethodPost, path: "/healthz", reachesApp: true},
 	}
 

@@ -864,7 +864,7 @@ func (h *TransactionHandler) Register(api huma.API) {
 | GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]` |
 | GET | `/api/transactions` | `TransactionHandler.list` | `Page[Transaction]`, optional `accountId` |
 | GET | `/api/notifications` | `NotificationHandler.list` | `Page[Notification]`; currently only `reauth_required` |
-| GET | `/api/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
+| GET | `/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
 | GET | `/openapi.json`, `/openapi.yaml` | huma | |
 | GET | `/swagger` | huma SwaggerUI | |
 | GET | `/*` | `server/spa.go` | only when `STATIC_DIR` set |
@@ -1183,7 +1183,7 @@ Manual verification (complex, cross-system flows):
 ### 6.1 Build setup
 
 - `pnpm create vite@latest js --template react-ts`, then shadcn init (Tailwind v4, `@/` alias, `src/components/ui`).
-- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/auth`, `/openapi.json`, `/swagger` → `http://localhost:8080`.
+- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/version`, `/auth`, `/openapi.json`, `/swagger` → `http://localhost:8080`.
 - `tsconfig.app.json`: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `erasableSyntaxOnly` (no TS `enum`s), `paths: { "@/*": ["./src/*"] }`, `types: ["vite/client", "vite-plugin-pwa/client"]` (no triple-slash directive file needed).
 - `package.json` scripts:
 
@@ -1270,7 +1270,7 @@ Rules:
 
 ### 6.5 PWA and install gate
 
-- `vite-plugin-pwa`: `registerType: "autoUpdate"`, manifest (`name`/`short_name` "fin", `display: "standalone"`, `start_url: "/"`, `scope: "/"`, theme/background colors, 192/512 + maskable icons generated once with `@vite-pwa/assets-generator` and committed under `public/`). Workbox `navigateFallback: "/index.html"` with `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/swagger/, /^\/openapi/]` — without the denylist the service worker would swallow the Google login navigation. API responses are never cached.
+- `vite-plugin-pwa`: `registerType: "autoUpdate"`, manifest (`name`/`short_name` "fin", `display: "standalone"`, `start_url: "/"`, `scope: "/"`, theme/background colors, 192/512 + maskable icons generated once with `@vite-pwa/assets-generator` and committed under `public/`). Workbox `navigateFallback: "/index.html"` with `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/swagger/, /^\/openapi/, /^\/version$/]` — without the denylist the service worker would swallow the Google login navigation. API responses are never cached.
 - `lib/hooks/use-is-standalone.ts`: `useSyncExternalStore` over `matchMedia("(display-mode: standalone)")` plus iOS `navigator.standalone`.
 - The root layout renders `<InstallGuide/>` instead of `<Outlet/>` when not standalone. Nothing else (including login) is reachable in a browser tab. Dev escape hatch: `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local`.
 - The gate also prevents a real bug: iOS home-screen apps have their own cookie jar, so logging in from Safari would not carry over.

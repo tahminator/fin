@@ -44,7 +44,13 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//u, /^\/auth\//u, /^\/swagger/u, /^\/openapi/u],
+        navigateFallbackDenylist: [
+          /^\/api\//u,
+          /^\/auth\//u,
+          /^\/swagger/u,
+          /^\/openapi/u,
+          /^\/version$/u,
+        ],
       },
     }),
   ],
@@ -56,6 +62,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": apiTarget,
+      "/version": apiTarget,
       "/auth": apiTarget,
       "/openapi.json": apiTarget,
       "/swagger": apiTarget,

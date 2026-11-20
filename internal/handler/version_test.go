@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
+
 	"github.com/tahminator/fin/internal/handler"
 )
 
@@ -19,9 +21,10 @@ func TestVersionRendersConfiguredValueOrNull(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			api := newAPI(t, newUser(), handler.NewVersionHandler(tc.version))
+			_, api := humatest.New(t)
+			handler.NewVersionHandler(tc.version).Register(api)
 
-			rec := api.Get("/api/version")
+			rec := api.Get("/version")
 
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())

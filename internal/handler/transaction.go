@@ -52,7 +52,8 @@ func newTransaction(transaction domain.Transaction) Transaction {
 
 type ListTransactionsInput struct {
 	PageParams
-	AccountID string `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	AccountID        string   `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude transactions of these accounts"`
 }
 
 type TransactionHandler struct {
@@ -84,6 +85,21 @@ func (h *TransactionHandler) list(ctx context.Context, input *ListTransactionsIn
 		}
 
 		filter.AccountID = &accountID
+	}
+
+	if len(input.ExcludeAccountID) > 0 {
+		excludeAccountIDs := make([]uuid.UUID, len(input.ExcludeAccountID))
+
+		for i, raw := range input.ExcludeAccountID {
+			excludeAccountID, err := uuid.Parse(raw)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("excludeAccountId must be a list of UUIDs")
+			}
+
+			excludeAccountIDs[i] = excludeAccountID
+		}
+
+		filter.ExcludeAccountID = excludeAccountIDs
 	}
 
 	transactions, total, err := h.transactions.ListByUser(ctx, UserFrom(ctx).ID, filter, input.Limit(), input.Offset())

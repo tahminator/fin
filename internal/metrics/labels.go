@@ -133,6 +133,7 @@ const (
 	OperationAccounts
 	OperationSyncTransactions
 	OperationRemove
+	OperationInstitution
 )
 
 func (o ProviderOperation) String() string {
@@ -149,13 +150,15 @@ func (o ProviderOperation) String() string {
 		return "sync_transactions"
 	case OperationRemove:
 		return "remove"
+	case OperationInstitution:
+		return "institution"
 	}
 
 	return "unknown"
 }
 
 func allProviderOperations() []ProviderOperation {
-	return []ProviderOperation{OperationCreateLinkToken, OperationCreateUpdateLinkToken, OperationExchange, OperationAccounts, OperationSyncTransactions, OperationRemove}
+	return []ProviderOperation{OperationCreateLinkToken, OperationCreateUpdateLinkToken, OperationExchange, OperationAccounts, OperationSyncTransactions, OperationRemove, OperationInstitution}
 }
 
 type CallOutcome int

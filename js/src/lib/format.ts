@@ -29,6 +29,12 @@ export function formatDate(date: string): string {
   return formatter.format(new Date(`${date}T00:00:00`));
 }
 
+export function formatShortDate(date: string): string {
+  const formatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+  return formatter.format(new Date(`${date}T00:00:00`));
+}
+
 export function formatDateTime(timestamp: string): string {
   const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 

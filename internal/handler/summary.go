@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"uuid"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -32,8 +33,66 @@ type Summary struct {
 	AccountCount    int               `json:"accountCount"`
 }
 
+type SummaryInput struct {
+	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from balances"`
+}
+
 type SummaryOutput struct {
 	Body Summary
+}
+
+type CashFlowDay struct {
+	Date string `json:"date" format:"date"`
+	In   string `json:"in" doc:"Decimal string; money received"`
+	Out  string `json:"out" doc:"Decimal string; money spent, as a positive amount"`
+}
+
+type CurrencyCashFlow struct {
+	Currency string        `json:"currency"`
+	Days     []CashFlowDay `json:"days" nullable:"false"`
+}
+
+type CashFlow struct {
+	Currencies []CurrencyCashFlow `json:"currencies" nullable:"false"`
+}
+
+func newCashFlow(flows []domain.DailyCashFlow) CashFlow {
+	currencies := []CurrencyCashFlow{}
+
+	for _, flow := range flows {
+		if len(currencies) == 0 || currencies[len(currencies)-1].Currency != flow.Currency {
+			currencies = append(currencies, CurrencyCashFlow{Currency: flow.Currency, Days: []CashFlowDay{}})
+		}
+
+		current := &currencies[len(currencies)-1]
+		current.Days = append(current.Days, CashFlowDay{Date: flow.Day.Format(dateLayout), In: flow.In, Out: flow.Out})
+	}
+
+	return CashFlow{Currencies: currencies}
+}
+
+type CashFlowInput struct {
+	Days             int      `query:"days" minimum:"1" maximum:"365" default:"30" doc:"Number of days, ending today"`
+	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from cash flow"`
+}
+
+func parseExcludeAccountIDs(raw []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(raw))
+
+	for _, value := range raw {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity("excludeAccountId must be a UUID")
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+type CashFlowOutput struct {
+	Body CashFlow
 }
 
 type SummaryHandler struct {
@@ -53,12 +112,26 @@ func (h *SummaryHandler) Register(api huma.API) {
 		Tags:        []string{"summary"},
 		Security:    cookieAuth,
 	}, h.get)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-cash-flow",
+		Method:      http.MethodGet,
+		Path:        "/summary/cash-flow",
+		Summary:     "Per-currency daily money in and out, excluding transfers and loan payments",
+		Tags:        []string{"summary"},
+		Security:    cookieAuth,
+	}, h.cashFlow)
 }
 
-func (h *SummaryHandler) get(ctx context.Context, _ *struct{}) (*SummaryOutput, error) {
+func (h *SummaryHandler) get(ctx context.Context, input *SummaryInput) (*SummaryOutput, error) {
 	userID := UserFrom(ctx).ID
 
-	balances, err := h.summary.Balances(ctx, userID)
+	excludeAccountIDs, err := parseExcludeAccountIDs(input.ExcludeAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	balances, err := h.summary.Balances(ctx, userID, excludeAccountIDs)
 	if err != nil {
 		return nil, problem(ctx, err)
 	}
@@ -73,4 +146,18 @@ func (h *SummaryHandler) get(ctx context.Context, _ *struct{}) (*SummaryOutput, 
 		ConnectionCount: counts.Connections,
 		AccountCount:    counts.Accounts,
 	}}, nil
+}
+
+func (h *SummaryHandler) cashFlow(ctx context.Context, input *CashFlowInput) (*CashFlowOutput, error) {
+	excludeAccountIDs, err := parseExcludeAccountIDs(input.ExcludeAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	flows, err := h.summary.CashFlow(ctx, UserFrom(ctx).ID, input.Days, excludeAccountIDs)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &CashFlowOutput{Body: newCashFlow(flows)}, nil
 }

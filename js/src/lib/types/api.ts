@@ -8,6 +8,8 @@ export type Summary = Schemas["Summary"];
 
 export type CurrencyBalance = Schemas["CurrencyBalance"];
 
+export type CurrencyCashFlow = Schemas["CurrencyCashFlow"];
+
 export type Connection = Schemas["Connection"];
 
 export type ConnectionStatus = Connection["status"];

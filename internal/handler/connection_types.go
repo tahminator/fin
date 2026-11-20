@@ -9,24 +9,26 @@ import (
 )
 
 type Connection struct {
-	ID              uuid.UUID               `json:"id"`
-	InstitutionName *string                 `json:"institutionName"`
-	Status          domain.ConnectionStatus `json:"status" enum:"active,needs_reauth"`
-	StatusChangedAt time.Time               `json:"statusChangedAt"`
-	LastSyncedAt    *time.Time              `json:"lastSyncedAt"`
-	LastError       *string                 `json:"lastError"`
-	CreatedAt       time.Time               `json:"createdAt"`
+	ID                 uuid.UUID               `json:"id"`
+	InstitutionName    *string                 `json:"institutionName"`
+	InstitutionLogoURL *string                 `json:"institutionLogoUrl"`
+	Status             domain.ConnectionStatus `json:"status" enum:"active,needs_reauth"`
+	StatusChangedAt    time.Time               `json:"statusChangedAt"`
+	LastSyncedAt       *time.Time              `json:"lastSyncedAt"`
+	LastError          *string                 `json:"lastError"`
+	CreatedAt          time.Time               `json:"createdAt"`
 }
 
 func newConnection(connection domain.Connection) Connection {
 	return Connection{
-		ID:              connection.ID,
-		InstitutionName: connection.InstitutionName,
-		Status:          connection.Status,
-		StatusChangedAt: connection.StatusChangedAt,
-		LastSyncedAt:    connection.LastSyncedAt,
-		LastError:       connection.LastError,
-		CreatedAt:       connection.CreatedAt,
+		ID:                 connection.ID,
+		InstitutionName:    connection.InstitutionName,
+		InstitutionLogoURL: institutionLogoURL(connection.InstitutionURL),
+		Status:             connection.Status,
+		StatusChangedAt:    connection.StatusChangedAt,
+		LastSyncedAt:       connection.LastSyncedAt,
+		LastError:          connection.LastError,
+		CreatedAt:          connection.CreatedAt,
 	}
 }
 

@@ -851,6 +851,7 @@ func (h *TransactionHandler) Register(api huma.API) {
 | GET | `/api/me` | `AuthHandler.me` | 401 when no session |
 | POST | `/api/auth/logout` | `AuthHandler.logout` | deletes session, expires cookie |
 | GET | `/api/summary` | `SummaryHandler` | per-currency assets / liabilities / net; connection + account counts |
+| GET | `/api/summary/cash-flow` | `SummaryHandler.cashFlow` | `?days=` 1–365, default 30; per-currency daily money in / out (out positive), zero-filled through today; excludes `TRANSFER_IN`, `TRANSFER_OUT`, `LOAN_PAYMENTS` categories |
 | GET | `/api/connections` | `ConnectionHandler.list` | `Page[Connection]` |
 | POST | `/api/connections/link-token` | `ConnectionHandler.linkToken` | `{linkToken}` |
 | POST | `/api/connections` | `ConnectionHandler.create` | body `{publicToken}`; links + initial sync |

@@ -13,6 +13,10 @@ type LinkedItem struct {
 	InstitutionName *string
 }
 
+type InstitutionInfo struct {
+	URL *string
+}
+
 type Account struct {
 	ExternalID       string
 	Name             string

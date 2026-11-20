@@ -18,5 +18,6 @@ type ConnectionRepository interface {
 	UpdateSyncState(ctx context.Context, userID, id uuid.UUID, cursor string, syncedAt time.Time) error
 	UpdateLastError(ctx context.Context, userID, id uuid.UUID, lastError string) error
 	UpdateStatus(ctx context.Context, userID, id uuid.UUID, status domain.ConnectionStatus, lastError *string) error
+	UpdateInstitutionURL(ctx context.Context, userID, id uuid.UUID, url string) error
 	Delete(ctx context.Context, userID, id uuid.UUID) error
 }

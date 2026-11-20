@@ -26,6 +26,7 @@ type Account struct {
 	UserID           uuid.UUID   `db:"user_id"`
 	ConnectionID     uuid.UUID   `db:"connection_id"`
 	InstitutionName  *string     `db:"institution_name"`
+	InstitutionURL   *string     `db:"institution_url"`
 	ExternalID       string      `db:"external_id"`
 	Name             string      `db:"name"`
 	OfficialName     *string     `db:"official_name"`

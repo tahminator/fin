@@ -119,6 +119,7 @@ func TestListAccountsMapsFields(t *testing.T) {
 		UserID:           uuid.New(),
 		ConnectionID:     uuid.New(),
 		InstitutionName:  new("First Platypus Bank"),
+		InstitutionURL:   new("https://www.platypusbank.example"),
 		ExternalID:       "plaid-account-1",
 		Name:             "Checking",
 		OfficialName:     new("Platypus Gold Checking"),
@@ -151,17 +152,18 @@ func TestListAccountsMapsFields(t *testing.T) {
 	}
 
 	want := map[string]any{
-		"id":               account.ID.String(),
-		"connectionId":     account.ConnectionID.String(),
-		"institutionName":  "First Platypus Bank",
-		"name":             "Checking",
-		"officialName":     "Platypus Gold Checking",
-		"mask":             "0000",
-		"type":             "depository",
-		"subtype":          "checking",
-		"currentBalance":   "110.25",
-		"availableBalance": nil,
-		"currency":         "USD",
+		"id":                 account.ID.String(),
+		"connectionId":       account.ConnectionID.String(),
+		"institutionName":    "First Platypus Bank",
+		"institutionLogoUrl": "https://www.google.com/s2/favicons?domain=www.platypusbank.example&sz=64",
+		"name":               "Checking",
+		"officialName":       "Platypus Gold Checking",
+		"mask":               "0000",
+		"type":               "depository",
+		"subtype":            "checking",
+		"currentBalance":     "110.25",
+		"availableBalance":   nil,
+		"currency":           "USD",
 	}
 
 	for key, value := range want {

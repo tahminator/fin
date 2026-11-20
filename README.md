@@ -12,7 +12,7 @@ Install Go, Node, pnpm, just, Docker, golangci-lint, golang-migrate and jq. Dock
 4. Add each allowed user and their Plaid sandbox credentials with `just seed <email> <client-id> <secret>`. The command accepts an optional final environment argument, `sandbox` or `production`. Arguments can appear in shell history and process listings; avoid using production credentials on a shared machine.
 5. Run `just dev` and open `http://localhost:5173`. Install the app using the on-screen guide before signing in. For development in a browser tab, set `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local` and restart Vite.
 
-The local Postgres container listens on port 5433. `just --list` shows all available commands. `just lint` runs Go and frontend checks; `just test` runs backend tests.
+The local Postgres container listens on port 5433. `just --list` shows all available commands. `just lint` runs Go and frontend checks; `just test` runs backend tests. To use your own Postgres instead of the Docker container, set `DATABASE_URL` and run `just dev --no-db`, which skips `just db` but still runs migrations, codegen, the API and web against it.
 
 The frontend uses React Router with an explicit route table in `js/src/router.ts`. `js/src/app` mirrors the URL structure, with page entry points named `name.Page.tsx`; `_`-prefixed files and directories are implementation details rather than routes.
 

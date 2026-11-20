@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 const financeQueryPaths = [
   "/api/summary",
+  "/api/summary/cash-flow",
   "/api/connections",
   "/api/accounts",
   "/api/transactions",

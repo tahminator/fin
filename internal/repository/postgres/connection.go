@@ -28,9 +28,10 @@ INSERT INTO connections AS c (
     access_token_ciphertext,
     institution_id,
     institution_name,
+    institution_url,
     status
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING
     c.id,
     c.user_id,
@@ -39,6 +40,7 @@ RETURNING
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -58,6 +60,7 @@ func (r *ConnectionRepository) Create(ctx context.Context, connection domain.Con
 		connection.AccessTokenCiphertext,
 		connection.InstitutionID,
 		connection.InstitutionName,
+		connection.InstitutionURL,
 		connection.Status,
 	)
 	if err != nil {
@@ -81,6 +84,7 @@ SELECT
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -106,6 +110,7 @@ SELECT
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -130,6 +135,7 @@ SELECT
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -173,6 +179,7 @@ SELECT
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -198,6 +205,7 @@ SELECT
     c.access_token_ciphertext,
     c.institution_id,
     c.institution_name,
+    c.institution_url,
     c.status,
     c.status_changed_at,
     c.sync_cursor,
@@ -282,6 +290,18 @@ func (r *ConnectionRepository) UpdateStatus(
 	lastError *string,
 ) error {
 	return r.update(ctx, updateConnectionStatus, userID, id, status, lastError)
+}
+
+const updateConnectionInstitutionURL = `
+UPDATE connections
+SET institution_url = $3,
+    updated_at      = now()
+WHERE user_id = $1
+  AND id = $2;
+`
+
+func (r *ConnectionRepository) UpdateInstitutionURL(ctx context.Context, userID, id uuid.UUID, url string) error {
+	return r.update(ctx, updateConnectionInstitutionURL, userID, id, url)
 }
 
 const deleteConnection = `

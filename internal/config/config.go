@@ -18,7 +18,6 @@ const (
 type Config struct {
 	AppEnv            Environment
 	HTTPAddr          string
-	OpsAddr           string
 	DatabaseURL       string
 	PublicURL         string
 	StaticDir         string
@@ -39,7 +38,6 @@ func NewFromEnv() (Config, error) {
 	cfg := Config{
 		AppEnv:            Environment(env.optional("APP_ENV", string(Production))),
 		HTTPAddr:          env.optional("HTTP_ADDR", ":8080"),
-		OpsAddr:           env.optional("OPS_ADDR", ":9090"),
 		DatabaseURL:       env.required("DATABASE_URL"),
 		PublicURL:         env.required("PUBLIC_URL"),
 		StaticDir:         env.optional("STATIC_DIR", ""),

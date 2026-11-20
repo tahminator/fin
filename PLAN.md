@@ -14,7 +14,7 @@ A personal finance tracker for a small allow-list of users. Go backend (`./`), V
 | Pagination | Offset: `page` (1-based) + `pageSize` (max 100); response `Page[T]{items,page,pageSize,total,hasNext}` | Readable SQL; huma names generic schemas `PageTransaction`, etc. |
 | Migrations | Explicit step only, via the golang-migrate **CLI** (`migrate -path db -database "$DATABASE_URL" up`, wrapped by `just migrate`). The app binary has no migrate code and the runtime image carries no migration files; production uses the `migrate/migrate` image against `./db` before deploying | Schema changes are deliberate; nothing migrates at runtime |
 | Static assets | Served from disk at `STATIC_DIR` (not `go:embed`) | No directive comments, dev build works without `js/dist` |
-| Ops endpoints | `/healthz`, `/readyz`, `/metrics` on a separate `OPS_ADDR` listener | Metrics carry per-user labels; keep them off the public port |
+| Ops endpoints | `/healthz`, `/readyz`, `/metrics` on the main `HTTP_ADDR` listener, outside request logging/metrics; the ingress blocks them publicly | Metrics carry per-user labels; one listener is simpler than a second port |
 | Metric labels | Every label value is a typed Go enum (`iota` + `String()`), so the set of series is fixed at compile time. Sole exception: `user` (email) on the DB-snapshot gauges, whose values come only from the `users` allow-list | Easy refactors, locked-down cardinality; per-user counts were requested |
 | Metrics access | Instruments are unexported in `internal/metrics`; code records through the `metrics.Recorder` interface (`metrics.Prometheus{}` in prod, zero-sized `metrics.Noop{}` / embedding fakes in tests) | No direct manipulation, trivially testable |
 | Sync trigger | Manual refresh (all of a user's connections, or one), initial sync after linking, and a backend goroutine on a cron schedule from `SYNC_CRON` (default `0 */6 * * *`). Every failure is counted in Prometheus. No webhooks | Keeps data fresh and detects re-auth without exposing a public webhook endpoint |
@@ -216,7 +216,6 @@ const (
 type Config struct {
 	AppEnv            Environment
 	HTTPAddr          string
-	OpsAddr           string
 	DatabaseURL       string
 	PublicURL         string
 	StaticDir         string
@@ -237,7 +236,6 @@ func NewFromEnv() (Config, error) {
 	cfg := Config{
 		AppEnv:            Environment(env.optional("APP_ENV", string(Production))),
 		HTTPAddr:          env.optional("HTTP_ADDR", ":8080"),
-		OpsAddr:           env.optional("OPS_ADDR", ":9090"),
 		DatabaseURL:       env.required("DATABASE_URL"),
 		PublicURL:         env.required("PUBLIC_URL"),
 		StaticDir:         env.optional("STATIC_DIR", ""),
@@ -390,7 +388,6 @@ func (e *envReader) list(key string, fallback []string) []string {
 ```
 APP_ENV=development
 HTTP_ADDR=:8080
-OPS_ADDR=:9090
 
 DATABASE_URL=postgres://fin:fin@localhost:5433/fin?sslmode=disable
 
@@ -532,7 +529,7 @@ Plaid access tokens are encrypted at rest (§5.11). Per-user Plaid `secret`s sta
 
 `main` → `run(os.Args[1:])` → switch on first arg (default `serve`):
 
-- `serve` (`serve.go`): `config.NewFromEnv` → `encryption.New(cfg.SecretKey)` → `pgxpool.New` → construct every postgres repo → `recorder := metrics.Prometheus{}` → `metrics.WatchDatabase(metricsRepo, pool)` → Plaid provider (shared `*http.Client` with timeout, recorder) → Google identity provider (`oidc.NewProvider` for `https://accounts.google.com`) → services → handlers → `go scheduler.Run(ctx)` → `server.NewMux` and `server.NewOpsMux` → two `http.Server`s with `ReadHeaderTimeout`, run until `signal.NotifyContext(SIGINT, SIGTERM)`, then `Shutdown` with timeout. All DI is explicit constructor calls in this one function (requirement m).
+- `serve` (`serve.go`): `config.NewFromEnv` → `encryption.New(cfg.SecretKey)` → `pgxpool.New` → construct every postgres repo → `recorder := metrics.Prometheus{}` → `metrics.WatchDatabase(metricsRepo, pool)` → Plaid provider (shared `*http.Client` with timeout, recorder) → Google identity provider (`oidc.NewProvider` for `https://accounts.google.com`) → services → handlers → `go scheduler.Run(ctx)` → `server.WithOps(server.Observe(mux, …), health)` → one `http.Server` with `ReadHeaderTimeout`, run until `signal.NotifyContext(SIGINT, SIGTERM)`, then `Shutdown` with timeout. All DI is explicit constructor calls in this one function (requirement m).
 - `openapi` (`openapi.go`): builds the huma API on a throwaway mux with `server.Handlers{}` (nil handler pointers are fine: registration reads types only), writes `api.OpenAPI()` as indented JSON to stdout. No env, no DB. `just gen` redirects it to `./openapi.json` (gitignored).
 
 Migrations are not a command of this binary: `just migrate`, `just migrate-down N`, `just migrate-version` and `just migration <name>` call the golang-migrate CLI directly.
@@ -871,9 +868,9 @@ func (h *TransactionHandler) Register(api huma.API) {
 | GET | `/openapi.json`, `/openapi.yaml` | huma | |
 | GET | `/swagger` | huma SwaggerUI | |
 | GET | `/*` | `server/spa.go` | only when `STATIC_DIR` set |
-| GET | `:OPS_ADDR/healthz` | `HealthHandler.live` | always 200 |
-| GET | `:OPS_ADDR/readyz` | `HealthHandler.ready` | `Pinger.Ping` (`SELECT 1`, 2s timeout) → 200 / 503 |
-| GET | `:OPS_ADDR/metrics` | promhttp on custom registry | |
+| GET | `/healthz` | `HealthHandler.live` | always 200; `server/ops.go`, not observed |
+| GET | `/readyz` | `HealthHandler.ready` | `Pinger.Ping` (`SELECT 1`, 2s timeout) → 200 / 503 |
+| GET | `/metrics` | promhttp on custom registry | blocked at the ingress |
 
 Huma config (`server/api.go`): `huma.DefaultConfig("fin", version)`, `OpenAPIPath = "/openapi"` (serves `.json` and `.yaml`), `DocsPath = "/swagger"`, `DocsRenderer = huma.DocsRendererSwaggerUI`, `Components.SecuritySchemes["cookieAuth"] = {Type: "apiKey", In: "cookie", Name: "fin_session"}`, `CreateHooks = nil` (drops the `$schema` response field so generated TS types stay clean).
 
@@ -1179,7 +1176,7 @@ Manual verification (complex, cross-system flows):
 5. Install gate on every platform in §6.5.
 6. `/readyz` flips to 503 with Postgres stopped and back to 200 after restart.
 7. Docker image serves the PWA, API, `/swagger`.
-8. Scheduler failure: with `SYNC_CRON="* * * * *"`, break the seeded credential (`UPDATE user_provider_credentials SET secret = 'invalid'`) → within a minute `fin_syncs_total{trigger="scheduled",outcome="error"}`, `fin_scheduled_sync_runs_total{outcome="partial_failure"}` and `fin_scheduled_sync_last_run_failed_connections` rise on `:9090/metrics`; re-running `just seed` with the real values restores the credential.
+8. Scheduler failure: with `SYNC_CRON="* * * * *"`, break the seeded credential (`UPDATE user_provider_credentials SET secret = 'invalid'`) → within a minute `fin_syncs_total{trigger="scheduled",outcome="error"}`, `fin_scheduled_sync_runs_total{outcome="partial_failure"}` and `fin_scheduled_sync_last_run_failed_connections` rise on `:8080/metrics`; re-running `just seed` with the real values restores the credential.
 
 ## 6. Frontend
 
@@ -1418,7 +1415,7 @@ volumes:
   pgdata:
 ```
 
-`infra/Dockerfile` (build context = repo root; `just docker-build`): stages `go-base` → `spec` (`go run . openapi`) → `go-build` (`CGO_ENABLED=0`) → `web` (`node:${NODE_VERSION}`, standalone pnpm `${PNPM_VERSION}`, `pnpm install --frozen-lockfile`, `pnpm build` with the generated spec) → `gcr.io/distroless/static-debian13:nonroot` with `/app/fin` and `/app/static`, `STATIC_DIR=/app/static`, ports 8080/9090, `CMD ["serve"]`. The file in the repo is the source of truth.
+`infra/Dockerfile` (build context = repo root; `just docker-build`): stages `go-base` → `spec` (`go run . openapi`) → `go-build` (`CGO_ENABLED=0`) → `web` (`node:${NODE_VERSION}`, standalone pnpm `${PNPM_VERSION}`, `pnpm install --frozen-lockfile`, `pnpm build` with the generated spec) → `gcr.io/distroless/static-debian13:nonroot` with `/app/fin` and `/app/static`, `STATIC_DIR=/app/static`, port 8080, `CMD ["serve"]`. The file in the repo is the source of truth.
 
 `GO_VERSION`, `NODE_VERSION`, `PNPM_VERSION` come from `go.mod`, `js/package.json#devEngines.runtime.version` and `js/package.json#packageManager` via `just docker-build`. No migration files are in the image. Production migrations, run before deploying:
 
@@ -1458,7 +1455,7 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 **M1 — Config, encryption, DB, ops**
 
 - `config.NewFromEnv` (no tests), `internal/encryption` + tests, `internal/metrics` (enums, recorder, instruments, DB collector) + tests, pool, migrations 000001–000006 applied with the migrate CLI, `cmd/seed` + `just seed`.
-- Ops server: `/healthz`, `/readyz` (Pinger) + tests, `/metrics` serving the pre-initialized series and DB snapshot.
+- Ops routes: `/healthz`, `/readyz` (Pinger) + tests, `/metrics` serving the pre-initialized series and DB snapshot.
 - Huma API with `/openapi.json` + `/swagger`; `fin openapi`; `just gen` produces `schema.gen.ts`.
 - Accept: empty env reports every missing variable in one error; short `SECRET_KEY` rejected; `just db && just migrate`; `/readyz` 200 → 503 with Postgres stopped, `/healthz` stays 200; `/swagger` renders.
 

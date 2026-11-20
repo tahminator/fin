@@ -48,7 +48,7 @@ COPY --from=web /src/js/dist /app/static
 
 ENV STATIC_DIR=/app/static
 
-EXPOSE 8080 9090
+EXPOSE 8080
 
 ENTRYPOINT ["/app/fin"]
 CMD ["serve"]

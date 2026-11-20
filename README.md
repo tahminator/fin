@@ -24,7 +24,7 @@ The frontend uses React Router with an explicit route table in `js/src/router.ts
 
 **Edit accounts** on an active connection reopens Plaid Link in update mode with Account Select, so users can share additional accounts or stop sharing existing ones without relinking. Completing it syncs the connection and deletes de-selected accounts and their transactions from fin. Whether individual accounts can be de-selected depends on the Account Select setting of the Link customization in each user's Plaid dashboard; when it shares all accounts, Link only confirms the full account list.
 
-The API listens on `:8080`; `/openapi.json` and `/swagger` expose its schema. The separate operations listener defaults to `:9090`: `/healthz` is liveness, `/readyz` checks Postgres, and `/metrics` exposes Prometheus metrics. Keep the operations listener private because metrics include per-user data.
+The server listens on `:8080`; `/openapi.json` and `/swagger` expose the API schema. The same listener serves `/healthz` (liveness), `/readyz` (Postgres check) and `/metrics` (Prometheus). Block `/metrics` at the ingress because metrics include per-user data.
 
 Run migrations explicitly with `just migrate`; the server never applies migrations on startup. `just docker-build` builds the runtime image without migrations. Before deploying, apply migrations separately with the golang-migrate CLI against the target database.
 

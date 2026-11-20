@@ -84,7 +84,7 @@ export function TransactionsPage() {
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight">Transactions</h1>
         <div className="flex items-center gap-2">
-          <TransactionsFilter />
+          {accountId === undefined ? <TransactionsFilter /> : null}
           {accountId === undefined ? null : (
             <Button variant="outline" size="sm" asChild>
               <Link to={{ pathname: "/transactions", search: hideSearchParams(hide).toString() }}>

@@ -1274,15 +1274,15 @@ Rules:
 - `lib/hooks/use-is-standalone.ts`: `useSyncExternalStore` over `matchMedia("(display-mode: standalone)")` plus iOS `navigator.standalone`.
 - The root layout renders `<InstallGuide/>` instead of `<Outlet/>` when not standalone. Nothing else (including login) is reachable in a browser tab. Dev escape hatch: `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local`.
 - The gate also prevents a real bug: iOS home-screen apps have their own cookie jar, so logging in from Safari would not carry over.
-- Install guide: horizontal CSS scroll-snap track (native swipe, no carousel lib, no effects), dots + Back/Next buttons driven by `use-step-scroller.ts` (`useRef` + `onScroll` → step index; buttons call `scrollTo`). Steps from `lib/pwa/platform.ts`:
+- Install guide: horizontal CSS scroll-snap track (native swipe, no carousel lib, no effects), dots + Back/Next buttons driven by `use-step-scroller.ts` (`useRef` + `onScroll` → step index; buttons call `scrollTo`). Steps from `lib/pwa/platform.ts`. iOS Safari steps show light/dark screenshots from `src/assets/install/`, captured in the iOS 27 simulator with the tap target outlined; the step text also covers iOS 26.
 
 | Platform | Steps |
 |---|---|
-| iOS Safari | 1. fin runs as an installed app · 2. Tap **Share** · 3. Tap **Add to Home Screen** · 4. Tap **Add**, open fin from your Home Screen |
-| iOS other browser | 1. Why · 2. Open this page in **Safari** · then iOS Safari steps |
-| Android Chrome | 1. Why · 2. Tap **⋮** · 3. Tap **Install app** · 4. Open fin from your home screen |
-| Desktop Chrome/Edge | 1. Why · 2. Click the **install icon** in the address bar · 3. Open fin from your apps |
-| Desktop Safari | 1. Why · 2. **File → Add to Dock** · 3. Open fin from the Dock |
+| iOS Safari | 1. Tap the **page menu** button next to the address bar · 2. Tap **Share** · 3. Tap **View More** · 4. Tap **Add to Home Screen** · 5. Leave **Open as Web App** on, tap **Add**, open fin from your Home Screen |
+| iOS other browser | 1. Open this page in **Safari** · then iOS Safari steps |
+| Android Chrome | 1. Tap **⋮** · 2. Tap **Install app** · 3. Open fin from your home screen |
+| Desktop Chrome/Edge | 1. Click the **install icon** in the address bar · 2. Open fin from your apps |
+| Desktop Safari | 1. **File → Add to Dock** · 2. Open fin from the Dock |
 
 ### 6.6 oxlint + oxfmt (aggressive)
 

@@ -2,10 +2,18 @@ import { z } from "zod";
 
 const storageKey = "fin.plaid-link";
 
+const linkFlowSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("connect") }),
+  z.object({ kind: z.literal("reauth"), connectionId: z.string() }),
+  z.object({ kind: z.literal("account-selection"), connectionId: z.string() }),
+]);
+
 const linkSessionSchema = z.object({
   linkToken: z.string().min(1),
-  connectionId: z.string().nullable(),
+  flow: linkFlowSchema,
 });
+
+export type LinkFlow = z.infer<typeof linkFlowSchema>;
 
 export type LinkSession = z.infer<typeof linkSessionSchema>;
 

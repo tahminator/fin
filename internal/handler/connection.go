@@ -88,6 +88,24 @@ func (h *ConnectionHandler) Register(api huma.API) {
 	}, h.completeReauth)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "create-account-selection-link-token",
+		Method:      http.MethodPost,
+		Path:        "/connections/{connectionId}/account-selection/link-token",
+		Summary:     "Create an update-mode Plaid Link token for adding or removing a connection's accounts",
+		Tags:        tags,
+		Security:    cookieAuth,
+	}, h.accountSelectionLinkToken)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "complete-account-selection",
+		Method:      http.MethodPost,
+		Path:        "/connections/{connectionId}/account-selection/complete",
+		Summary:     "Sync a connection after its account selection changed and delete de-selected accounts",
+		Tags:        tags,
+		Security:    cookieAuth,
+	}, h.completeAccountSelection)
+
+	huma.Register(api, huma.Operation{
 		OperationID:   "delete-connection",
 		Method:        http.MethodDelete,
 		Path:          "/connections/{connectionId}",
@@ -169,6 +187,34 @@ func (h *ConnectionHandler) completeReauth(ctx context.Context, input *Connectio
 	}
 
 	connection, err := h.service.CompleteReauth(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &ConnectionOutput{Body: newConnection(connection)}, nil
+}
+
+func (h *ConnectionHandler) accountSelectionLinkToken(ctx context.Context, input *ConnectionPathInput) (*LinkTokenOutput, error) {
+	id, err := parseID(input.ConnectionID)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := h.service.CreateAccountSelectionLinkToken(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &LinkTokenOutput{Body: LinkToken{LinkToken: token}}, nil
+}
+
+func (h *ConnectionHandler) completeAccountSelection(ctx context.Context, input *ConnectionPathInput) (*ConnectionOutput, error) {
+	id, err := parseID(input.ConnectionID)
+	if err != nil {
+		return nil, err
+	}
+
+	connection, err := h.service.CompleteAccountSelection(ctx, UserFrom(ctx).ID, id)
 	if err != nil {
 		return nil, problem(ctx, err)
 	}

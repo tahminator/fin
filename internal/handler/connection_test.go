@@ -44,6 +44,11 @@ func failingProvider(t *testing.T) *fakeProvider {
 
 			return "", nil
 		},
+		createAccountSelectionLinkToken: func(context.Context, domain.Credential, string, string, string) (string, error) {
+			t.Error("provider CreateAccountSelectionLinkToken called")
+
+			return "", nil
+		},
 		remove: func(context.Context, domain.Credential, string) error {
 			t.Error("provider Remove called")
 
@@ -65,6 +70,12 @@ func TestConnectionTenancy(t *testing.T) {
 		{name: "sync", request: func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.Post(connectionPath + "/sync") }},
 		{name: "reauth link token", request: func(api humatest.TestAPI) *httptest.ResponseRecorder {
 			return api.Post(connectionPath + "/reauth/link-token")
+		}},
+		{name: "account selection link token", request: func(api humatest.TestAPI) *httptest.ResponseRecorder {
+			return api.Post(connectionPath + "/account-selection/link-token")
+		}},
+		{name: "complete account selection", request: func(api humatest.TestAPI) *httptest.ResponseRecorder {
+			return api.Post(connectionPath + "/account-selection/complete")
 		}},
 		{name: "delete", request: func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.Delete(connectionPath) }},
 	}
@@ -93,6 +104,7 @@ func TestConnectionTenancy(t *testing.T) {
 func TestConnectionSentinelErrors(t *testing.T) {
 	user := newUser()
 	active := ownedConnection(t, user, domain.ConnectionStatusActive)
+	needsReauth := ownedConnection(t, user, domain.ConnectionStatusNeedsReauth)
 
 	tests := []struct {
 		name        string
@@ -120,6 +132,14 @@ func TestConnectionSentinelErrors(t *testing.T) {
 			credentials: plaidCredentials(),
 			method:      http.MethodPost,
 			path:        "/api/connections/" + active.ID.String() + "/reauth/link-token",
+			status:      http.StatusConflict,
+		},
+		{
+			name:        "account selection link token for a connection needing reauth conflicts",
+			connections: &fakeConnections{get: ownedConnections(needsReauth)},
+			credentials: plaidCredentials(),
+			method:      http.MethodPost,
+			path:        "/api/connections/" + needsReauth.ID.String() + "/account-selection/link-token",
 			status:      http.StatusConflict,
 		},
 		{

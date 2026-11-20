@@ -1,4 +1,8 @@
-import { ReconnectButton, SyncButton } from "@/app/connections/_components/connection-actions";
+import {
+  EditAccountsButton,
+  ReconnectButton,
+  SyncButton,
+} from "@/app/connections/_components/connection-actions";
 import { RemoveConnectionButton } from "@/app/connections/_components/remove-connection-button";
 import { InstitutionLogo } from "@/components/institution-logo";
 import { LoadMoreButton } from "@/components/load-more-button";
@@ -50,7 +54,10 @@ function ConnectionRow({ connection }: { connection: Connection }) {
         {connection.status === "needs_reauth" ? (
           <ReconnectButton connectionId={connection.id} />
         ) : (
-          <SyncButton connectionId={connection.id} />
+          <>
+            <SyncButton connectionId={connection.id} />
+            <EditAccountsButton connectionId={connection.id} />
+          </>
         )}
         <RemoveConnectionButton connectionId={connection.id} name={name} />
       </div>

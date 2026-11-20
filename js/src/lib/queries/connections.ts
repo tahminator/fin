@@ -63,3 +63,15 @@ export function useRemoveConnection() {
     onSuccess: () => invalidateFinanceData(queryClient),
   });
 }
+
+export function useCreateAccountSelectionLinkToken() {
+  return $api.useMutation("post", "/api/connections/{connectionId}/account-selection/link-token");
+}
+
+export function useCompleteAccountSelection() {
+  const queryClient = useQueryClient();
+
+  return $api.useMutation("post", "/api/connections/{connectionId}/account-selection/complete", {
+    onSuccess: () => invalidateFinanceData(queryClient),
+  });
+}

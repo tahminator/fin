@@ -119,9 +119,10 @@ func plaidCredentials() *fakeCredentials {
 
 type fakeProvider struct {
 	provider.Provider
-	createLinkToken       func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
-	createUpdateLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
-	remove                func(ctx context.Context, creds domain.Credential, accessToken string) error
+	createLinkToken                 func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
+	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	createAccountSelectionLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	remove                          func(ctx context.Context, creds domain.Credential, accessToken string) error
 }
 
 func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {
@@ -130,6 +131,10 @@ func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credent
 
 func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
 	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI)
+}
+
+func (f *fakeProvider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+	return f.createAccountSelectionLinkToken(ctx, creds, userID, accessToken, redirectURI)
 }
 
 func (f *fakeProvider) Remove(ctx context.Context, creds domain.Credential, accessToken string) error {

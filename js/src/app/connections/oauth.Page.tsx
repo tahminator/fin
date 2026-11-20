@@ -14,7 +14,7 @@ function ResumeLink({ session }: { session: LinkSession }) {
 
   const launcher = usePlaidLauncher({
     linkToken: session.linkToken,
-    connectionId: session.connectionId,
+    flow: session.flow,
     resumingOAuth: true,
     onDone: () => {
       void navigate("/connections");

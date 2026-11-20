@@ -1,3 +1,14 @@
+import iosAddDark from "@/assets/install/ios-add-dark.webp";
+import iosAddLight from "@/assets/install/ios-add-light.webp";
+import iosAddToHomeScreenDark from "@/assets/install/ios-add-to-home-screen-dark.webp";
+import iosAddToHomeScreenLight from "@/assets/install/ios-add-to-home-screen-light.webp";
+import iosPageMenuDark from "@/assets/install/ios-page-menu-dark.webp";
+import iosPageMenuLight from "@/assets/install/ios-page-menu-light.webp";
+import iosShareDark from "@/assets/install/ios-share-dark.webp";
+import iosShareLight from "@/assets/install/ios-share-light.webp";
+import iosViewMoreDark from "@/assets/install/ios-view-more-dark.webp";
+import iosViewMoreLight from "@/assets/install/ios-view-more-light.webp";
+
 export type Platform =
   | "ios-safari"
   | "ios-other"
@@ -5,45 +16,76 @@ export type Platform =
   | "desktop-chromium"
   | "desktop-safari";
 
+interface InstallStepScreenshot {
+  light: string;
+  dark: string;
+  alt: string;
+}
+
 export interface InstallStep {
   title: string;
   description: string;
+  screenshot?: InstallStepScreenshot;
 }
 
-const whyStep: InstallStep = {
-  title: "fin runs as an installed app",
-  description:
-    "Add fin to your device to sign in. It opens full screen and keeps your session separate from the browser.",
-};
-
 const iosSafariSteps: InstallStep[] = [
-  whyStep,
+  {
+    title: "Tap the page menu button",
+    description: "It's next to the address bar at the bottom of Safari.",
+    screenshot: {
+      light: iosPageMenuLight,
+      dark: iosPageMenuDark,
+      alt: "Safari toolbar with the page menu button highlighted next to the address bar",
+    },
+  },
   {
     title: "Tap Share",
-    description: "It's the square with an arrow pointing up, in Safari's toolbar.",
+    description: "It's at the top of the menu.",
+    screenshot: {
+      light: iosShareLight,
+      dark: iosShareDark,
+      alt: "Safari page menu with Share highlighted",
+    },
+  },
+  {
+    title: "Tap View More",
+    description: "Skip this if Add to Home Screen is already showing.",
+    screenshot: {
+      light: iosViewMoreLight,
+      dark: iosViewMoreDark,
+      alt: "Share sheet with View More highlighted",
+    },
   },
   {
     title: "Tap Add to Home Screen",
-    description: "Scroll down the share sheet until you see it.",
+    description: "It's in the list of actions below the share options.",
+    screenshot: {
+      light: iosAddToHomeScreenLight,
+      dark: iosAddToHomeScreenDark,
+      alt: "Expanded share sheet with Add to Home Screen highlighted",
+    },
   },
   {
     title: "Tap Add, then open fin",
-    description: "Launch fin from your Home Screen and sign in there.",
+    description: "Leave Open as Web App on. Launch fin from your Home Screen and sign in there.",
+    screenshot: {
+      light: iosAddLight,
+      dark: iosAddDark,
+      alt: "Add to Home Screen sheet with the Add button and Open as Web App switch highlighted",
+    },
   },
 ];
 
 const stepsByPlatform: Record<Platform, InstallStep[]> = {
   "ios-safari": iosSafariSteps,
   "ios-other": [
-    whyStep,
     {
       title: "Open this page in Safari",
-      description: "Only Safari can add apps to the Home Screen on iPhone and iPad.",
+      description: "The steps that follow are for Safari.",
     },
-    ...iosSafariSteps.slice(1),
+    ...iosSafariSteps,
   ],
   "android-chrome": [
-    whyStep,
     {
       title: "Tap ⋮",
       description: "It's the menu button in the top-right corner of Chrome.",
@@ -58,7 +100,6 @@ const stepsByPlatform: Record<Platform, InstallStep[]> = {
     },
   ],
   "desktop-chromium": [
-    whyStep,
     {
       title: "Click the install icon in the address bar",
       description: "It's on the right side of the address bar, then confirm Install.",
@@ -69,7 +110,6 @@ const stepsByPlatform: Record<Platform, InstallStep[]> = {
     },
   ],
   "desktop-safari": [
-    whyStep,
     {
       title: "Choose File → Add to Dock",
       description: "Confirm the name and click Add.",

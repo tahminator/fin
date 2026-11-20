@@ -7,4 +7,5 @@ var (
 	ErrNotAllowed     = errors.New("not allowed")
 	ErrConflict       = errors.New("conflict")
 	ErrReauthRequired = errors.New("re-authentication required")
+	ErrUnavailable    = errors.New("unavailable")
 )

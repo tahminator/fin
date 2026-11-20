@@ -135,8 +135,11 @@ func (f *fakeConnections) UpdateInstitutionURL(ctx context.Context, userID, id u
 
 type fakeAccounts struct {
 	repository.AccountRepository
-	upsert       func(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error)
-	deleteExcept func(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error
+	upsert        func(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error)
+	deleteExcept  func(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error
+	listByUser    func(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error)
+	matchCardArt  func(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) error
+	selectCardArt func(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) (domain.Account, error)
 }
 
 func (f *fakeAccounts) Upsert(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error) {
@@ -145,6 +148,31 @@ func (f *fakeAccounts) Upsert(ctx context.Context, userID, connectionID uuid.UUI
 
 func (f *fakeAccounts) DeleteExcept(ctx context.Context, userID, connectionID uuid.UUID, keepIDs []uuid.UUID) error {
 	return f.deleteExcept(ctx, userID, connectionID, keepIDs)
+}
+
+func (f *fakeAccounts) ListByUser(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error) {
+	return f.listByUser(ctx, userID, filter, limit, offset)
+}
+
+func (f *fakeAccounts) MatchCardArt(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) error {
+	return f.matchCardArt(ctx, userID, id, art)
+}
+
+func (f *fakeAccounts) SelectCardArt(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) (domain.Account, error) {
+	return f.selectCardArt(ctx, userID, id, art)
+}
+
+type fakeCatalog struct {
+	search func(ctx context.Context, query string) ([]domain.CatalogCard, error)
+	card   func(ctx context.Context, id string) (domain.CatalogCard, error)
+}
+
+func (f *fakeCatalog) Search(ctx context.Context, query string) ([]domain.CatalogCard, error) {
+	return f.search(ctx, query)
+}
+
+func (f *fakeCatalog) Card(ctx context.Context, id string) (domain.CatalogCard, error) {
+	return f.card(ctx, id)
 }
 
 type fakeTransactions struct {

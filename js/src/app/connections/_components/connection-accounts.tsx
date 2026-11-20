@@ -1,7 +1,9 @@
+import { CardArtDialog } from "@/app/connections/_components/card-art-dialog";
 import { AccountIcon } from "@/components/account-icon";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { supportsCardArt } from "@/lib/card-art";
 import { errorMessage } from "@/lib/errors";
 import { formatMoney } from "@/lib/format";
 import { useConnectionAccounts } from "@/lib/queries/accounts";
@@ -22,6 +24,7 @@ function ConnectionAccountRow({ account }: { account: Account }) {
             {account.subtype ?? account.type}
           </span>
         </p>
+        {supportsCardArt(account) ? <CardArtDialog account={account} /> : null}
       </div>
       <p className="shrink-0 text-sm tabular-nums">
         {account.currentBalance === null

@@ -157,7 +157,10 @@ SELECT
     a.subtype,
     a.current_balance::text   AS current_balance,
     a.available_balance::text AS available_balance,
-    a.currency
+    a.currency,
+    a.card_art_id,
+    a.card_art_url,
+    a.card_art_source
 FROM accounts AS a
 JOIN connections AS c ON c.id = a.connection_id
 WHERE a.user_id = $1
@@ -196,4 +199,68 @@ func (r *AccountRepository) ListByUser(
 	}
 
 	return accounts, total, nil
+}
+
+const matchAccountCardArt = `
+UPDATE accounts
+SET card_art_id     = $3,
+    card_art_url    = $4,
+    card_art_source = $5,
+    updated_at      = now()
+WHERE user_id = $1
+  AND id = $2
+  AND card_art_source IS NULL;
+`
+
+func (r *AccountRepository) MatchCardArt(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) error {
+	_, err := r.pool.Exec(ctx, matchAccountCardArt, userID, id, art.CardID, art.ImageURL, domain.CardArtSourceMatched)
+	if err != nil {
+		return fmt.Errorf("match account card art: %w", err)
+	}
+
+	return nil
+}
+
+const selectAccountCardArt = `
+UPDATE accounts AS a
+SET card_art_id     = $3,
+    card_art_url    = $4,
+    card_art_source = $5,
+    updated_at      = now()
+FROM connections AS c
+WHERE c.id = a.connection_id
+  AND a.user_id = $1
+  AND a.id = $2
+RETURNING
+    a.id,
+    a.user_id,
+    a.connection_id,
+    c.institution_name,
+    c.institution_url,
+    a.external_id,
+    a.name,
+    a.official_name,
+    a.mask,
+    a.type,
+    a.subtype,
+    a.current_balance::text   AS current_balance,
+    a.available_balance::text AS available_balance,
+    a.currency,
+    a.card_art_id,
+    a.card_art_url,
+    a.card_art_source;
+`
+
+func (r *AccountRepository) SelectCardArt(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) (domain.Account, error) {
+	rows, err := r.pool.Query(ctx, selectAccountCardArt, userID, id, art.CardID, art.ImageURL, domain.CardArtSourceSelected)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("select account card art: %w", err)
+	}
+
+	account, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[domain.Account])
+	if err != nil {
+		return domain.Account{}, notFound(err)
+	}
+
+	return account, nil
 }

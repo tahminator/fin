@@ -12,18 +12,21 @@ import (
 )
 
 type Account struct {
-	ID                 uuid.UUID          `json:"id"`
-	ConnectionID       uuid.UUID          `json:"connectionId"`
-	InstitutionName    *string            `json:"institutionName"`
-	InstitutionLogoURL *string            `json:"institutionLogoUrl"`
-	Name               string             `json:"name"`
-	OfficialName       *string            `json:"officialName"`
-	Mask               *string            `json:"mask"`
-	Type               domain.AccountType `json:"type" enum:"depository,credit,loan,investment,other"`
-	Subtype            *string            `json:"subtype"`
-	CurrentBalance     *string            `json:"currentBalance" doc:"Decimal string"`
-	AvailableBalance   *string            `json:"availableBalance" doc:"Decimal string"`
-	Currency           *string            `json:"currency"`
+	ID                 uuid.UUID             `json:"id"`
+	ConnectionID       uuid.UUID             `json:"connectionId"`
+	InstitutionName    *string               `json:"institutionName"`
+	InstitutionLogoURL *string               `json:"institutionLogoUrl"`
+	Name               string                `json:"name"`
+	OfficialName       *string               `json:"officialName"`
+	Mask               *string               `json:"mask"`
+	Type               domain.AccountType    `json:"type" enum:"depository,credit,loan,investment,other"`
+	Subtype            *string               `json:"subtype"`
+	CurrentBalance     *string               `json:"currentBalance" doc:"Decimal string"`
+	AvailableBalance   *string               `json:"availableBalance" doc:"Decimal string"`
+	Currency           *string               `json:"currency"`
+	CardArtID          *string               `json:"cardArtId" doc:"Catalog ID of the card shown for this account"`
+	CardArtURL         *string               `json:"cardArtUrl" doc:"Card image URL; null shows the default icon"`
+	CardArtSource      *domain.CardArtSource `json:"cardArtSource" enum:"matched,selected" doc:"null until the card has been matched"`
 }
 
 func newAccount(account domain.Account) Account {
@@ -40,6 +43,9 @@ func newAccount(account domain.Account) Account {
 		CurrentBalance:     account.CurrentBalance,
 		AvailableBalance:   account.AvailableBalance,
 		Currency:           account.Currency,
+		CardArtID:          account.CardArtID,
+		CardArtURL:         account.CardArtURL,
+		CardArtSource:      account.CardArtSource,
 	}
 }
 

@@ -22,18 +22,25 @@ func (t AccountType) Valid() bool {
 }
 
 type Account struct {
-	ID               uuid.UUID   `db:"id"`
-	UserID           uuid.UUID   `db:"user_id"`
-	ConnectionID     uuid.UUID   `db:"connection_id"`
-	InstitutionName  *string     `db:"institution_name"`
-	InstitutionURL   *string     `db:"institution_url"`
-	ExternalID       string      `db:"external_id"`
-	Name             string      `db:"name"`
-	OfficialName     *string     `db:"official_name"`
-	Mask             *string     `db:"mask"`
-	Type             AccountType `db:"type"`
-	Subtype          *string     `db:"subtype"`
-	CurrentBalance   *string     `db:"current_balance"`
-	AvailableBalance *string     `db:"available_balance"`
-	Currency         *string     `db:"currency"`
+	ID               uuid.UUID      `db:"id"`
+	UserID           uuid.UUID      `db:"user_id"`
+	ConnectionID     uuid.UUID      `db:"connection_id"`
+	InstitutionName  *string        `db:"institution_name"`
+	InstitutionURL   *string        `db:"institution_url"`
+	ExternalID       string         `db:"external_id"`
+	Name             string         `db:"name"`
+	OfficialName     *string        `db:"official_name"`
+	Mask             *string        `db:"mask"`
+	Type             AccountType    `db:"type"`
+	Subtype          *string        `db:"subtype"`
+	CurrentBalance   *string        `db:"current_balance"`
+	AvailableBalance *string        `db:"available_balance"`
+	Currency         *string        `db:"currency"`
+	CardArtID        *string        `db:"card_art_id"`
+	CardArtURL       *string        `db:"card_art_url"`
+	CardArtSource    *CardArtSource `db:"card_art_source"`
+}
+
+func (a Account) SupportsCardArt() bool {
+	return a.Type == AccountTypeCredit
 }

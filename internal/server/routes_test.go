@@ -68,13 +68,14 @@ func newRouter(t *testing.T, resolver fakeResolver) http.Handler {
 	api := server.NewAPI(mux)
 
 	auth := service.NewAuthService(fakeUsers{}, fakeSessions{}, fakeIdentity{}, metrics.Noop{}, time.Hour)
-	connections := service.NewConnectionService(service.ConnectionRepositories{}, nil, nil, metrics.Noop{}, "")
+	connections := service.NewConnectionService(service.ConnectionRepositories{}, nil, nil, nil, metrics.Noop{}, "")
 
 	server.RegisterRoutes(mux, api, server.Handlers{
 		Auth:           handler.NewAuthHandler(auth, handler.CookieConfig{}),
 		Summary:        handler.NewSummaryHandler(fakeSummary{}),
 		Connections:    handler.NewConnectionHandler(fakeConnections{}, connections),
 		Accounts:       handler.NewAccountHandler(fakeAccounts{}),
+		CardArt:        handler.NewCardArtHandler(service.NewCardArtService(fakeAccounts{}, nil)),
 		Transactions:   handler.NewTransactionHandler(fakeTransactions{}),
 		Notifications:  handler.NewNotificationHandler(service.NewNotificationService(fakeConnections{})),
 		Version:        handler.NewVersionHandler("1.2.3"),

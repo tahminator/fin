@@ -9,6 +9,8 @@ const apiTarget = "http://localhost:8080";
 
 const themeColor = "#ffffff";
 
+const remoteImageMaxAgeSeconds = 7 * 24 * 60 * 60;
+
 export default defineConfig({
   plugins: [
     react(),
@@ -53,6 +55,17 @@ export default defineConfig({
           /^\/healthz$/u,
           /^\/readyz$/u,
           /^\/metrics$/u,
+        ],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, sameOrigin }) => request.destination === "image" && !sameOrigin,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "remote-images",
+              expiration: { maxAgeSeconds: remoteImageMaxAgeSeconds, maxEntries: 200 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

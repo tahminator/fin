@@ -496,6 +496,8 @@ CREATE TABLE accounts (
 CREATE INDEX accounts_user_id_idx ON accounts (user_id);
 ```
 
+Migration `000008_add_account_card_art` adds `card_art_id`, `card_art_url` and `card_art_source` (`text`, all nullable) to `accounts`. `card_art_source` is `matched` (set by sync) or `selected` (set by the user); `NULL` means the account has not been matched yet. Account upserts never touch these columns.
+
 ```sql
 CREATE TABLE transactions (
     id             uuid           PRIMARY KEY DEFAULT uuidv7(),
@@ -626,7 +628,7 @@ flowchart LR
 
 - Handlers depend on **interfaces** (repositories) and **concrete services**; services depend only on interfaces. Read-only endpoints (accounts, transactions, summary) use repositories directly — no pass-through services.
 - Every repository method that reads or mutates user data takes `userID` and filters `WHERE user_id = $n` — tenancy is enforced in SQL, not in handlers.
-- Repositories return `domain.ErrNotFound` for `pgx.ErrNoRows`; handlers map sentinel errors to `huma.Error404NotFound` / `Error403Forbidden` / `Error409Conflict`.
+- Repositories return `domain.ErrNotFound` for `pgx.ErrNoRows`; handlers map sentinel errors to `huma.Error404NotFound` / `Error403Forbidden` / `Error409Conflict`, and `domain.ErrUnavailable` (an upstream such as the card catalog failed) to `Error503ServiceUnavailable`.
 
 ### 5.3 Repository interfaces
 
@@ -713,13 +715,19 @@ Plaid implementation notes:
 
 - `CreateLinkToken(userID)` → loads credential (missing = `ErrNotAllowed` with a clear message).
 - `Link(userID, publicToken)` → exchange → `cipher.Encrypt(accessToken)` → insert connection (`status=active`) → `Sync(trigger=SyncTriggerLink)`.
-- `Sync(userID, connectionID, trigger metrics.SyncTrigger)` → load connection + credential → `cipher.Decrypt` → `Accounts` → `AccountRepository.Upsert` → `SyncTransactions(cursor)` → map account external IDs → upsert added+modified → delete removed → `UpdateSyncState(cursor, last_synced_at=now, last_error=null)`. On `ErrReauthRequired`: `UpdateStatus(needs_reauth)`, cursor untouched. Other errors: `last_error` set, status unchanged. Always ends with `recorder.ConnectionSynced(trigger, outcome, elapsed)`.
+- `Sync(userID, connectionID, trigger metrics.SyncTrigger)` → load connection + credential → `cipher.Decrypt` → `Accounts` → `AccountRepository.Upsert` → `CardArtMatcher.MatchConnection` → `SyncTransactions(cursor)` → map account external IDs → upsert added+modified → delete removed → `UpdateSyncState(cursor, last_synced_at=now, last_error=null)`. On `ErrReauthRequired`: `UpdateStatus(needs_reauth)`, cursor untouched. Other errors: `last_error` set, status unchanged. Always ends with `recorder.ConnectionSynced(trigger, outcome, elapsed)`.
 - `SyncAll(userID, trigger)` → every `active` connection of the user, sequentially → `SyncSummary{Synced, ReauthRequired, Failed}`. Backs the manual **Refresh** button.
 - `CreateReauthLinkToken(userID, connectionID)` → `ErrConflict` unless `needs_reauth` → decrypt → `CreateUpdateLinkToken`.
 - `CompleteReauth(userID, connectionID)` → `UpdateStatus(active)`, clear `last_error` → `Sync(trigger=SyncTriggerReauth)`.
 - `Remove(userID, connectionID)` → decrypt → provider `Remove` → delete row (cascades accounts/transactions).
 
 Manual and scheduled syncs of the same connection may overlap; that is harmless because every write is an idempotent upsert and the cursor is saved last.
+
+`CardArtService` (`service/card_art.go`; constructed with `AccountRepository` and `cardart.Catalog`, implemented by `cardart.OpenCard` against `https://opencard-db.davidweng.workers.dev/v1` with a 10s timeout). Plaid exposes no card product identifier, so art is matched by name once and stored per account:
+
+- `MatchConnection(userID, connectionID)` runs inside sync for credit accounts whose `card_art_source` is `NULL` (the catalog has no debit card art, so checking accounts keep the generic card icon). It searches the catalog for the official name (falling back to `name`) plus the name without "authorized user"/"additional"/"supplementary", scores candidates by shared distinctive words (generic words such as card, credit, visa are ignored) with an issuer bonus, and saves the best card as `matched`, or an empty `matched` result when nothing scores. Catalog failures leave the account `NULL` so the next sync retries; they never fail the sync. The save only applies while the source is still `NULL`, so it cannot overwrite a user's choice.
+- `Search(query)` proxies catalog search; cards without artwork (or with the catalog placeholder) are dropped.
+- `Select(userID, accountID, cardID)` resolves the card from the catalog and stores it as `selected`; a `nil` card ID selects the default icon. Selected art is never re-matched.
 
 `NotificationService` (`service/notification.go`)
 
@@ -820,6 +828,7 @@ func RegisterRoutes(mux *http.ServeMux, api huma.API, h Handlers) {
 	h.Summary.Register(authed)
 	h.Connections.Register(authed)
 	h.Accounts.Register(authed)
+	h.CardArt.Register(authed)
 	h.Transactions.Register(authed)
 	h.Notifications.Register(authed)
 
@@ -861,7 +870,9 @@ func (h *TransactionHandler) Register(api huma.API) {
 | DELETE | `/api/connections/{connectionId}` | `ConnectionHandler.remove` | 204 |
 | POST | `/api/connections/{connectionId}/reauth/link-token` | `ConnectionHandler.reauthLinkToken` | update-mode `{linkToken}`; 409 unless `needs_reauth` |
 | POST | `/api/connections/{connectionId}/reauth/complete` | `ConnectionHandler.completeReauth` | marks `active`, syncs |
-| GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]`, optional `connectionId` |
+| GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]`, optional `connectionId`; includes `cardArtId`, `cardArtUrl`, `cardArtSource` |
+| GET | `/api/card-art/search` | `CardArtHandler.search` | `?query=` (1–100 chars, not blank) → `{items: CatalogCard[]}`; 503 when the catalog is unavailable |
+| PUT | `/api/accounts/{accountId}/card-art` | `CardArtHandler.selectCardArt` | body `{cardId: string \| null}` → `Account`; 404 for unknown account or card |
 | GET | `/api/transactions` | `TransactionHandler.list` | `Page[Transaction]`, optional `accountId` |
 | GET | `/api/notifications` | `NotificationHandler.list` | `Page[Notification]`; currently only `reauth_required` |
 | GET | `/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
@@ -1225,11 +1236,12 @@ The root layout gates access on PWA installation. An authenticated layout uses R
 ### 6.3 Data layer (`src/lib`)
 
 - `lib/api/client.ts`: `createFetchClient<paths>({ credentials: "same-origin" })` + `export const $api = createClient(fetchClient)`. Imported **only** inside `src/lib` (lint-enforced).
-- `lib/queries/*.ts`: the composite-hook layer components use. One file per resource: `me.ts` (`meQueryOptions`, `useMe`, `useLogout`), `summary.ts`, `connections.ts` (`useConnections`, `useLinkToken`, `useLinkConnection`, `useSyncConnection`, `useSyncAll`, `useRemoveConnection`), `notifications.ts` (`useNotifications`, `useReauthLinkToken`, `useCompleteReauth`), `accounts.ts`, `transactions.ts`. Mutations own their invalidations (`queryClient.invalidateQueries({ queryKey: ["get", "/api/accounts"] })`, etc.), so React Query stays the single source of truth; components never hold server data in local state. Every sync/link/reauth mutation also invalidates `/api/notifications`.
+- `lib/queries/*.ts`: the composite-hook layer components use. One file per resource: `me.ts` (`meQueryOptions`, `useMe`, `useLogout`), `summary.ts`, `connections.ts` (`useConnections`, `useLinkToken`, `useLinkConnection`, `useSyncConnection`, `useSyncAll`, `useRemoveConnection`), `notifications.ts` (`useNotifications`, `useReauthLinkToken`, `useCompleteReauth`), `accounts.ts`, `transactions.ts`, `card-art.ts` (`useCardArtSearch`, cached for 7 days because the catalog rate-limits; `useSelectCardArt`). Mutations own their invalidations (`queryClient.invalidateQueries({ queryKey: ["get", "/api/accounts"] })`, etc.), so React Query stays the single source of truth; components never hold server data in local state. Every sync/link/reauth mutation also invalidates `/api/notifications`.
 - Infinite lists use `$api.useInfiniteQuery` with `pageParamName: "page"`, **explicit** `initialPageParam: 1` (openapi-react-query sends `0` otherwise), `getNextPageParam: (last) => (last.hasNext ? last.page + 1 : undefined)`, and `select` to flatten pages.
 - `lib/query-client.ts`: `staleTime: 30_000`; no retries on 4xx; `QueryCache.onError` on 401 → `queryClient.clear()` + `router.navigate({ to: "/login" })`.
 - `lib/types/api.ts`: `export type Transaction = components["schemas"]["Transaction"];` etc. — components never index the generated schema directly.
 - Link token: `useLinkToken` is a query over `POST /api/connections/link-token` (`staleTime` 30 min) so the Connect button opens Plaid in one tap. The token is mirrored to `localStorage` by `lib/plaid/link-token-store.ts` purely so `connections/oauth.tsx` can resume Link after a bank OAuth redirect.
+- Card art: credit account rows on the Connections page show **Wrong card?** (or **Pick card** when nothing matched), opening a dialog with the current art, a catalog search prefilled with the account's official name, and a **Use the default icon instead** action.
 
 ### 6.4 Component contract (requirement w)
 
@@ -1271,6 +1283,7 @@ Rules:
 ### 6.5 PWA and install gate
 
 - `vite-plugin-pwa`: `registerType: "autoUpdate"`, manifest (`name`/`short_name` "fin", `display: "standalone"`, `start_url: "/"`, `scope: "/"`, theme/background colors, 192/512 + maskable icons generated once with `@vite-pwa/assets-generator` and committed under `public/`). Workbox `navigateFallback: "/index.html"` with `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/swagger/, /^\/openapi/, /^\/version$/, /^\/healthz$/, /^\/readyz$/, /^\/metrics$/]` — without the denylist the service worker would swallow the Google login navigation and serve the SPA for server-owned paths. API responses are never cached.
+- Cross-origin images (card art, institution favicons) use a Workbox `CacheFirst` route named `remote-images` with a 7-day expiry and 200 entries, accepting opaque responses, so issuer image hosts are hit at most once a week per image.
 - `lib/hooks/use-is-standalone.ts`: `useSyncExternalStore` over `matchMedia("(display-mode: standalone)")` plus iOS `navigator.standalone`.
 - The root layout renders `<InstallGuide/>` instead of `<Outlet/>` when not standalone. Nothing else (including login) is reachable in a browser tab. Dev escape hatch: `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local`.
 - The gate also prevents a real bug: iOS home-screen apps have their own cookie jar, so logging in from Safari would not carry over.

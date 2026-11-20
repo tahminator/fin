@@ -44,6 +44,7 @@ type connectionFixture struct {
 	upsertedTx  []domain.Transaction
 	deletedTx   []string
 	keptAccount []uuid.UUID
+	cardArtRuns []uuid.UUID
 
 	credentials  *fakeCredentials
 	connections  *fakeConnections
@@ -254,7 +255,7 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 		Connections:  f.connections,
 		Accounts:     f.accounts,
 		Transactions: f.transactions,
-	}, f.provider, f.cipher, f.recorder, testRedirectURI)
+	}, f.provider, f, f.cipher, f.recorder, testRedirectURI)
 	f.service.now = fixedClock
 
 	return f
@@ -266,6 +267,11 @@ func (f *connectionFixture) record(call string) {
 
 func (f *connectionFixture) owns(userID, id uuid.UUID) bool {
 	return userID == f.userID && id == f.connection.ID
+}
+
+func (f *connectionFixture) MatchConnection(_ context.Context, _, connectionID uuid.UUID) {
+	f.record("cardArt.matchConnection")
+	f.cardArtRuns = append(f.cardArtRuns, connectionID)
 }
 
 func (f *connectionFixture) called(call string) bool {
@@ -576,6 +582,7 @@ func TestSyncWritesInOrderAndSavesCursorLast(t *testing.T) {
 		"credentials.find",
 		"provider.accounts",
 		"accounts.upsert",
+		"cardArt.matchConnection",
 		"provider.syncTransactions",
 		"transactions.upsert",
 		"transactions.deleteByExternalIDs",
@@ -584,6 +591,10 @@ func TestSyncWritesInOrderAndSavesCursorLast(t *testing.T) {
 
 	if !slices.Equal(f.calls, wantCalls) {
 		t.Errorf("call order = %v, want %v", f.calls, wantCalls)
+	}
+
+	if !slices.Equal(f.cardArtRuns, []uuid.UUID{f.connection.ID}) {
+		t.Errorf("card art matched for %v, want only %v", f.cardArtRuns, f.connection.ID)
 	}
 
 	if gotCursor != "cursor-1" {
@@ -1234,6 +1245,7 @@ func TestCompleteAccountSelectionKeepsOnlySelectedAccounts(t *testing.T) {
 		"provider.accounts",
 		"accounts.upsert",
 		"accounts.deleteExcept",
+		"cardArt.matchConnection",
 		"provider.syncTransactions",
 		"transactions.upsert",
 		"transactions.deleteByExternalIDs",

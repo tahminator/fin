@@ -1,0 +1,54 @@
+version: "2"
+
+linters:
+  default: standard
+
+  enable:
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - unparam
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+  exclusions:
+    rules:
+      - path: internal/encryption/cipher.go
+        linters: [gosec]
+        text: G407
+
+      - path: internal/handler/auth.go
+        linters: [gosec]
+        text: G124
+
+      - path: internal/repository/postgres/
+        linters: [gosec]
+        text: G101
+
+      - path: (internal/server/spa.go|tools/nocomments/main.go)
+        linters: [gosec]
+        text: G703
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/tahminator/fin

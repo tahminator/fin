@@ -1,0 +1,74 @@
+package handler
+
+import (
+	"context"
+	"net/http"
+	"uuid"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/tahminator/fin/internal/domain"
+	"github.com/tahminator/fin/internal/repository"
+)
+
+type Account struct {
+	ID               uuid.UUID          `json:"id"`
+	ConnectionID     uuid.UUID          `json:"connectionId"`
+	InstitutionName  *string            `json:"institutionName"`
+	Name             string             `json:"name"`
+	OfficialName     *string            `json:"officialName"`
+	Mask             *string            `json:"mask"`
+	Type             domain.AccountType `json:"type" enum:"depository,credit,loan,investment,other"`
+	Subtype          *string            `json:"subtype"`
+	CurrentBalance   *string            `json:"currentBalance" doc:"Decimal string"`
+	AvailableBalance *string            `json:"availableBalance" doc:"Decimal string"`
+	Currency         *string            `json:"currency"`
+}
+
+func newAccount(account domain.Account) Account {
+	return Account{
+		ID:               account.ID,
+		ConnectionID:     account.ConnectionID,
+		InstitutionName:  account.InstitutionName,
+		Name:             account.Name,
+		OfficialName:     account.OfficialName,
+		Mask:             account.Mask,
+		Type:             account.Type,
+		Subtype:          account.Subtype,
+		CurrentBalance:   account.CurrentBalance,
+		AvailableBalance: account.AvailableBalance,
+		Currency:         account.Currency,
+	}
+}
+
+type ListAccountsInput struct {
+	PageParams
+}
+
+type AccountHandler struct {
+	accounts repository.AccountRepository
+}
+
+func NewAccountHandler(accounts repository.AccountRepository) *AccountHandler {
+	return &AccountHandler{accounts: accounts}
+}
+
+func (h *AccountHandler) Register(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-accounts",
+		Method:      http.MethodGet,
+		Path:        "/accounts",
+		Summary:     "List accounts",
+		Tags:        []string{"accounts"},
+		Security:    cookieAuth,
+	}, h.list)
+}
+
+func (h *AccountHandler) list(ctx context.Context, input *ListAccountsInput) (*PageOutput[Account], error) {
+	accounts, total, err := h.accounts.ListByUser(ctx, UserFrom(ctx).ID, input.Limit(), input.Offset())
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &PageOutput[Account]{Body: NewPage(mapItems(accounts, newAccount), input.PageParams, total)}, nil
+}

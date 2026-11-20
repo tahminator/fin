@@ -1,0 +1,11 @@
+.git
+.env
+.env.tmp
+bin
+coverage.out
+openapi.json
+
+js/node_modules
+js/dist
+js/.env.local
+js/src/lib/api/schema.gen.ts

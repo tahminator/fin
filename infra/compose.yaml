@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:19
+    environment:
+      POSTGRES_USER: fin
+      POSTGRES_PASSWORD: fin
+      POSTGRES_DB: fin
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

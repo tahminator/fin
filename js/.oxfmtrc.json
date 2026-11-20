@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "ignorePatterns": ["dist", "src/lib/api/schema.gen.ts"],
+  "sortImports": {
+    "internalPattern": ["@/"],
+    "newlinesBetween": true
+  },
+  "sortTailwindcss": {
+    "stylesheet": "./src/index.css",
+    "functions": ["cn", "cva"]
+  }
+}

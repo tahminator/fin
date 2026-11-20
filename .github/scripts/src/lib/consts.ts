@@ -1,0 +1,13 @@
+export const GITHUB_OWNER = "tahminator";
+export const GITHUB_REPOSITORY = "fin";
+export const K8S_MANIFESTS_REPOSITORY = "k8s-personal";
+export const DOCKER_HUB_USERNAME = "tahminator";
+export const DOCKER_REPOSITORY = "fin";
+export const KUSTOMIZATION_FILE_PATH = "base/production/fin/kustomization.yaml";
+
+export function shortSha(sha: string) {
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    throw new Error(`Expected a full commit SHA, got "${sha}"`);
+  }
+  return sha.slice(0, 7);
+}

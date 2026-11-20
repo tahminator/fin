@@ -1,0 +1,9 @@
+name: Migrate database
+description: Apply pending migrations to the database at DATABASE_URL
+
+runs:
+  using: composite
+  steps:
+    - name: Apply migrations
+      shell: bash
+      run: just migrate

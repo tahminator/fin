@@ -1,0 +1,14 @@
+name: Deploy
+description: Updates the fin image tag in k8s-personal
+
+inputs:
+  RELEASE_TAG:
+    description: "Deploy the version named by this tag, for example 1.2.3"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Update k8s-personal
+      shell: bash
+      run: bun run .github/scripts/src/deploy --releaseTag "${{ inputs.RELEASE_TAG }}"

@@ -1,0 +1,9 @@
+name: Frontend pre-test
+description: Run frontend codegen, lint, typecheck, and build (no tests)
+
+runs:
+  using: composite
+  steps:
+    - name: Run frontend pre-test checks
+      shell: bash
+      run: bun run .github/scripts/src/pretest/frontend

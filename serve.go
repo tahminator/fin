@@ -101,6 +101,7 @@ func serve() error {
 		Accounts:       handler.NewAccountHandler(accounts),
 		Transactions:   handler.NewTransactionHandler(transactions),
 		Notifications:  handler.NewNotificationHandler(notificationService),
+		Version:        handler.NewVersionHandler(cfg.Version),
 		RequireSession: server.RequireSession(api, authService),
 	}
 

@@ -113,33 +113,25 @@ func serve() error {
 
 	go scheduler.Run(ctx)
 
-	public := &http.Server{
+	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           server.Observe(mux, recorder, logger),
+		Handler:           server.WithOps(server.Observe(mux, recorder, logger), handler.NewHealthHandler(pinger)),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
-	ops := &http.Server{
-		Addr:              cfg.OpsAddr,
-		Handler:           server.NewOpsMux(handler.NewHealthHandler(pinger)),
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
-
-	return runServers(ctx, logger, public, ops)
+	return runServer(ctx, logger, srv)
 }
 
-func runServers(ctx context.Context, logger *slog.Logger, servers ...*http.Server) error {
-	errs := make(chan error, len(servers))
+func runServer(ctx context.Context, logger *slog.Logger, srv *http.Server) error {
+	errs := make(chan error, 1)
 
-	for _, srv := range servers {
-		go func() {
-			logger.Info("listening", "addr", srv.Addr)
+	go func() {
+		logger.Info("listening", "addr", srv.Addr)
 
-			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errs <- fmt.Errorf("serve %s: %w", srv.Addr, err)
-			}
-		}()
-	}
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errs <- fmt.Errorf("serve %s: %w", srv.Addr, err)
+		}
+	}()
 
 	var serveErr error
 
@@ -153,10 +145,8 @@ func runServers(ctx context.Context, logger *slog.Logger, servers ...*http.Serve
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
 
-	for _, srv := range servers {
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			serveErr = errors.Join(serveErr, fmt.Errorf("shutdown %s: %w", srv.Addr, err))
-		}
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		serveErr = errors.Join(serveErr, fmt.Errorf("shutdown %s: %w", srv.Addr, err))
 	}
 
 	return serveErr

@@ -12,32 +12,34 @@ import (
 )
 
 type Account struct {
-	ID               uuid.UUID          `json:"id"`
-	ConnectionID     uuid.UUID          `json:"connectionId"`
-	InstitutionName  *string            `json:"institutionName"`
-	Name             string             `json:"name"`
-	OfficialName     *string            `json:"officialName"`
-	Mask             *string            `json:"mask"`
-	Type             domain.AccountType `json:"type" enum:"depository,credit,loan,investment,other"`
-	Subtype          *string            `json:"subtype"`
-	CurrentBalance   *string            `json:"currentBalance" doc:"Decimal string"`
-	AvailableBalance *string            `json:"availableBalance" doc:"Decimal string"`
-	Currency         *string            `json:"currency"`
+	ID                 uuid.UUID          `json:"id"`
+	ConnectionID       uuid.UUID          `json:"connectionId"`
+	InstitutionName    *string            `json:"institutionName"`
+	InstitutionLogoURL *string            `json:"institutionLogoUrl"`
+	Name               string             `json:"name"`
+	OfficialName       *string            `json:"officialName"`
+	Mask               *string            `json:"mask"`
+	Type               domain.AccountType `json:"type" enum:"depository,credit,loan,investment,other"`
+	Subtype            *string            `json:"subtype"`
+	CurrentBalance     *string            `json:"currentBalance" doc:"Decimal string"`
+	AvailableBalance   *string            `json:"availableBalance" doc:"Decimal string"`
+	Currency           *string            `json:"currency"`
 }
 
 func newAccount(account domain.Account) Account {
 	return Account{
-		ID:               account.ID,
-		ConnectionID:     account.ConnectionID,
-		InstitutionName:  account.InstitutionName,
-		Name:             account.Name,
-		OfficialName:     account.OfficialName,
-		Mask:             account.Mask,
-		Type:             account.Type,
-		Subtype:          account.Subtype,
-		CurrentBalance:   account.CurrentBalance,
-		AvailableBalance: account.AvailableBalance,
-		Currency:         account.Currency,
+		ID:                 account.ID,
+		ConnectionID:       account.ConnectionID,
+		InstitutionName:    account.InstitutionName,
+		InstitutionLogoURL: institutionLogoURL(account.InstitutionURL),
+		Name:               account.Name,
+		OfficialName:       account.OfficialName,
+		Mask:               account.Mask,
+		Type:               account.Type,
+		Subtype:            account.Subtype,
+		CurrentBalance:     account.CurrentBalance,
+		AvailableBalance:   account.AvailableBalance,
+		Currency:           account.Currency,
 	}
 }
 

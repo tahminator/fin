@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -36,6 +36,9 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-go-race-
           INSTALL_JUST: true
           INSTALL_GOLANGCI_LINT: true
+          GOLANGCI_LINT_CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-golangci-lint-${{ github.sha }}
+          GOLANGCI_LINT_CACHE_RESTORE_KEYS: |
+            ${{ runner.os }}-${{ runner.arch }}-golangci-lint-
 
       - name: Run pre-test checks
         uses: ./.github/composite/pretest
@@ -52,7 +55,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -77,7 +80,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -99,7 +102,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -125,7 +128,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true

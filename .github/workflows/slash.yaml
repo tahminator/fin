@@ -26,12 +26,12 @@ jobs:
           persist-credentials: false
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           LINT_CI: true
 
       - name: Slash Command Dispatch
-        uses: tahminator/pipeline/actions/commands@c6d1d766840b5841bf5495281348bd6373a60bcb # 1.0.107
+        uses: tahminator/pipeline/actions/commands@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
         with:
           APP_ID: ${{ secrets._GITHUB_APP_APP_ID }}
           PRIVATE_KEY: ${{ secrets._GITHUB_APP_PEM_CONTENT }}

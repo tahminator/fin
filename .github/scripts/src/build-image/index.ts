@@ -4,10 +4,12 @@ import { hideBin } from "yargs/helpers";
 
 import {
   DOCKER_HUB_USERNAME,
+  DOCKER_IMAGE,
   DOCKER_REPOSITORY,
   GITHUB_OWNER,
   GITHUB_REPOSITORY,
   shortSha,
+  stagingTag,
 } from "../lib/consts";
 import { parseCiEnv } from "../lib/env";
 
@@ -43,10 +45,8 @@ async function main() {
     "_GITHUB_APP_PEM_CONTENT",
   ]);
 
-  const image = `${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}`;
-  const short = shortSha(sha);
   const tags =
-    environment === "staging" ? [`staging-${short}`, `sha-${sha}`] : [short, `sha-${sha}`];
+    environment === "staging" ? [stagingTag(sha), `sha-${sha}`] : [shortSha(sha), `sha-${sha}`];
 
   const goMod = await Bun.file("go.mod").text();
   const { devEngines, packageManager } = await Bun.file("js/package.json").json();
@@ -76,9 +76,11 @@ async function main() {
       prId: Number(prId),
       owner: GITHUB_OWNER,
       repository: GITHUB_REPOSITORY,
-      message: `The fin image has been uploaded to https://hub.docker.com/r/${image}/tags under the following tags:
+      message: `The fin image has been uploaded to https://hub.docker.com/r/${DOCKER_IMAGE}/tags under the following tags:
 
 ${tags.map((t) => `- \`${DOCKER_REPOSITORY}:${t}\``).join("\n")}
+
+Comment \`/try\` to deploy \`${stagingTag(sha)}\` to production, then \`/revert\` to restore the image it replaced.
 `,
     });
   }

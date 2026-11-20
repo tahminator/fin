@@ -110,7 +110,6 @@ jobs:
   createTag:
     name: Create new tag
     runs-on: ubuntu-26.04
-    needs: [buildImage]
 
     if: github.ref_name == 'main'
 

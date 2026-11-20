@@ -17,6 +17,7 @@ jobs:
   promoteImage:
     name: Promote image to ${{ github.ref_name }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 40
 
     steps:
       - name: Checkout Repository

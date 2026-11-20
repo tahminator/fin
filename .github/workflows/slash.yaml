@@ -1,0 +1,38 @@
+name: Slash Command Dispatch
+run-name: Slash Command Dispatch
+
+permissions:
+  contents: read
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  slashCommandDispatch:
+    name: Dispatch slash command
+    runs-on: ubuntu-26.04
+
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # stay on trusted default-branch code until the commands action authorizes the commenter
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          LINT_CI: true
+
+      - name: Slash Command Dispatch
+        uses: tahminator/pipeline/actions/commands@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          APP_ID: ${{ secrets._GITHUB_APP_APP_ID }}
+          PRIVATE_KEY: ${{ secrets._GITHUB_APP_PEM_CONTENT }}
+          DYNAMIC_COMMANDS_BUN_SCRIPT: .github/scripts/src/load-slash-commands/index.ts

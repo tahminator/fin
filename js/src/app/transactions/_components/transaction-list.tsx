@@ -23,7 +23,7 @@ function TransactionRow({
           <p className="flex items-center gap-2 font-medium">
             <span className="truncate">{transaction.merchantName ?? transaction.name}</span>
             {transaction.pending ? (
-              <ClockIcon className="size-4 shrink-0 text-muted-foreground" aria-label="Pending" role="img" />
+              <ClockIcon className="size-4 shrink-0 text-muted-foreground" aria-label="Pending" />
             ) : null}
           </p>
           <p className="truncate text-sm text-muted-foreground">
@@ -62,7 +62,11 @@ export function TransactionList({
     <section className="flex flex-col gap-2">
       <ul className="divide-y">
         {transactions.map((transaction) => (
-          <TransactionRow key={transaction.id} transaction={transaction} accountsById={accountsById} />
+          <TransactionRow
+            key={transaction.id}
+            transaction={transaction}
+            accountsById={accountsById}
+          />
         ))}
       </ul>
       {hasMore ? <LoadMoreButton loading={loadingMore} onLoadMore={onLoadMore} /> : null}

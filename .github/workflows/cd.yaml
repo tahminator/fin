@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 2
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true

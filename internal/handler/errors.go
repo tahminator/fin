@@ -20,6 +20,10 @@ func problem(ctx context.Context, err error) error {
 		return huma.Error403Forbidden(detailOf(err, domain.ErrNotAllowed))
 	case errors.Is(err, domain.ErrConflict):
 		return huma.Error409Conflict(detailOf(err, domain.ErrConflict))
+	case errors.Is(err, domain.ErrUnavailable):
+		slog.WarnContext(ctx, "upstream unavailable", "err", err)
+
+		return huma.Error503ServiceUnavailable("an upstream service is unavailable, try again later")
 	}
 
 	slog.ErrorContext(ctx, "request failed", "err", err)

@@ -150,6 +150,7 @@ func newConnectionHandler(
 	connectionService := service.NewConnectionService(
 		service.ConnectionRepositories{Credentials: credentials, Connections: connections},
 		accountProvider,
+		nil,
 		cipher,
 		metrics.Noop{},
 		"https://fin.example.com/connections",
@@ -160,11 +161,29 @@ func newConnectionHandler(
 
 type fakeAccounts struct {
 	repository.AccountRepository
-	listByUser func(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error)
+	listByUser    func(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error)
+	selectCardArt func(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) (domain.Account, error)
 }
 
 func (f *fakeAccounts) ListByUser(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error) {
 	return f.listByUser(ctx, userID, filter, limit, offset)
+}
+
+func (f *fakeAccounts) SelectCardArt(ctx context.Context, userID, id uuid.UUID, art domain.CardArt) (domain.Account, error) {
+	return f.selectCardArt(ctx, userID, id, art)
+}
+
+type fakeCatalog struct {
+	search func(ctx context.Context, query string) ([]domain.CatalogCard, error)
+	card   func(ctx context.Context, id string) (domain.CatalogCard, error)
+}
+
+func (f *fakeCatalog) Search(ctx context.Context, query string) ([]domain.CatalogCard, error) {
+	return f.search(ctx, query)
+}
+
+func (f *fakeCatalog) Card(ctx context.Context, id string) (domain.CatalogCard, error) {
+	return f.card(ctx, id)
 }
 
 type fakeTransactions struct {

@@ -188,6 +188,9 @@ func TestListAccountsMapsFields(t *testing.T) {
 		CurrentBalance:   new("110.25"),
 		AvailableBalance: nil,
 		Currency:         new("USD"),
+		CardArtID:        new("us-platypus-gold"),
+		CardArtURL:       new("https://cards.example/platypus-gold.png"),
+		CardArtSource:    new(domain.CardArtSourceSelected),
 	}
 	accounts := &fakeAccounts{
 		listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
@@ -223,6 +226,9 @@ func TestListAccountsMapsFields(t *testing.T) {
 		"currentBalance":     "110.25",
 		"availableBalance":   nil,
 		"currency":           "USD",
+		"cardArtId":          "us-platypus-gold",
+		"cardArtUrl":         "https://cards.example/platypus-gold.png",
+		"cardArtSource":      "selected",
 	}
 
 	for key, value := range want {

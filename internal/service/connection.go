@@ -38,6 +38,7 @@ type ConnectionService struct {
 	accounts     repository.AccountRepository
 	transactions repository.TransactionRepository
 	provider     provider.Provider
+	cardArt      CardArtMatcher
 	cipher       *encryption.Cipher
 	recorder     metrics.Recorder
 	redirectURI  string
@@ -47,6 +48,7 @@ type ConnectionService struct {
 func NewConnectionService(
 	repos ConnectionRepositories,
 	accountProvider provider.Provider,
+	cardArt CardArtMatcher,
 	cipher *encryption.Cipher,
 	recorder metrics.Recorder,
 	redirectURI string,
@@ -57,6 +59,7 @@ func NewConnectionService(
 		accounts:     repos.Accounts,
 		transactions: repos.Transactions,
 		provider:     accountProvider,
+		cardArt:      cardArt,
 		cipher:       cipher,
 		recorder:     recorder,
 		redirectURI:  redirectURI,
@@ -266,6 +269,8 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 			return fmt.Errorf("delete deselected accounts: %w", err)
 		}
 	}
+
+	s.cardArt.MatchConnection(ctx, connection.UserID, connection.ID)
 
 	result, err := s.provider.SyncTransactions(ctx, credential, accessToken, connection.SyncCursor)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/tahminator/fin/internal/cardart"
 	"github.com/tahminator/fin/internal/config"
 	"github.com/tahminator/fin/internal/encryption"
 	"github.com/tahminator/fin/internal/handler"
@@ -26,6 +27,7 @@ import (
 
 const (
 	providerTimeout   = 30 * time.Second
+	cardArtTimeout    = 10 * time.Second
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 15 * time.Second
 )
@@ -76,6 +78,7 @@ func serve() error {
 	}
 
 	authService := service.NewAuthService(users, sessions, google, recorder, cfg.SessionTTL)
+	cardArtService := service.NewCardArtService(accounts, cardart.NewOpenCard(&http.Client{Timeout: cardArtTimeout}))
 	connectionService := service.NewConnectionService(
 		service.ConnectionRepositories{
 			Credentials:  credentials,
@@ -84,6 +87,7 @@ func serve() error {
 			Transactions: transactions,
 		},
 		accountProvider,
+		cardArtService,
 		cipher,
 		recorder,
 		cfg.PlaidRedirectURI(),
@@ -99,6 +103,7 @@ func serve() error {
 		Summary:        handler.NewSummaryHandler(summary),
 		Connections:    handler.NewConnectionHandler(connections, connectionService),
 		Accounts:       handler.NewAccountHandler(accounts),
+		CardArt:        handler.NewCardArtHandler(cardArtService),
 		Transactions:   handler.NewTransactionHandler(transactions),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),

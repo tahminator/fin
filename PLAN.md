@@ -228,6 +228,7 @@ type Config struct {
 	GoogleSecret      string
 	SecretKey         []byte
 	PlaidCountryCodes []string
+	Version           string
 }
 
 func NewFromEnv() (Config, error) {
@@ -248,6 +249,7 @@ func NewFromEnv() (Config, error) {
 		GoogleSecret:      env.required("GOOGLE_CLIENT_SECRET"),
 		SecretKey:         []byte(env.required("SECRET_KEY")),
 		PlaidCountryCodes: env.list("PLAID_COUNTRY_CODES", []string{"US"}),
+		Version:           env.optional("VERSION", ""),
 	}
 
 	env.errs = append(env.errs, cfg.validate()...)
@@ -407,6 +409,8 @@ SECRET_KEY=
 
 SYNC_CRON="0 */6 * * *"
 PLAID_COUNTRY_CODES=US
+
+VERSION=
 ```
 
 Dev `PUBLIC_URL` points at the Vite dev server so OAuth redirects and cookies land on the same origin the SPA uses (Vite proxies `/api`, `/auth`, `/openapi.json`, `/swagger` to `:8080`). Empty `COOKIE_DOMAIN` → host-only cookie (browsers mishandle `Domain=localhost`). `SYNC_CRON=off` disables the scheduler; `CRON_TZ=America/New_York 0 6 * * *` pins a timezone (`main.go` blank-imports `time/tzdata` because the distroless image has no zoneinfo). The `env.go` import block gains `github.com/robfig/cron/v3`.
@@ -863,6 +867,7 @@ func (h *TransactionHandler) Register(api huma.API) {
 | GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]` |
 | GET | `/api/transactions` | `TransactionHandler.list` | `Page[Transaction]`, optional `accountId` |
 | GET | `/api/notifications` | `NotificationHandler.list` | `Page[Notification]`; currently only `reauth_required` |
+| GET | `/api/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
 | GET | `/openapi.json`, `/openapi.yaml` | huma | |
 | GET | `/swagger` | huma SwaggerUI | |
 | GET | `/*` | `server/spa.go` | only when `STATIC_DIR` set |

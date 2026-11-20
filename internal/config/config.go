@@ -30,6 +30,7 @@ type Config struct {
 	GoogleSecret      string
 	SecretKey         []byte
 	PlaidCountryCodes []string
+	Version           string
 }
 
 func NewFromEnv() (Config, error) {
@@ -50,6 +51,7 @@ func NewFromEnv() (Config, error) {
 		GoogleSecret:      env.required("GOOGLE_CLIENT_SECRET"),
 		SecretKey:         []byte(env.required("SECRET_KEY")),
 		PlaidCountryCodes: env.list("PLAID_COUNTRY_CODES", []string{"US"}),
+		Version:           env.optional("VERSION", ""),
 	}
 
 	env.errs = append(env.errs, cfg.validate()...)

@@ -24,12 +24,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
           INSTALL_GO: true
           GO_VERSION_FILE: go.mod
+          # the shared setup-go cache is usually saved by frontendTest, which has no -race builds
+          GO_CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-go-race-${{ hashFiles('go.mod', 'go.sum') }}
+          GO_CACHE_RESTORE_KEYS: |
+            ${{ runner.os }}-${{ runner.arch }}-go-race-
           INSTALL_JUST: true
           INSTALL_GOLANGCI_LINT: true
 
@@ -48,7 +52,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -73,7 +77,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -95,7 +99,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
@@ -121,7 +125,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        uses: tahminator/pipeline/actions/setup@c6d1d766840b5841bf5495281348bd6373a60bcb
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true

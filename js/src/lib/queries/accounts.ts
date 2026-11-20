@@ -14,3 +14,12 @@ export function useAccounts() {
     },
   );
 }
+
+export function useAllAccounts() {
+  return $api.useQuery(
+    "get",
+    "/api/accounts",
+    { params: { query: { pageSize: 100 } } },
+    { select: (data) => data.items },
+  );
+}

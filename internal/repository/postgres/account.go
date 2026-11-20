@@ -131,6 +131,7 @@ SELECT
     a.user_id,
     a.connection_id,
     c.institution_name,
+    c.institution_url,
     a.external_id,
     a.name,
     a.official_name,

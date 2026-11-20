@@ -1,24 +1,17 @@
 import { Link } from "react-router";
 
-import { AccountList } from "@/app/_components/home/account-list";
-import { BalanceSummary } from "@/app/_components/home/balance-summary";
+import { AccountsOverview } from "@/app/_components/home/accounts-overview";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/queries/accounts";
-import { useSummary } from "@/lib/queries/summary";
 
 export function HomePage() {
-  const summary = useSummary();
   const accounts = useAccounts();
 
-  if (summary.isPending || accounts.isPending) {
+  if (accounts.isPending) {
     return <LoadingState />;
-  }
-
-  if (summary.isError) {
-    return <ErrorState error={summary.error} onRetry={summary.refetch} />;
   }
 
   if (accounts.isError) {
@@ -40,14 +33,11 @@ export function HomePage() {
   }
 
   return (
-    <>
-      <BalanceSummary summary={summary.data} />
-      <AccountList
-        accounts={accounts.data}
-        hasMore={accounts.hasNextPage}
-        loadingMore={accounts.isFetchingNextPage}
-        onLoadMore={accounts.fetchNextPage}
-      />
-    </>
+    <AccountsOverview
+      accounts={accounts.data}
+      hasMore={accounts.hasNextPage}
+      loadingMore={accounts.isFetchingNextPage}
+      onLoadMore={accounts.fetchNextPage}
+    />
   );
 }

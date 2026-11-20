@@ -1,5 +1,6 @@
 import { ReconnectButton, SyncButton } from "@/app/connections/_components/connection-actions";
 import { RemoveConnectionButton } from "@/app/connections/_components/remove-connection-button";
+import { InstitutionLogo } from "@/components/institution-logo";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,12 +34,15 @@ function ConnectionRow({ connection }: { connection: Connection }) {
   return (
     <li className="flex flex-col gap-3 py-4">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{name}</p>
-          <p className="text-sm text-muted-foreground">{statusLine(connection)}</p>
-          {connection.lastError === null ? null : (
-            <p className="text-sm text-destructive">{connection.lastError}</p>
-          )}
+        <div className="flex min-w-0 items-start gap-3">
+          <InstitutionLogo url={connection.institutionLogoUrl} />
+          <div className="min-w-0">
+            <p className="truncate font-medium">{name}</p>
+            <p className="text-sm text-muted-foreground">{statusLine(connection)}</p>
+            {connection.lastError === null ? null : (
+              <p className="text-sm text-destructive">{connection.lastError}</p>
+            )}
+          </div>
         </div>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>

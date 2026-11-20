@@ -387,6 +387,14 @@ func TestLinkStoresCiphertextThatDecryptsToProviderToken(t *testing.T) {
 		}, nil
 	}
 
+	var gotInstitutionID string
+
+	f.provider.institution = func(_ context.Context, _ domain.Credential, institutionID string) (provider.InstitutionInfo, error) {
+		gotInstitutionID = institutionID
+
+		return provider.InstitutionInfo{URL: new("https://firstbank.example.com")}, nil
+	}
+
 	f.connections.create = func(_ context.Context, connection domain.Connection) (domain.Connection, error) {
 		f.record("connections.create")
 		created = connection
@@ -427,6 +435,14 @@ func TestLinkStoresCiphertextThatDecryptsToProviderToken(t *testing.T) {
 
 	if created.InstitutionName == nil || *created.InstitutionName != "First Bank" {
 		t.Errorf("institution name = %v, want First Bank", created.InstitutionName)
+	}
+
+	if gotInstitutionID != "ins_1" {
+		t.Errorf("institution lookup id = %q, want ins_1", gotInstitutionID)
+	}
+
+	if created.InstitutionURL == nil || *created.InstitutionURL != "https://firstbank.example.com" {
+		t.Errorf("institution url = %v, want https://firstbank.example.com", created.InstitutionURL)
 	}
 
 	if linked.ID != f.connection.ID {
@@ -1169,5 +1185,138 @@ func TestRemoveProviderFailureKeepsConnection(t *testing.T) {
 
 	if f.called("connections.delete") {
 		t.Error("connection deleted after provider removal failed")
+	}
+}
+
+func TestLinkStoresCiphertextThatDecryptsToProviderToken_InstitutionLookupFailureDoesNotFailLink(t *testing.T) {
+	f := newConnectionFixture(t)
+
+	f.provider.exchange = func(context.Context, domain.Credential, string) (provider.LinkedItem, error) {
+		return provider.LinkedItem{
+			ExternalID:    "item-9",
+			AccessToken:   testProviderToken,
+			InstitutionID: new("ins_1"),
+		}, nil
+	}
+
+	f.provider.institution = func(context.Context, domain.Credential, string) (provider.InstitutionInfo, error) {
+		return provider.InstitutionInfo{}, errProviderDown
+	}
+
+	var created domain.Connection
+
+	f.connections.create = func(_ context.Context, connection domain.Connection) (domain.Connection, error) {
+		created = connection
+		f.connection.AccessTokenCiphertext = connection.AccessTokenCiphertext
+
+		return f.connection, nil
+	}
+
+	if _, err := f.service.Link(t.Context(), f.userID, "public-token"); err != nil {
+		t.Fatalf("Link: %v", err)
+	}
+
+	if created.InstitutionURL != nil {
+		t.Errorf("institution url = %v, want nil after lookup failure", created.InstitutionURL)
+	}
+}
+
+func TestSyncBackfillsInstitutionURLWhenMissing(t *testing.T) {
+	f := newConnectionFixture(t)
+	f.connection.InstitutionID = new("ins_1")
+	f.connection.InstitutionURL = nil
+
+	var gotInstitutionID string
+	var savedUserID, savedConnectionID uuid.UUID
+	var savedURL string
+
+	f.provider.institution = func(_ context.Context, _ domain.Credential, institutionID string) (provider.InstitutionInfo, error) {
+		f.record("provider.institution")
+		gotInstitutionID = institutionID
+
+		return provider.InstitutionInfo{URL: new("https://firstbank.example.com")}, nil
+	}
+
+	f.connections.updateInstitutionURL = func(_ context.Context, userID, id uuid.UUID, url string) error {
+		f.record("connections.updateInstitutionURL")
+		savedUserID = userID
+		savedConnectionID = id
+		savedURL = url
+
+		return nil
+	}
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if gotInstitutionID != "ins_1" {
+		t.Errorf("institution lookup id = %q, want ins_1", gotInstitutionID)
+	}
+
+	if savedUserID != f.userID || savedConnectionID != f.connection.ID || savedURL != "https://firstbank.example.com" {
+		t.Errorf("saved institution url = (%v, %v, %q), want (%v, %v, https://firstbank.example.com)", savedUserID, savedConnectionID, savedURL, f.userID, f.connection.ID)
+	}
+}
+
+func TestSyncSkipsInstitutionURLLookupWhenAlreadyPresent(t *testing.T) {
+	f := newConnectionFixture(t)
+	f.connection.InstitutionID = new("ins_1")
+	f.connection.InstitutionURL = new("https://firstbank.example.com")
+
+	f.provider.institution = func(context.Context, domain.Credential, string) (provider.InstitutionInfo, error) {
+		f.record("provider.institution")
+
+		return provider.InstitutionInfo{}, nil
+	}
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if f.called("provider.institution") {
+		t.Error("institution lookup performed even though institution_url was already set")
+	}
+}
+
+func TestSyncSkipsInstitutionURLLookupWhenInstitutionIDMissing(t *testing.T) {
+	f := newConnectionFixture(t)
+	f.connection.InstitutionID = nil
+	f.connection.InstitutionURL = nil
+
+	f.provider.institution = func(context.Context, domain.Credential, string) (provider.InstitutionInfo, error) {
+		f.record("provider.institution")
+
+		return provider.InstitutionInfo{}, nil
+	}
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if f.called("provider.institution") {
+		t.Error("institution lookup performed even though institution_id was missing")
+	}
+}
+
+func TestSyncBackfillInstitutionURLSaveFailureDoesNotFailSync(t *testing.T) {
+	f := newConnectionFixture(t)
+	f.connection.InstitutionID = new("ins_1")
+	f.connection.InstitutionURL = nil
+
+	f.provider.institution = func(context.Context, domain.Credential, string) (provider.InstitutionInfo, error) {
+		return provider.InstitutionInfo{URL: new("https://firstbank.example.com")}, nil
+	}
+
+	f.connections.updateInstitutionURL = func(context.Context, uuid.UUID, uuid.UUID, string) error {
+		return errProviderDown
+	}
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v, want nil since backfill is best-effort", err)
+	}
+
+	if len(f.statuses) != 0 || len(f.lastErrors) != 0 {
+		t.Errorf("unexpected status updates %+v or last errors %v after backfill save failure", f.statuses, f.lastErrors)
 	}
 }

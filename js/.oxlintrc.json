@@ -24,7 +24,7 @@
     "perf": "error",
     "style": "error"
   },
-  "ignorePatterns": ["src/lib/api/schema.gen.ts"],
+  "ignorePatterns": ["src/lib/api/schema.gen.ts", "src/components/ui/chart.tsx"],
   "rules": {
     "fin/alias-imports": "error",
     "fin/no-comments": "error",

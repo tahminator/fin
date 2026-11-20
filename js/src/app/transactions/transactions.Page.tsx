@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router";
 import { z } from "zod";
 
 import { TransactionList } from "@/app/transactions/_components/transaction-list";
+import { TransactionsFilter } from "@/app/transactions/_components/transactions-filter";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -10,10 +11,27 @@ import { useTransactions } from "@/lib/queries/transactions";
 
 const transactionsSearchSchema = z.object({
   accountId: z.uuid().optional(),
+  hide: z.array(z.uuid()).default([]),
 });
 
-function TransactionResults({ accountId }: { accountId: string | undefined }) {
-  const transactions = useTransactions(accountId);
+function hideSearchParams(hide: string[]): URLSearchParams {
+  const params = new URLSearchParams();
+
+  for (const accountId of hide) {
+    params.append("hide", accountId);
+  }
+
+  return params;
+}
+
+function TransactionResults({
+  accountId,
+  excludeAccountId,
+}: {
+  accountId: string | undefined;
+  excludeAccountId: string[];
+}) {
+  const transactions = useTransactions(accountId, excludeAccountId);
 
   if (transactions.isPending) {
     return <LoadingState />;
@@ -41,6 +59,7 @@ export function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const search = transactionsSearchSchema.safeParse({
     accountId: searchParams.get("accountId") ?? undefined,
+    hide: searchParams.getAll("hide"),
   });
 
   if (!search.success) {
@@ -54,19 +73,24 @@ export function TransactionsPage() {
     );
   }
 
-  const { accountId } = search.data;
+  const { accountId, hide } = search.data;
 
   return (
     <>
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight">Transactions</h1>
-        {accountId === undefined ? null : (
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/transactions">All accounts</Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <TransactionsFilter />
+          {accountId === undefined ? null : (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={{ pathname: "/transactions", search: hideSearchParams(hide).toString() }}>
+                All accounts
+              </Link>
+            </Button>
+          )}
+        </div>
       </header>
-      <TransactionResults accountId={accountId} />
+      <TransactionResults accountId={accountId} excludeAccountId={hide} />
     </>
   );
 }

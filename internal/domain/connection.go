@@ -24,6 +24,7 @@ type Connection struct {
 	AccessTokenCiphertext string           `db:"access_token_ciphertext"`
 	InstitutionID         *string          `db:"institution_id"`
 	InstitutionName       *string          `db:"institution_name"`
+	InstitutionURL        *string          `db:"institution_url"`
 	Status                ConnectionStatus `db:"status"`
 	StatusChangedAt       time.Time        `db:"status_changed_at"`
 	SyncCursor            string           `db:"sync_cursor"`

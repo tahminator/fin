@@ -86,14 +86,15 @@ func (f *fakeCredentials) Find(ctx context.Context, userID uuid.UUID, provider d
 
 type fakeConnections struct {
 	repository.ConnectionRepository
-	create              func(ctx context.Context, connection domain.Connection) (domain.Connection, error)
-	get                 func(ctx context.Context, userID, id uuid.UUID) (domain.Connection, error)
-	listByStatus        func(ctx context.Context, status domain.ConnectionStatus) ([]domain.Connection, error)
-	listByUserAndStatus func(ctx context.Context, userID uuid.UUID, status domain.ConnectionStatus, limit, offset int) ([]domain.Connection, int, error)
-	updateSyncState     func(ctx context.Context, userID, id uuid.UUID, cursor string, syncedAt time.Time) error
-	updateLastError     func(ctx context.Context, userID, id uuid.UUID, lastError string) error
-	updateStatus        func(ctx context.Context, userID, id uuid.UUID, status domain.ConnectionStatus, lastError *string) error
-	delete              func(ctx context.Context, userID, id uuid.UUID) error
+	create               func(ctx context.Context, connection domain.Connection) (domain.Connection, error)
+	get                  func(ctx context.Context, userID, id uuid.UUID) (domain.Connection, error)
+	listByStatus         func(ctx context.Context, status domain.ConnectionStatus) ([]domain.Connection, error)
+	listByUserAndStatus  func(ctx context.Context, userID uuid.UUID, status domain.ConnectionStatus, limit, offset int) ([]domain.Connection, int, error)
+	updateSyncState      func(ctx context.Context, userID, id uuid.UUID, cursor string, syncedAt time.Time) error
+	updateLastError      func(ctx context.Context, userID, id uuid.UUID, lastError string) error
+	updateStatus         func(ctx context.Context, userID, id uuid.UUID, status domain.ConnectionStatus, lastError *string) error
+	updateInstitutionURL func(ctx context.Context, userID, id uuid.UUID, url string) error
+	delete               func(ctx context.Context, userID, id uuid.UUID) error
 }
 
 func (f *fakeConnections) Create(ctx context.Context, connection domain.Connection) (domain.Connection, error) {
@@ -128,6 +129,10 @@ func (f *fakeConnections) Delete(ctx context.Context, userID, id uuid.UUID) erro
 	return f.delete(ctx, userID, id)
 }
 
+func (f *fakeConnections) UpdateInstitutionURL(ctx context.Context, userID, id uuid.UUID, url string) error {
+	return f.updateInstitutionURL(ctx, userID, id, url)
+}
+
 type fakeAccounts struct {
 	repository.AccountRepository
 	upsert func(ctx context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error)
@@ -159,6 +164,7 @@ type fakeProvider struct {
 	accounts              func(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.Account, error)
 	syncTransactions      func(ctx context.Context, creds domain.Credential, accessToken, cursor string) (provider.SyncResult, error)
 	remove                func(ctx context.Context, creds domain.Credential, accessToken string) error
+	institution           func(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error)
 }
 
 func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {
@@ -183,6 +189,10 @@ func (f *fakeProvider) SyncTransactions(ctx context.Context, creds domain.Creden
 
 func (f *fakeProvider) Remove(ctx context.Context, creds domain.Credential, accessToken string) error {
 	return f.remove(ctx, creds, accessToken)
+}
+
+func (f *fakeProvider) Institution(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error) {
+	return f.institution(ctx, creds, institutionID)
 }
 
 type loginRecorder struct {

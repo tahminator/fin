@@ -51,9 +51,21 @@ dev-api:
 dev-web:
     pnpm --dir js dev
 
-[doc("Run DB, migrations, codegen, API and web together")]
-dev: db migrate gen
-    trap 'kill 0' EXIT; just dev-api & just dev-web & wait
+[doc("Run DB (skip with --no-db), migrations, codegen, API and web together")]
+dev *flags:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    skip_db=false
+    for f in {{flags}}; do
+        case "$f" in
+            --no-db) skip_db=true ;;
+            *) echo "dev: unknown flag '$f' (expected --no-db)" >&2; exit 1 ;;
+        esac
+    done
+    if [ "$skip_db" = false ]; then just db; fi
+    just migrate
+    just gen
+    trap 'kill 0' EXIT; npx mprocs "just dev-api" "just dev-web"
 
 [doc("Lint everything")]
 lint: lint-go lint-js

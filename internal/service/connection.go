@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 	"uuid"
@@ -89,6 +90,7 @@ func (s *ConnectionService) Link(ctx context.Context, userID uuid.UUID, publicTo
 		AccessTokenCiphertext: s.cipher.Encrypt(item.AccessToken),
 		InstitutionID:         item.InstitutionID,
 		InstitutionName:       item.InstitutionName,
+		InstitutionURL:        s.lookupInstitutionURL(ctx, credential, item.InstitutionID),
 		Status:                domain.ConnectionStatusActive,
 	})
 	if err != nil {
@@ -225,6 +227,8 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 		return err
 	}
 
+	s.backfillInstitutionURL(ctx, credential, connection)
+
 	accessToken, err := s.cipher.Decrypt(connection.AccessTokenCiphertext)
 	if err != nil {
 		return err
@@ -273,6 +277,36 @@ func (s *ConnectionService) credential(ctx context.Context, userID uuid.UUID) (d
 	}
 
 	return credential, nil
+}
+
+func (s *ConnectionService) lookupInstitutionURL(ctx context.Context, credential domain.Credential, institutionID *string) *string {
+	if institutionID == nil {
+		return nil
+	}
+
+	info, err := s.provider.Institution(ctx, credential, *institutionID)
+	if err != nil {
+		slog.WarnContext(ctx, "lookup institution failed", "institution_id", *institutionID, "err", err)
+
+		return nil
+	}
+
+	return info.URL
+}
+
+func (s *ConnectionService) backfillInstitutionURL(ctx context.Context, credential domain.Credential, connection domain.Connection) {
+	if connection.InstitutionURL != nil || connection.InstitutionID == nil {
+		return
+	}
+
+	url := s.lookupInstitutionURL(ctx, credential, connection.InstitutionID)
+	if url == nil {
+		return
+	}
+
+	if err := s.connections.UpdateInstitutionURL(ctx, connection.UserID, connection.ID, *url); err != nil {
+		slog.WarnContext(ctx, "save institution url failed", "connection_id", connection.ID, "err", err)
+	}
 }
 
 func syncOutcomeOf(err error) metrics.SyncOutcome {

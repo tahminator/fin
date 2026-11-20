@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -168,6 +169,50 @@ func TestListTransactionsRejectsInvalidAccountID(t *testing.T) {
 	api := newAPI(t, newUser(), handler.NewTransactionHandler(transactions))
 
 	rec := api.Get("/api/transactions?accountId=not-a-uuid")
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+	}
+}
+
+func TestListTransactionsExcludeAccountFilter(t *testing.T) {
+	excludeA := uuid.New()
+	excludeB := uuid.New()
+
+	var gotFilter repository.TransactionFilter
+
+	transactions := &fakeTransactions{
+		listByUser: func(_ context.Context, _ uuid.UUID, filter repository.TransactionFilter, _, _ int) ([]domain.Transaction, int, error) {
+			gotFilter = filter
+
+			return nil, 0, nil
+		},
+	}
+	api := newAPI(t, newUser(), handler.NewTransactionHandler(transactions))
+
+	rec := api.Get("/api/transactions?excludeAccountId=" + excludeA.String() + "&excludeAccountId=" + excludeB.String())
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	want := []uuid.UUID{excludeA, excludeB}
+	if !slices.Equal(gotFilter.ExcludeAccountID, want) {
+		t.Errorf("filter excludeAccountId = %v, want %v", gotFilter.ExcludeAccountID, want)
+	}
+}
+
+func TestListTransactionsRejectsInvalidExcludeAccountID(t *testing.T) {
+	transactions := &fakeTransactions{
+		listByUser: func(context.Context, uuid.UUID, repository.TransactionFilter, int, int) ([]domain.Transaction, int, error) {
+			t.Error("repository called for invalid exclude account id")
+
+			return nil, 0, nil
+		},
+	}
+	api := newAPI(t, newUser(), handler.NewTransactionHandler(transactions))
+
+	rec := api.Get("/api/transactions?excludeAccountId=not-a-uuid")
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusUnprocessableEntity, rec.Body.String())

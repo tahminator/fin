@@ -1,0 +1,131 @@
+name: CI
+run-name: Running continuous integration on ${{ github.actor }}'s commits
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backendTest:
+    name: Backend tests
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+          INSTALL_GO: true
+          GO_VERSION_FILE: go.mod
+          INSTALL_JUST: true
+          INSTALL_GOLANGCI_LINT: true
+
+      - name: Run pre-test checks
+        uses: ./.github/composite/pretest
+
+      - name: Run tests
+        uses: ./.github/composite/test
+
+  frontendTest:
+    name: Frontend tests
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+          INSTALL_GO: true
+          GO_VERSION_FILE: go.mod
+          INSTALL_JUST: true
+          INSTALL_NPM: true
+          NODE_VERSION: "26.13.1"
+          INSTALL_PNPM: true
+          PNPM_VERSION: "12.21.0"
+
+      - name: Run frontend pre-test checks
+        uses: ./.github/composite/frontend-pretest
+
+  testMigrations:
+    name: Test database migrations
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+          INSTALL_JUST: true
+          INSTALL_MIGRATE: "true"
+
+      - name: Test database migrations
+        run: bun run .github/scripts/src/test/migrations
+
+  buildImage:
+    name: Build ${{ github.event_name == 'pull_request' && 'staging' || 'production' }} image
+    runs-on: ubuntu-26.04
+    needs: [backendTest, frontendTest, testMigrations]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+
+      - name: Build image
+        uses: ./.github/composite/build-image
+        with:
+          ENVIRONMENT: ${{ github.event_name == 'pull_request' && 'staging' || 'production' }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_ID: ${{ github.event.pull_request.number }}
+
+  createTag:
+    name: Create new tag
+    runs-on: ubuntu-26.04
+    needs: [buildImage]
+
+    if: github.ref_name == 'main'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Pipeline
+        uses: tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c
+        with:
+          SECRETS: ${{ toJSON(secrets) }}
+          LINT_CI: true
+
+      - name: Create new tag
+        uses: ./.github/composite/create-tag

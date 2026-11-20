@@ -25,3 +25,13 @@ The API listens on `:8080`; `/openapi.json` and `/swagger` expose its schema. Th
 Run migrations explicitly with `just migrate`; the server never applies migrations on startup. `just docker-build` builds the runtime image without migrations. Before deploying, apply migrations separately with the golang-migrate CLI against the target database.
 
 Production requires a public HTTPS URL, a cookie domain, secure cookies, Google OAuth credentials and each user's Plaid credentials. Register the production Google callback at `<PUBLIC_URL>/auth/google/callback` and the Plaid redirect URI at `<PUBLIC_URL>/connections/oauth`. Protect the database and backups: Plaid access tokens are encrypted, but manually entered Plaid client secrets are stored in plaintext.
+
+## CI/CD
+
+GitHub Actions (`.github/workflows/ci.yaml`) runs on pull requests and `main`: Go lint, format and tests; frontend codegen, check and build; and a migration up/down cycle against a disposable Postgres container. When all three pass, it builds one `linux/amd64` image. Pull requests push `tahminator/fin:staging-<short-sha>` and `sha-<sha>` and comment the tags on the PR; nothing is deployed. `main` pushes `<short-sha>` and `sha-<sha>`, then creates the next plain `X.Y.Z` Git tag (the first is `1.0.0`).
+
+The tag push starts `.github/workflows/cd.yaml`. The tag points at a release commit whose parent is the `main` commit that was built, so CD promotes the parent SHA's image to `<version>` and `latest`, runs `just migrate` against `PRODUCTION_MIGRATION_DATABASE_URL`, then opens and merges the image-tag PR in `tahminator/k8s-personal`. Flux applies it; CI never touches the cluster, and a merged manifest update does not prove the app is healthy.
+
+Secrets are repository-level: `DOCKER_HUB_PAT`, `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID` and `_GITHUB_APP_PEM_CONTENT` (shared), plus `PRODUCTION_MIGRATION_DATABASE_URL` for CD. Application runtime secrets belong in the SOPS-managed Kubernetes manifest, not CI.
+
+`backendTest` installs golangci-lint through the pipeline setup action, and the migration test runs `LocalPostgresClient` with Postgres 19 because fin's migrations use `uuidv7()`. Both require `@tahminator/pipeline` 1.0.105 or later. See `PLAN.md` §12 for the full contract and prerequisites.

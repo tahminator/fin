@@ -1544,36 +1544,38 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 
 ## 12. Phase 2 — CI/CD
 
-### 12.1 Goal and decisions
+### 12.1 Approach
 
-Add GitHub Actions CI and CD. This section is a build plan, not a claim that the workflows or infrastructure already exist.
+Copy the reference repositories; do not invent mechanisms they do not use. When this section is silent, do what the reference does. Deliberate deviations are listed in §12.9 and nowhere else.
 
-- **One deployment:** production Kubernetes. There is no second cluster, database, namespace, deployment, or set of application credentials for pre-production.
-- **PR image:** a Docker Hub image tagged `staging-<full-40-character-commit-sha>`. The prefix is only an image-tag convention; building it never runs a migration or deploys an app. A PR comment identifies the exact image and digest for an operator to test manually.
-- **Main image:** build the same Dockerfile from the exact main commit with the tag `<full-sha>`; also tag the same build `staging-<full-sha>`. The full SHA avoids collisions. Never rebuild an image in CD.
-- **Release trigger:** GitHub Actions does not receive Docker Hub image-tag events natively. After the successful main image push, CI creates a **Git tag** `vX.Y.Z` pointing directly to the same main commit. That tag's push event starts `cd.yaml`, which promotes the existing `<full-sha>` image to the Docker image tag `vX.Y.Z`.
-- **Release policy:** start at `v0.1.0`; automatically increment the patch of the latest valid `vMAJOR.MINOR.PATCH` tag. To change major/minor, update the release policy intentionally. Serialize tag allocation, reject malformed existing tags, never force-push or reuse a version for another commit, and make retries idempotent for an existing matching tag.
-- **Migrations:** test PR and main migrations against a disposable Postgres 19 instance. Only CD applies pending migrations to the real production database, as a separate step before rollout. Neither the server nor the runtime image runs or contains migrations.
-- **Scripts:** workflow steps call TypeScript scripts executed with Bun, using the published `@tahminator/pipeline` package. Application frontend dependencies remain pnpm-managed; Bun is used only for `.github/scripts`.
-- **No GitHub environments:** every Actions secret is a repository-level secret, not an environment-scoped secret. Non-secret deployment settings are repository variables.
-
-### 12.2 Reference patterns and deliberate differences
-
-The implementation should follow these existing examples without copying unrelated infrastructure:
-
-| Reference | Pattern to reuse |
+| Reference (local checkout) | What to take from it |
 |---|---|
-| `Patina-Network/members-grpc-service` `.github/workflows/ci.yaml`, `cd.yaml`, `.github/composite/`, `.github/scripts/src/` | Separate CI and tag-triggered CD, composite wrappers around TypeScript scripts, migration before deployment, GitHub App auth, `DockerClient` build/promotion and `GitHubClient` PR comments. |
-| `Patina-Network/members-admin-dashboard` `.github/workflows/ci.yml`, `cd.yml` | Separate backend and frontend checks; image publication depends on both; version promotion precedes deployment. |
-| `Patina-Network/codebloom` `.github/workflows/ci-cd.yml`, `.github/scripts/test/` | Explicit pre-test and backend-test jobs and scripts. Do not copy its combined workflow or unrelated services. |
-| `tahminator/abclang` `.github/workflows/ci.yaml`, `cd.yaml`, `.github/composite/`, `.github/scripts/src/` | Small build/tag/promote/deploy composite-action structure and Bun scripts. |
-| [`@tahminator/pipeline`](https://www.npmjs.com/package/@tahminator/pipeline) | Pin a reviewed published version and lockfile; use its `DockerClient` and `GitHubClient` APIs rather than reimplementing image build and PR comments. |
+| `~/github/Patina-Network/members-admin-dashboard/.github` | **Primary template.** Backend + frontend app with one image: `ci.yml`/`cd.yml` job graph, composite actions, `src/consts.ts`, `build-image`, `create-tag`, `promote-image`, `deploy`, `pretest`, `test` scripts. |
+| `~/github/Patina-Network/members-grpc-service/.github` | Migration testing (`src/test/run-migration-tests.ts` with `LocalPostgresClient`), production migration step inside the deploy job (`composite/migrate`). |
+| `~/github/Patina-Network/codebloom/.github` | Separate backend pre-test vs test, frontend pre-test (lint, typecheck, build; no tests). |
+| `~/github/tahminator/abclang/.github` | Personal-account variant: hardcoded Docker Hub username, `k8s-personal` deploy target. |
+| `~/github/tahminator/pipeline` | `DockerClient`, `GitHubClient`, `VersioningClient`, `LocalPostgresClient`, and the setup action. Use these APIs only: no Octokit, no `gh api`, no hand-rolled HTTP. |
 
-Important difference: `GitHubTagManager.createTag()` in the inspected pipeline source creates a new commit whose parent is the current default branch head. It does **not** tag an explicitly supplied SHA. Do not use it for release tags here: doing so can associate the wrong image with a tag if main advances. Use a GitHub App installation token and GitHub's `git.createRef` API directly to point `refs/tags/vX.Y.Z` at the exact CI commit. `GITHUB_TOKEN`-created tags normally do not trigger another workflow; the GitHub App token is required for the CD tag-push event.
+```mermaid
+flowchart LR
+  subgraph CI[ci.yaml]
+    BT[backendTest] --> BI[buildImage]
+    FT[frontendTest] --> BI
+    TM[testMigrations] --> BI
+    BI -->|main only| CT[createTag]
+  end
+  BI -->|PR| PRC[PR comment with staging tags]
+  CT -->|tag push X.Y.Z| PI
+  subgraph CD[cd.yaml]
+    PI[promoteImage] --> DP[deployProduction: migrate, then GitOps PR]
+  end
+```
 
-`DockerClient.promoteDockerImage()` uses `docker pull`, `docker tag` and `docker push`, which preserves the platform image on the runner but is not a multi-platform manifest promotion. Initially build **linux/amd64 only**, and schedule the Kubernetes deployment on compatible nodes. If multi-architecture images are required later, use an OCI manifest-preserving promotion and verify every platform digest rather than assuming this helper preserves the manifest list.
+- **PR:** checks → build image tagged `staging-<short-sha>` and `sha-<full-sha>` → PR comment listing the tags. Nothing is deployed; there is no staging infrastructure.
+- **main:** checks → build image tagged `<short-sha>` and `sha-<full-sha>` → `createTag` creates the next semver Git tag via `GitHubClient.createTag`, which pushes a tag event that starts CD.
+- **CD:** promote the image of the tag's parent commit to `<version>` and `latest` → apply production migrations → open and merge the image-tag PR in `tahminator/k8s-personal`. Flux reconciles; CI never touches the cluster.
 
-### 12.3 Proposed `.github/` structure
+### 12.2 Layout
 
 ```text
 .github/
@@ -1581,123 +1583,169 @@ Important difference: `GitHubTagManager.createTag()` in the inspected pipeline s
 │   ├── ci.yaml
 │   └── cd.yaml
 ├── composite/
-│   ├── setup/
-│   │   └── action.yaml
-│   ├── backend-pretest/
-│   │   └── action.yaml
-│   ├── frontend-pretest/
-│   │   └── action.yaml
-│   ├── backend-test/
-│   │   └── action.yaml
-│   ├── build-image/
-│   │   └── action.yaml
-│   ├── migrate/
-│   │   └── action.yaml
-│   ├── promote-image/
-│   │   └── action.yaml
-│   └── deploy/
-│       └── action.yaml
+│   ├── pretest/action.yaml
+│   ├── frontend-pretest/action.yaml
+│   ├── test/action.yaml
+│   ├── build-image/action.yaml
+│   ├── create-tag/action.yaml
+│   ├── promote-image/action.yaml
+│   ├── migrate/action.yaml
+│   └── deploy/action.yaml
 └── scripts/
+    ├── .gitignore
     ├── package.json
     ├── bun.lock
     ├── tsconfig.json
     ├── oxlint.config.ts
     ├── oxfmt.config.ts
     └── src/
-        ├── constants.ts
-        ├── env.ts
-        ├── backend-pretest.ts
-        ├── frontend-pretest.ts
-        ├── backend-test.ts
-        ├── migration-check.ts
-        ├── build-image.ts
-        ├── comment-image.ts
-        ├── create-tag.ts
-        ├── promote-image.ts
-        ├── migrate.ts
-        └── deploy.ts
+        ├── lib/
+        │   ├── consts.ts
+        │   └── env.ts
+        ├── pretest/
+        │   ├── backend/index.ts
+        │   └── frontend/index.ts
+        ├── test/
+        │   ├── backend/index.ts
+        │   └── migrations/index.ts
+        ├── build-image/index.ts
+        ├── create-tag/index.ts
+        ├── promote-image/index.ts
+        └── deploy/index.ts
 ```
 
-Add production Kubernetes manifests under `infra/k8s/`: a Deployment, ClusterIP Service and Kustomize configuration. The Deployment references the versioned image, runs as non-root, sets CPU/memory requests and limits, and uses `/healthz` for liveness and `/readyz` for readiness on the operations port. Keep port 9090 private. Provision the namespace, HTTPS ingress and DNS separately; this plan does not assume a specific ingress controller. Apply manifests only after migrations succeed.
+Every callable script is an `index.ts` under at least one grouping directory and is invoked by directory, as the references do: `bun run .github/scripts/src/<dir>`. Non-callable modules live only in `src/lib/`.
 
-Use the repository's no-code-comments and natural-blank-line rules in workflow YAML, TypeScript, Docker and Kubernetes files. Pin actions to reviewed full commit SHAs. The scripts package pins `@tahminator/pipeline`, Bun and its TypeScript/lint dependencies; commit its lockfile. `setup` installs the locked scripts package and Go, Node, standalone pnpm, just, golangci-lint, golang-migrate and kubectl as needed. Use the versions declared by `go.mod` and `js/package.json`; avoid relying on a machine's globally installed tools.
+### 12.3 Script conventions
 
-### 12.4 `ci.yaml`
+Copied from the references:
 
-Triggers: `pull_request` and `push` to `main`. Use minimal per-job permissions and `actions/checkout` with `persist-credentials: false`. Check out the **PR head SHA** for PR jobs and `github.sha` for main jobs, so checks, Docker image tag and PR comment all refer to identical source. Do not interpolate PR titles, branch names or other untrusted event fields into shell source; pass inputs through environment variables and validate full SHAs.
+- Scripts with arguments parse them at module level, before `main`, with static imports:
+  ```ts
+  const { releaseTag } = await yargs(hideBin(process.argv))
+    .option("releaseTag", { type: "string", describe: "…", demandOption: true })
+    .strict()
+    .parse();
+  ```
+  Scripts without arguments do not import yargs.
+- All work happens in `async function main()`. Each file ends with:
+  ```ts
+  main()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+  ```
+- `main` starts with `parseCiEnv([...])` from `src/lib/env.ts` for every environment variable it reads (the helper returns a typed record and throws listing all missing names). It replaces the references' inline `requiredEnv` calls.
+- `src/lib/consts.ts`: `GITHUB_OWNER = "tahminator"`, `GITHUB_REPOSITORY = "fin"`, `K8S_MANIFESTS_REPOSITORY = "k8s-personal"`, `DOCKER_HUB_USERNAME = "tahminator"`, `DOCKER_REPOSITORY = "fin"`, `KUSTOMIZATION_FILE_PATH = "base/production/fin/kustomization.yaml"`, and `shortSha(sha)` exactly as in members-admin-dashboard (throws unless 40 lowercase hex characters; returns the first 7).
+- `package.json`: scripts `typecheck`, `test`, `fix`, `lint`, `lint:fix`, `fmt`, `fmt:fix` as in the references. Dependencies are `@tahminator/pipeline` (pinned `1.0.105`) and `yargs` only. Dev dependencies are `@types/bun`, `@types/yargs`, `oxfmt`, `oxlint` and `typescript`. Keep fin's existing `tsconfig.json`, `oxlint.config.ts` and `oxfmt.config.ts`, rather than the Patina-only `@Patina-Network/cicd-config`.
+- Repository style applies: no comments anywhere in `.github` (this also drops the references' `# vX` pin comments and `yaml-language-server` line), natural blank lines between logical blocks, and no extra validation beyond what the references do.
 
-| Job | Runs for | Dependencies and behavior |
+### 12.4 Scripts
+
+| Script | Args | Env | Behavior |
+|---|---|---|---|
+| `pretest/backend` | — | — | `just lint-go` (golangci-lint, no-comments check), then `golangci-lint fmt --diff ./...`. |
+| `pretest/frontend` | — | — | `pnpm --dir js install --frozen-lockfile`, `just gen`, `pnpm --dir js check`, `pnpm --dir js build`. No frontend tests. |
+| `test/backend` | — | — | `just test`. |
+| `test/migrations` | — | — | Copy grpc `run-migration-tests.ts`: `await using pgClient = await LocalPostgresClient.create({ database: "fin" })`, build `DATABASE_URL` from `pgClient.state` (`sslmode=disable`), then via `$.env({...process.env, DATABASE_URL})` run `just migrate && just migrate && just migrate-down 1 && just migrate && just migrate-down -all && just migrate`. |
+| `build-image` | `--environment staging\|production` (choices, `satisfies Environment[]`), `--sha` (required), `--prId` (default `""`) | `DOCKER_HUB_PAT`, `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` | Copy members-admin-dashboard `build-image` with a single `linux/amd64` platform. Tags: staging `[staging-<short>, sha-<sha>]`, production `[<short>, sha-<sha>]`. `dockerFileLocation: "infra/Dockerfile"`, `dockerRepository: DOCKER_REPOSITORY`. Pass `buildArgs` `GO_VERSION` (from the `go` directive in `go.mod`), `NODE_VERSION` (`js/package.json` `devEngines.runtime.version`) and `PNPM_VERSION` (`packageManager` without the `pnpm@` prefix and `+hash` suffix), matching `just docker-build`. If `prId` is set, send the reference PR comment listing the pushed tags. |
+| `create-tag` | — | GitHub App vars | Verbatim members-admin-dashboard `create-tag`: `VersioningClient(ghClient, VersionUpdatingStrategy.NONE)`, `ghClient.createTag({ nextTag: await versioningClient.next(), onPreTagCreate })`. Versions are plain `X.Y.Z`; the first is `1.0.0`. |
+| `promote-image` | `--releaseTag`, `--sha` (both required) | `DOCKER_HUB_PAT` | `promoteDockerImage({ originalTag: shortSha(sha), newGithubTags: [releaseTag, "latest"], repository: DOCKER_REPOSITORY })`. |
+| `deploy` | `--releaseTag` (required) | GitHub App vars | `updateK8sTagWithPR({ manifestRepo: [GITHUB_OWNER, K8S_MANIFESTS_REPOSITORY], originRepo: [GITHUB_OWNER, GITHUB_REPOSITORY], kustomizationFilePath: KUSTOMIZATION_FILE_PATH, imageName: \`${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}\`, newTag: releaseTag, environment: "production" })`. Production only, so there is no `--sha` or `--environment`. |
+
+Production migrations have no script. As in grpc, the `migrate` composite runs the Justfile recipe: `just migrate` (which already reads `DATABASE_URL`).
+
+### 12.5 Composite actions
+
+Same shape as members-admin-dashboard: `name`, `description`, UPPER_SNAKE `inputs` with descriptions, `runs.using: composite`, and one named step with `shell: bash` and `run: bun run .github/scripts/src/<dir> --flag "${{ inputs.X }}"`.
+
+| Composite | Inputs | Runs |
 |---|---|---|
-| `backend-pretest` | PR and main | Run `just lint-go` and Go formatting checks. No deployment secrets. |
-| `frontend-pretest` | PR and main | Install pnpm dependencies with the frozen lockfile; generate `/openapi.json` from the Go backend and TypeScript API types; run `pnpm --dir js check`. No frontend tests are added. |
-| `backend-test` | PR and main | After backend pre-tests, run `just test` (`go test -race ./...`). |
-| `migration-check` | PR and main | Start disposable Postgres 19; run `migrate -path db -database \"$DATABASE_URL\" up` on the checked-out files; check the migration version and no-op reapplication. Exercise rollback/reapply only against this disposable database. No production database credentials. |
-| `build-pr-image` | Trusted same-repository PRs | After all checks, build `infra/Dockerfile` with `DockerClient.buildImage()` and push `<DOCKER_HUB_USERNAME>/fin:staging-<head-sha>`. Pass `GO_VERSION`, `NODE_VERSION` and `PNPM_VERSION` build args from repository manifests, as `just docker-build` does. Record the registry digest. |
-| `comment-pr-image` | Trusted same-repository PRs | After push, use `GitHubClient.sendPrMessage()` with a stable key to create/update one comment containing the exact tag, digest and commit SHA. Never include credentials. |
-| `build-main-image` | Push to main | After all checks, one Docker build publishes `<DOCKER_HUB_USERNAME>/fin:<sha>` and `:staging-<sha>` from the same image. Capture the digest and verify both tags resolve to it. |
-| `create-tag` | Push to main | The final CI job, after the main image succeeds. With a GitHub App installation token, create `vX.Y.Z` pointing at the exact checked-out SHA; expose the version, SHA and image digest in the run summary. |
+| `pretest` | — | `src/pretest/backend` |
+| `frontend-pretest` | — | `src/pretest/frontend` |
+| `test` | — | `src/test/backend` |
+| `build-image` | `ENVIRONMENT`, `SHA`, `PR_ID` (default `""`) | `src/build-image` |
+| `create-tag` | — | `src/create-tag` |
+| `promote-image` | `RELEASE_TAG`, `SHA` | `src/promote-image` |
+| `migrate` | — | `just migrate`; caller supplies `DATABASE_URL` through step `env` |
+| `deploy` | `RELEASE_TAG` | `src/deploy` |
 
-`DockerClient` logs in using `DOCKER_HUB_USERNAME` and `DOCKER_HUB_PAT`; dispose it after the build. Do not pass runtime, database, cluster or Google secrets into image builds, Docker build args, PR comments, artifacts or caches. The PR image is **not** automatically deployed; an operator may pull it for manual testing, but manually running unmerged code in production is an explicit operator action with production-data and compatibility risk.
+As in grpc, the workflow step runs `test/migrations` directly; it has no composite.
 
-`tahminator/fin` is public. Fork PRs receive no repository secrets: run the non-privileged checks on them, but do not execute their code with registry, GitHub App, database or cluster credentials. Build/comment jobs for forks are skipped with a clear run summary; a maintainer must first bring reviewed code into a trusted same-repository branch to obtain the published image. Do not use `pull_request_target` to execute a PR checkout. A repository writer can alter a same-repository PR's workflow and access repository-level secrets, so restrict write access and protect workflow changes; repository-level secrets alone do **not** isolate production secrets from a malicious repository writer.
+### 12.6 `ci.yaml`
 
-### 12.5 `cd.yaml`
+Header as in members-admin-dashboard: `name: CI`, `run-name: Running continuous integration on ${{ github.actor }}'s commits`, top-level `permissions: contents: read`, `on: push: branches: [main]` and `pull_request`, `concurrency: group: ci-${{ github.ref }}`, `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
 
-Trigger: `push` tags matching `v*`; validate the complete `vMAJOR.MINOR.PATCH` format in TypeScript, not just the glob. Require the tag's target to be reachable from `main`, have the successful CI checks for that exact commit, and have a matching `<sha>` image. Protect the release tag namespace with a GitHub ruleset allowing only the release App and designated maintainers. Reject unknown, moved, non-main or mismatched tags before exposing production credentials.
+Every job: camelCase id with a `name`, `runs-on: ubuntu-26.04`, step `Checkout Repository` using `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1`, then step `Setup Pipeline` calling `tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c` (1.0.105) directly with `SECRETS: ${{ toJSON(secrets) }}` and `LINT_CI: true`, plus the job's install inputs. There is no local setup wrapper.
 
-1. Check out the exact tag target and resolve its **full commit SHA**. Do not use `git rev-parse <tag>^1`: this plan creates the tag on the build commit itself, not on a synthetic child commit.
-2. `promote-image.ts` uses `DockerClient.promoteDockerImage({ originalTag: sha, newGithubTags: [version], repository: \"fin\" })`. Verify the promoted image digest equals the source image digest before continuing. A retry succeeds only if an already existing version tag resolves to that same digest; otherwise fail. Configure registry immutability for released version tags. The Kubernetes rollout uses the immutable digest, not `latest`.
-3. In one non-cancelable production deployment job, run `migrate.ts` with the production migration URL against `db/` from the **tagged commit**, using the golang-migrate CLI and only `up`. A failed, dirty or unavailable database fails the job: do not deploy, silently force a version, or automatically run down migrations.
-4. `deploy.ts` authenticates with the production kubeconfig, supplies application configuration and credentials through a Kubernetes Secret, applies `infra/k8s/`, sets the Deployment image to the promoted digest, and waits for `kubectl rollout status` with a bounded timeout. Report the version, source SHA, digest, migration version and rollout result in the job summary.
-5. On rollout failure, report the failure; do not automatically undo database migrations. Restoring a previous image is a separate operator action and requires a backward-compatible schema.
+| Job | Needs / condition | Extra setup inputs | Steps |
+|---|---|---|---|
+| `backendTest` "Backend tests" | — | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_GOLANGCI_LINT: true` | `pretest`, then `test` composites |
+| `frontendTest` "Frontend tests" | — | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_NPM: true`, `NODE_VERSION: "26.13.1"`, `INSTALL_PNPM: true`, `PNPM_VERSION: "12.21.0"` | `frontend-pretest` composite |
+| `testMigrations` "Test database migrations" | `timeout-minutes: 10` | `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"` | `run: bun run .github/scripts/src/test/migrations` |
+| `buildImage` "Build ${{ github.event_name == 'pull_request' && 'staging' \|\| 'production' }} image" | needs all three checks; no `if` (PR and main) | — | Checkout with `ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`; `build-image` composite with `ENVIRONMENT` (staging on PR, else production), `SHA: ${{ github.event.pull_request.head.sha \|\| github.sha }}`, `PR_ID: ${{ github.event.pull_request.number }}` |
+| `createTag` "Create new tag" | needs `buildImage`; `if: github.ref_name == 'main'`; `permissions: contents: write` | — | `create-tag` composite |
 
-Serialize production migrate-plus-rollout as a single job-level concurrency group, with `cancel-in-progress: false` and `queue: max`. This does not guarantee release ordering across jobs that enter the group at different times: before migration and again before rollout, reject an older version than the one recorded as deployed. Keep migrations backward-compatible with the old server during rolling deploys.
+### 12.7 `cd.yaml`
 
-### 12.6 Exact GitHub repository secrets
+Header as in members-admin-dashboard: `name: CD`, `run-name: Running continuous deployment on ${{ github.actor }}'s commits`, `permissions: contents: read`, `on: push: tags: ["*"]`, `concurrency: group: cd`, `cancel-in-progress: false`.
 
-Create these under **Settings → Secrets and variables → Actions → Repository secrets**. These names are the contract for the proposed implementation; they are not known to be configured already. Do not put their values in this plan, logs, image layers, PR comments or Git.
-
-| Repository secret | Value and use |
+| Job | Details |
 |---|---|
-| `DOCKER_HUB_USERNAME` | Docker Hub account or organization namespace that owns the public `fin` repository. Used by build and promotion. |
-| `DOCKER_HUB_PAT` | Docker Hub access token with pull/push permission for that repository. |
-| `_GITHUB_APP_APP_ID` | GitHub App ID used to create release tags and PR comments, matching the reference scripts' naming. |
-| `_GITHUB_APP_INSTALLATION_ID` | Installation ID of that App on `tahminator/fin`. |
-| `_GITHUB_APP_PEM_CONTENT` | Complete GitHub App private-key PEM, including its begin/end lines and real newlines. |
-| `PRODUCTION_KUBECONFIG_B64` | Base64 of a kubeconfig for a dedicated production deployment identity. Its API endpoint must be reachable from the selected runner; grant only the permissions required in the configured namespace. |
-| `PRODUCTION_MIGRATION_DATABASE_URL` | TLS-enabled Postgres URL for a dedicated migration role with the DDL privileges needed by `db/`. Used only in the CD migration step. |
-| `PRODUCTION_APP_DATABASE_URL` | TLS-enabled Postgres URL for the application's separate, least-privileged runtime role. Written to the Kubernetes Secret as `DATABASE_URL`. |
-| `PRODUCTION_GOOGLE_CLIENT_ID` | Production Google OAuth web-client ID, written to the Kubernetes Secret as `GOOGLE_CLIENT_ID`. |
-| `PRODUCTION_GOOGLE_CLIENT_SECRET` | Matching OAuth web-client secret, written as `GOOGLE_CLIENT_SECRET`. |
-| `PRODUCTION_SECRET_KEY` | Persistent 32-byte application encryption key, written as `SECRET_KEY`. Back it up securely and keep it unchanged across deployments; changing it makes existing Plaid access tokens unreadable. |
+| `promoteImage` "Promote image to ${{ github.ref_name }}" | Checkout with `fetch-depth: 2`; setup; step `Get parent SHA` (`id: parent`) runs `echo "sha=$(git rev-parse ${{ github.sha }}^1)" >> "$GITHUB_OUTPUT"`; `promote-image` composite with `RELEASE_TAG: ${{ github.ref_name }}`, `SHA: ${{ steps.parent.outputs.sha }}`. |
+| `deployProduction` "Deploy to production" | `needs: promoteImage`; job concurrency `deploy-production`, `cancel-in-progress: false`; `timeout-minutes: 20`; setup adds `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`; step `Migrate production database` uses the `migrate` composite with `env: DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}`; step `Deploy` uses the `deploy` composite with `RELEASE_TAG: ${{ github.ref_name }}`. |
 
-The GitHub App needs **Contents: write** for creating release refs and **Pull requests: write** for its PR comments, plus repository metadata read access. Install it on `tahminator/fin`. If branch/tag rulesets apply, permit the App to create protected release tags without granting it unrelated administrative permissions. Use `actions/create-github-app-token` pinned to a reviewed SHA or equivalent installation-token generation; pass only the required credentials to each job.
+`GitHubClient.createTag` creates a release commit whose parent is the `main` head at tag time. With `VersionUpdatingStrategy.NONE`, its tree equals the parent's tree. That is why CD promotes the parent SHA's image, and why migrations from the tag checkout match that image. The first deploy replaces the `newTag: changeme` placeholder in `k8s-personal`.
 
-Create these under **Settings → Secrets and variables → Actions → Variables**:
+### 12.8 Secrets and prerequisites
 
-| Repository variable | Value and use |
+Repository-level Actions secrets only; no GitHub environments. `tahminator/omnis` fans out its shared secrets to every personal repository. `gh secret list --repo tahminator/fin` returned `[]` during planning, so confirm the names once IaC has been applied.
+
+| Secret | Use |
 |---|---|
-| `PRODUCTION_PUBLIC_URL` | External HTTPS origin, without a trailing slash, e.g. `https://fin.example.com`; injected as `PUBLIC_URL`. Register its `/auth/google/callback` and `/connections/oauth` URLs with Google and Plaid. |
-| `PRODUCTION_COOKIE_DOMAIN` | Cookie domain matching the production host; injected as `COOKIE_DOMAIN`. |
-| `PRODUCTION_K8S_NAMESPACE` | Existing Kubernetes namespace for fin; all kubectl operations must explicitly target it. |
+| `DOCKER_HUB_PAT` (shared) | `DockerClient` as `tahminator`: build, push, promote. |
+| `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` (shared) | `GitHubClient.createWithGithubAppToken`: PR comment, release tag, GitOps PR. |
+| `PRODUCTION_MIGRATION_DATABASE_URL` (fin-specific) | `DATABASE_URL` for `just migrate` in CD; use TLS and a migration role. |
 
-The workflow supplies `APP_ENV=production`, `COOKIE_SECURE=true`, `STATIC_DIR=/app/static`, the port addresses and optional cron/country configuration from committed manifests or explicitly documented repository variables. `GITHUB_TOKEN` is supplied automatically by Actions; it is not a manually created repository secret. The allowed users and each user's Plaid client ID and secret remain database records inserted separately; they are not CI secrets. Registry pull credentials are unnecessary only if the Docker Hub repository is public; a private registry needs a separately provisioned Kubernetes image-pull secret. If the cluster or database is private, a runner with approved network access or a VPN setup is an additional infrastructure prerequisite; do not invent provider-specific credentials until the network is chosen.
+`SONAR_TOKEN` is also shared, but unused because fin has no Sonar project.
 
-### 12.7 Security, ordering and failure handling
+Pipeline 1.0.105 provides the two capabilities fin needed beyond the references: the setup input `INSTALL_GOLANGCI_LINT` (used by `backendTest`), and `LocalPostgresClient.create({ database, version })`. `test/migrations` passes `version: 19` because fin's migrations use `uuidv7()`, which needs Postgres 18 or newer.
 
-- Pin checkout/actions/setup and any third-party actions to commit SHAs. Run scripts with the least-permission token for their step; do not forward `toJSON(secrets)` wholesale to pipeline setup, unlike some reference workflows.
-- CI checks have no production credentials. Fork code never runs in a job with secrets. Privileged scripts and workflow definitions require protected-branch review; App and Docker credentials are available only to jobs that need them. With repository-level secrets and same-repository PR workflows, trusted repository writers remain a security boundary, not a sandbox.
-- Limit and separate production migration and app DB privileges. Never print connection strings, kubeconfig, OAuth secrets or encryption keys; turn off shell tracing. Pass secret material to Kubernetes via stdin or a protected temporary file, not command-line arguments; clean up after the job.
-- Run CI checks on the same SHA that is tagged and built. Serialize release-tag creation with a non-cancelable queue. A rerun of an earlier main SHA must not create a new release or overwrite a newer deployed version.
-- Production deploys are serialized; failure of promotion, digest verification or migration blocks rollout. Migrations do not automatically roll back if rollout fails. Document manual retry and recovery.
-- Require a public Docker Hub image or explicitly provision image-pull credentials in Kubernetes. The server and image never run migrations at startup.
+Other prerequisites:
 
-### 12.8 Implementation and acceptance
+- Install the GitHub App on `tahminator/fin` (Contents: write, Pull requests: write) and `tahminator/k8s-personal` (Contents: write, Pull requests: write).
+- Make GitHub-hosted runners able to reach the production database.
+- Keep the Docker Hub image publicly readable, or provision a pull secret.
+- Production nodes must support linux/amd64.
+- In `k8s-personal/base/production/fin/secrets.yaml`, fill `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `SECRET_KEY`, then SOPS-encrypt the file. Keep the 32-byte `SECRET_KEY` stable across deployments, or stored Plaid access tokens become unreadable.
+- Register `https://fin.tahmid.io/auth/google/callback` with Google and `https://fin.tahmid.io/connections/oauth` with Plaid; configure DNS. The server never migrates on startup.
 
-1. **Scripts and checks:** add the `.github/scripts` package, composites and `ci.yaml`; run scripts locally against disposable Postgres 19. Verify backend pre-tests, frontend pre-tests, backend tests and migration checks on a PR and on main.
-2. **PR image:** on a trusted same-repository PR, verify the image tag and digest match its exact head SHA, the comment is updated on rerun, and no migration or deployment is attempted. Verify a fork PR gets non-secret checks only.
-3. **Main and release tag:** verify main publishes both SHA-based tags for the same digest and only then creates a protected `vX.Y.Z` Git tag on that exact commit using the App. Confirm this event starts `cd.yaml`; rerun without creating a duplicate release.
-4. **CD:** against an explicitly provisioned non-production test cluster and disposable database during implementation, prove promotion preserves the digest, migrations run once before deployment, readiness succeeds and an intentional migration failure prevents deployment. This is a temporary verification fixture, not an additional application deployment environment.
-5. **Production:** configure the repository secrets/variables above and the namespace, network, database roles, DNS and ingress. Verify production migrations complete, rollout reaches readiness, `/healthz`, `/readyz` and the app respond, and the reported image digest matches the promoted image.
+### 12.9 Deviations from the references
 
-No GitHub Actions workflows, secrets, registry repositories or Kubernetes resources are created merely by writing this plan.
+- One `linux/amd64` image and Docker repository: no arch matrix and no `-arm` repository.
+- No Sonar or coverage upload, no staging deploy jobs, and no slash-command workflows.
+- No same-repository `if` guard on `buildImage`; it runs on every PR.
+- Docker Hub username is a constant (`abclang` style); there is no `DOCKER_HUB_USERNAME` secret.
+- `build-image` passes `GO_VERSION`, `NODE_VERSION` and `PNPM_VERSION` build args, which `infra/Dockerfile` requires.
+- Production migrations use one `DATABASE_URL` secret and fin's existing `just migrate` recipe, not grpc's `DATABASE_*` parts and `migrate-prod` recipe.
+- `parseCiEnv` in `src/lib/env.ts` replaces inline `requiredEnv`; constants live in `src/lib/consts.ts` instead of `src/consts.ts`; scripts have a second grouping level (`pretest/backend`, `test/migrations`, …).
+- Repository no-comments rule: no pin version comments.
+
+### 12.10 Acceptance
+
+1. `bun run --cwd .github/scripts test` passes (typecheck, oxfmt, oxlint), which is what `LINT_CI` runs.
+2. `actionlint .github/workflows/ci.yaml .github/workflows/cd.yaml` passes.
+3. Locally, `pretest/backend`, `pretest/frontend` and `test/backend` succeed.
+4. `test/migrations` passes against `LocalPostgresClient` Postgres 19.
+5. Scripts reject unknown arguments (strict yargs) and report missing environment variables.
+6. `just docker-build` still builds the image with the same build arguments `build-image` passes.
+7. Remote delivery is proven only by real runs once secrets exist:
+   - a PR run pushes `staging-<short>` and `sha-<sha>` and comments on the PR;
+   - a main run pushes `<short>` and `sha-<sha>` and creates the next tag;
+   - CD promotes that image, migrates and merges the `k8s-personal` PR.
+
+   Flux reconciliation and app health are checked separately.

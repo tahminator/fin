@@ -38,6 +38,10 @@ migration name:
 seed email client_id secret env="sandbox":
     @go run ./cmd/seed -email {{quote(email)}} -client-id {{quote(client_id)}} -secret {{quote(secret)}} -env {{quote(env)}}
 
+[doc("Add fictional sample data to the local database")]
+seed-dev email:
+    psql "$DATABASE_URL" -v email={{quote(email)}} -f db/seed/local.sql
+
 [doc("Generate openapi.json and TypeScript API types")]
 gen:
     go run . openapi > openapi.json

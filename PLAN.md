@@ -861,7 +861,7 @@ func (h *TransactionHandler) Register(api huma.API) {
 | DELETE | `/api/connections/{connectionId}` | `ConnectionHandler.remove` | 204 |
 | POST | `/api/connections/{connectionId}/reauth/link-token` | `ConnectionHandler.reauthLinkToken` | update-mode `{linkToken}`; 409 unless `needs_reauth` |
 | POST | `/api/connections/{connectionId}/reauth/complete` | `ConnectionHandler.completeReauth` | marks `active`, syncs |
-| GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]` |
+| GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]`, optional `connectionId` |
 | GET | `/api/transactions` | `TransactionHandler.list` | `Page[Transaction]`, optional `accountId` |
 | GET | `/api/notifications` | `NotificationHandler.list` | `Page[Notification]`; currently only `reauth_required` |
 | GET | `/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
@@ -1183,7 +1183,7 @@ Manual verification (complex, cross-system flows):
 ### 6.1 Build setup
 
 - `pnpm create vite@latest js --template react-ts`, then shadcn init (Tailwind v4, `@/` alias, `src/components/ui`).
-- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/version`, `/auth`, `/openapi.json`, `/swagger` → `http://localhost:8080`.
+- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/version`, `/healthz`, `/readyz`, `/metrics`, `/auth`, `/openapi.json`, `/swagger` → `http://localhost:8080`.
 - `tsconfig.app.json`: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `erasableSyntaxOnly` (no TS `enum`s), `paths: { "@/*": ["./src/*"] }`, `types: ["vite/client", "vite-plugin-pwa/client"]` (no triple-slash directive file needed).
 - `package.json` scripts:
 
@@ -1270,7 +1270,7 @@ Rules:
 
 ### 6.5 PWA and install gate
 
-- `vite-plugin-pwa`: `registerType: "autoUpdate"`, manifest (`name`/`short_name` "fin", `display: "standalone"`, `start_url: "/"`, `scope: "/"`, theme/background colors, 192/512 + maskable icons generated once with `@vite-pwa/assets-generator` and committed under `public/`). Workbox `navigateFallback: "/index.html"` with `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/swagger/, /^\/openapi/, /^\/version$/]` — without the denylist the service worker would swallow the Google login navigation. API responses are never cached.
+- `vite-plugin-pwa`: `registerType: "autoUpdate"`, manifest (`name`/`short_name` "fin", `display: "standalone"`, `start_url: "/"`, `scope: "/"`, theme/background colors, 192/512 + maskable icons generated once with `@vite-pwa/assets-generator` and committed under `public/`). Workbox `navigateFallback: "/index.html"` with `navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/swagger/, /^\/openapi/, /^\/version$/, /^\/healthz$/, /^\/readyz$/, /^\/metrics$/]` — without the denylist the service worker would swallow the Google login navigation and serve the SPA for server-owned paths. API responses are never cached.
 - `lib/hooks/use-is-standalone.ts`: `useSyncExternalStore` over `matchMedia("(display-mode: standalone)")` plus iOS `navigator.standalone`.
 - The root layout renders `<InstallGuide/>` instead of `<Outlet/>` when not standalone. Nothing else (including login) is reachable in a browser tab. Dev escape hatch: `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local`.
 - The gate also prevents a real bug: iOS home-screen apps have their own cookie jar, so logging in from Safari would not carry over.
@@ -1468,7 +1468,7 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 **M3 — Connections**
 
 - Provider interface + Plaid impl (mapping tests, provider-call metrics), `ConnectionService` with token encryption and `SyncAll` (tests), connection endpoints (handler tests).
-- UI: connections page, Plaid Link launcher, OAuth return page, per-connection Sync/Remove, header Refresh.
+- UI: connections page (each row lists the connection's accounts via `useConnectionAccounts(connectionId)`), Plaid Link launcher, OAuth return page, per-connection Sync/Remove, header Refresh.
 - Accept: manual checks 2 and 3 using the seeded sandbox user; Refresh syncs every connection and is idempotent (row counts unchanged on re-run); Remove deletes everything; tenancy covered by handler tests.
 
 **M4 — Re-auth**

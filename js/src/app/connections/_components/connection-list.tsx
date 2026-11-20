@@ -1,3 +1,4 @@
+import { ConnectionAccounts } from "@/app/connections/_components/connection-accounts";
 import {
   EditAccountsButton,
   ReconnectButton,
@@ -50,6 +51,7 @@ function ConnectionRow({ connection }: { connection: Connection }) {
         </div>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
+      <ConnectionAccounts connectionId={connection.id} />
       <div className="flex items-center gap-2">
         {connection.status === "needs_reauth" ? (
           <ReconnectButton connectionId={connection.id} />

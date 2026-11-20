@@ -9,6 +9,7 @@ import (
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/handler"
+	"github.com/tahminator/fin/internal/repository"
 )
 
 func TestListAccountsRejectsInvalidPaging(t *testing.T) {
@@ -25,7 +26,7 @@ func TestListAccountsRejectsInvalidPaging(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			accounts := &fakeAccounts{
-				listByUser: func(context.Context, uuid.UUID, int, int) ([]domain.Account, int, error) {
+				listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
 					t.Error("repository called for invalid paging")
 
 					return nil, 0, nil
@@ -66,7 +67,7 @@ func TestListAccountsPaging(t *testing.T) {
 			var gotLimit, gotOffset int
 
 			accounts := &fakeAccounts{
-				listByUser: func(_ context.Context, userID uuid.UUID, limit, offset int) ([]domain.Account, int, error) {
+				listByUser: func(_ context.Context, userID uuid.UUID, _ repository.AccountFilter, limit, offset int) ([]domain.Account, int, error) {
 					gotUser, gotLimit, gotOffset = userID, limit, offset
 
 					return make([]domain.Account, tc.returned), tc.total, nil
@@ -94,9 +95,67 @@ func TestListAccountsPaging(t *testing.T) {
 	}
 }
 
+func TestListAccountsConnectionFilter(t *testing.T) {
+	connectionID := uuid.New()
+
+	tests := []struct {
+		name       string
+		query      string
+		connection *uuid.UUID
+	}{
+		{name: "no filter lists every connection", query: "", connection: nil},
+		{name: "connection id narrows to one connection", query: "?connectionId=" + connectionID.String(), connection: &connectionID},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotFilter repository.AccountFilter
+
+			accounts := &fakeAccounts{
+				listByUser: func(_ context.Context, _ uuid.UUID, filter repository.AccountFilter, _, _ int) ([]domain.Account, int, error) {
+					gotFilter = filter
+
+					return nil, 0, nil
+				},
+			}
+			api := newAPI(t, newUser(), handler.NewAccountHandler(accounts))
+
+			rec := api.Get("/api/accounts" + tc.query)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+			}
+
+			switch {
+			case tc.connection == nil && gotFilter.ConnectionID != nil:
+				t.Errorf("filter connection = %s, want none", gotFilter.ConnectionID)
+			case tc.connection != nil && (gotFilter.ConnectionID == nil || *gotFilter.ConnectionID != *tc.connection):
+				t.Errorf("filter connection = %v, want %s", gotFilter.ConnectionID, tc.connection)
+			}
+		})
+	}
+}
+
+func TestListAccountsRejectsInvalidConnectionID(t *testing.T) {
+	accounts := &fakeAccounts{
+		listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
+			t.Error("repository called for invalid connection id")
+
+			return nil, 0, nil
+		},
+	}
+	api := newAPI(t, newUser(), handler.NewAccountHandler(accounts))
+
+	rec := api.Get("/api/accounts?connectionId=not-a-uuid")
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+	}
+}
+
 func TestListAccountsEmptyEncodesItemsAsArray(t *testing.T) {
 	accounts := &fakeAccounts{
-		listByUser: func(context.Context, uuid.UUID, int, int) ([]domain.Account, int, error) {
+		listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
 			return nil, 0, nil
 		},
 	}
@@ -131,7 +190,7 @@ func TestListAccountsMapsFields(t *testing.T) {
 		Currency:         new("USD"),
 	}
 	accounts := &fakeAccounts{
-		listByUser: func(context.Context, uuid.UUID, int, int) ([]domain.Account, int, error) {
+		listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
 			return []domain.Account{account}, 1, nil
 		},
 	}

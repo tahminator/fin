@@ -15,6 +15,20 @@ export function useAccounts() {
   );
 }
 
+export function useConnectionAccounts(connectionId: string) {
+  return $api.useInfiniteQuery(
+    "get",
+    "/api/accounts",
+    { params: { query: { pageSize, connectionId } } },
+    {
+      pageParamName: "page",
+      initialPageParam: 1,
+      getNextPageParam: nextPage,
+      select: (data) => flattenPages(data),
+    },
+  );
+}
+
 export function useAllAccounts() {
   return $api.useQuery(
     "get",

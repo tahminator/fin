@@ -160,11 +160,11 @@ func newConnectionHandler(
 
 type fakeAccounts struct {
 	repository.AccountRepository
-	listByUser func(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Account, int, error)
+	listByUser func(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error)
 }
 
-func (f *fakeAccounts) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Account, int, error) {
-	return f.listByUser(ctx, userID, limit, offset)
+func (f *fakeAccounts) ListByUser(ctx context.Context, userID uuid.UUID, filter repository.AccountFilter, limit, offset int) ([]domain.Account, int, error) {
+	return f.listByUser(ctx, userID, filter, limit, offset)
 }
 
 type fakeTransactions struct {

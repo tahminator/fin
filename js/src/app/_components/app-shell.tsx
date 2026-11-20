@@ -5,6 +5,7 @@ import { NavLink, Outlet } from "react-router";
 import { ReauthBanner } from "@/app/_components/reauth-banner";
 import { RefreshButton } from "@/app/_components/refresh-button";
 import { SignOutButton } from "@/app/_components/sign-out-button";
+import { ThemeToggle } from "@/app/_components/theme-provider";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/lib/queries/notifications";
 
@@ -54,6 +55,7 @@ export function AppShell() {
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur">
         <span className="py-3 text-lg font-semibold tracking-tight">fin</span>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
           <RefreshButton />
           <SignOutButton />
         </div>

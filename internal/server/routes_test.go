@@ -212,7 +212,7 @@ func TestRoutesNonAPIPaths(t *testing.T) {
 		{name: "client route serves index", method: http.MethodGet, path: "/transactions", status: http.StatusOK, wantIndex: true},
 		{name: "root serves index", method: http.MethodGet, path: "/", status: http.StatusOK, wantIndex: true},
 		{name: "google login redirects to identity provider", method: http.MethodGet, path: "/auth/google/login", status: http.StatusFound, wantIndex: false},
-		{name: "version is served without a session", method: http.MethodGet, path: "/api/version", status: http.StatusOK, wantIndex: false},
+		{name: "version is served without a session", method: http.MethodGet, path: "/version", status: http.StatusOK, wantIndex: false},
 		{name: "non-get client route is not allowed", method: http.MethodPost, path: "/transactions", status: http.StatusMethodNotAllowed, wantIndex: false},
 	}
 
@@ -248,7 +248,7 @@ func TestRoutesOpenAPIDocumentListsAPIPaths(t *testing.T) {
 		t.Fatalf("decode openapi: %v", err)
 	}
 
-	for _, path := range []string{"/api/me", "/api/connections", "/api/accounts", "/api/transactions", "/api/notifications", "/api/summary", "/api/version"} {
+	for _, path := range []string{"/api/me", "/api/connections", "/api/accounts", "/api/transactions", "/api/notifications", "/api/summary", "/version"} {
 		if _, ok := document.Paths[path]; !ok {
 			t.Errorf("openapi paths missing %s", path)
 		}

@@ -70,7 +70,7 @@ func Observe(next http.Handler, recorder metrics.Recorder, logger *slog.Logger) 
 
 func routeGroupOf(path string) metrics.RouteGroup {
 	switch {
-	case path == "/api" || strings.HasPrefix(path, "/api/"):
+	case path == "/api" || strings.HasPrefix(path, "/api/") || path == "/version":
 		return metrics.RouteGroupAPI
 	case strings.HasPrefix(path, "/auth/"):
 		return metrics.RouteGroupAuth

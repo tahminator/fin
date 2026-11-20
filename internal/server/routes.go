@@ -24,8 +24,7 @@ func RegisterRoutes(mux *http.ServeMux, api huma.API, h Handlers) {
 	mux.HandleFunc("GET /auth/google/login", h.Auth.Login)
 	mux.HandleFunc("GET /auth/google/callback", h.Auth.Callback)
 
-	public := huma.NewGroup(api, "/api")
-	h.Version.Register(public)
+	h.Version.Register(api)
 
 	authed := huma.NewGroup(api, "/api")
 	authed.UseMiddleware(h.RequireSession)

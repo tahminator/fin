@@ -1,4 +1,4 @@
-import { ListChecksIcon, RefreshCwIcon } from "lucide-react";
+import { Pencil, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -52,7 +52,6 @@ export function SyncButton({ connectionId }: { connectionId: string }) {
       }}
     >
       {sync.isPending ? <Spinner /> : <RefreshCwIcon />}
-      Sync
     </Button>
   );
 }
@@ -84,8 +83,7 @@ function AccountSelectionLauncher({
       disabled={!launcher.ready || launcher.busy}
       onClick={launcher.launch}
     >
-      {launcher.ready && !launcher.busy ? <ListChecksIcon /> : <Spinner />}
-      Edit accounts
+      {launcher.ready && !launcher.busy ? <Pencil /> : <Spinner />}
     </Button>
   );
 }
@@ -125,8 +123,7 @@ export function EditAccountsButton({ connectionId }: { connectionId: string }) {
         void requestLinkToken();
       }}
     >
-      {createLinkToken.isPending ? <Spinner /> : <ListChecksIcon />}
-      Edit accounts
+      {createLinkToken.isPending ? <Spinner /> : <Pencil />}
     </Button>
   );
 }

@@ -4,28 +4,28 @@ A personal finance tracker for a small allow-list of users. Go backend (`./`), V
 
 ## 0. Decisions & assumptions
 
-| Topic | Decision | Why |
-|---|---|---|
-| "Stripe key" per user | Read as **per-user aggregation-provider credentials** (Plaid `client_id` + `secret` + environment), stored in `user_provider_credentials` keyed by `(user_id, provider)` | Plaid is the account provider; the table is provider-agnostic, so a future Stripe Financial Connections provider adds rows, not schema |
-| Allow-list | A row in `users` = allowed. Rows inserted manually (no admin UI) | Requirement (o) |
-| Money | `numeric(19,4)` in Postgres, decimal **string** in Go and JSON. Outflows negative | No float math, currency-exponent agnostic, sums happen in SQL |
-| IDs | `uuid DEFAULT uuidv7()` (Postgres 18+) | Time-ordered, non-enumerable |
-| Enums | `text` columns, no `CHECK`; Go `type X string` + consts + `Valid()`; exposed to OpenAPI via huma `enum:"..."` tags | Requirement (ad); openapi-typescript emits string unions |
-| Pagination | Offset: `page` (1-based) + `pageSize` (max 100); response `Page[T]{items,page,pageSize,total,hasNext}` | Readable SQL; huma names generic schemas `PageTransaction`, etc. |
-| Migrations | Explicit step only, via the golang-migrate **CLI** (`migrate -path db -database "$DATABASE_URL" up`, wrapped by `just migrate`). The app binary has no migrate code and the runtime image carries no migration files; production uses the `migrate/migrate` image against `./db` before deploying | Schema changes are deliberate; nothing migrates at runtime |
-| Static assets | Served from disk at `STATIC_DIR` (not `go:embed`) | No directive comments, dev build works without `js/dist` |
-| Ops endpoints | `/healthz`, `/readyz`, `/metrics` on the main `HTTP_ADDR` listener, outside request logging/metrics; the ingress blocks them publicly | Metrics carry per-user labels; one listener is simpler than a second port |
-| Metric labels | Every label value is a typed Go enum (`iota` + `String()`), so the set of series is fixed at compile time. Sole exception: `user` (email) on the DB-snapshot gauges, whose values come only from the `users` allow-list | Easy refactors, locked-down cardinality; per-user counts were requested |
-| Metrics access | Instruments are unexported in `internal/metrics`; code records through the `metrics.Recorder` interface (`metrics.Prometheus{}` in prod, zero-sized `metrics.Noop{}` / embedding fakes in tests) | No direct manipulation, trivially testable |
-| Sync trigger | Manual refresh (all of a user's connections, or one), initial sync after linking, and a backend goroutine on a cron schedule from `SYNC_CRON` (default `0 */6 * * *`). Every failure is counted in Prometheus. No webhooks | Keeps data fresh and detects re-auth without exposing a public webhook endpoint |
-| DB transactions | None. Sync is idempotent (upserts) and saves the cursor last | Requirement (i); a failed sync simply re-runs |
-| Comments | Zero, enforced by lint on both codebases (Go AST tool + custom oxlint rule). Justfile uses `[doc()]` attributes instead of `#`. Only sanctioned comment: the `SECRET_KEY` hint in `.env.example` (explicitly requested) | Requirement (d) |
-| Code layout | Natural blank lines between logical blocks in **every** file we write: Go, TS/TSX, SQL, Justfile, Dockerfile, YAML, env files | Non-negotiable readability rule |
-| Lint/format (JS) | **oxlint** + **oxfmt** only (no ESLint, no Prettier) | One fast toolchain |
-| Config | Handwritten `config.NewFromEnv()` over `os.LookupEnv`; no env library; no tests for the config package | Explicit requirement |
-| Token encryption | Plaid access tokens encrypted at rest with AES-256-GCM keyed by `SECRET_KEY` (32 chars). No key versioning | Explicit requirement |
-| Re-auth | Detected on every sync, stored as `connections.status = needs_reauth`, exposed via `GET /api/notifications`, shown as a banner + nav badge + per-connection **Reconnect** (Plaid update mode) | You want to know when a bank needs sign-in again |
-| Tests | Backend business logic unit-tested (stdlib `testing`, `humatest`, interface fakes). No frontend tests yet. Complex flows verified manually (§5.13) | Explicit requirement |
+| Topic                 | Decision                                                                                                                                                                                                                                                                                          | Why                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| "Stripe key" per user | Read as **per-user aggregation-provider credentials** (Plaid `client_id` + `secret` + environment), stored in `user_provider_credentials` keyed by `(user_id, provider)`                                                                                                                          | Plaid is the account provider; the table is provider-agnostic, so a future Stripe Financial Connections provider adds rows, not schema |
+| Allow-list            | A row in `users` = allowed. Rows inserted manually (no admin UI)                                                                                                                                                                                                                                  | Requirement (o)                                                                                                                        |
+| Money                 | `numeric(19,4)` in Postgres, decimal **string** in Go and JSON. Outflows negative                                                                                                                                                                                                                 | No float math, currency-exponent agnostic, sums happen in SQL                                                                          |
+| IDs                   | `uuid DEFAULT uuidv7()` (Postgres 18+)                                                                                                                                                                                                                                                            | Time-ordered, non-enumerable                                                                                                           |
+| Enums                 | `text` columns, no `CHECK`; Go `type X string` + consts + `Valid()`; exposed to OpenAPI via huma `enum:"..."` tags                                                                                                                                                                                | Requirement (ad); openapi-typescript emits string unions                                                                               |
+| Pagination            | Offset: `page` (1-based) + `pageSize` (max 100); response `Page[T]{items,page,pageSize,total,hasNext}`                                                                                                                                                                                            | Readable SQL; huma names generic schemas `PageTransaction`, etc.                                                                       |
+| Migrations            | Explicit step only, via the golang-migrate **CLI** (`migrate -path db -database "$DATABASE_URL" up`, wrapped by `just migrate`). The app binary has no migrate code and the runtime image carries no migration files; production uses the `migrate/migrate` image against `./db` before deploying | Schema changes are deliberate; nothing migrates at runtime                                                                             |
+| Static assets         | Served from disk at `STATIC_DIR` (not `go:embed`)                                                                                                                                                                                                                                                 | No directive comments, dev build works without `js/dist`                                                                               |
+| Ops endpoints         | `/healthz`, `/readyz`, `/metrics` on the main `HTTP_ADDR` listener, outside request logging/metrics; the ingress blocks them publicly                                                                                                                                                             | Metrics carry per-user labels; one listener is simpler than a second port                                                              |
+| Metric labels         | Every label value is a typed Go enum (`iota` + `String()`), so the set of series is fixed at compile time. Sole exception: `user` (email) on the DB-snapshot gauges, whose values come only from the `users` allow-list                                                                           | Easy refactors, locked-down cardinality; per-user counts were requested                                                                |
+| Metrics access        | Instruments are unexported in `internal/metrics`; code records through the `metrics.Recorder` interface (`metrics.Prometheus{}` in prod, zero-sized `metrics.Noop{}` / embedding fakes in tests)                                                                                                  | No direct manipulation, trivially testable                                                                                             |
+| Sync trigger          | Manual refresh (all of a user's connections, or one), initial sync after linking, and a backend goroutine on a cron schedule from `SYNC_CRON` (default `0 */6 * * *`). Every failure is counted in Prometheus. No webhooks                                                                        | Keeps data fresh and detects re-auth without exposing a public webhook endpoint                                                        |
+| DB transactions       | None. Sync is idempotent (upserts) and saves the cursor last                                                                                                                                                                                                                                      | Requirement (i); a failed sync simply re-runs                                                                                          |
+| Comments              | Zero, enforced by lint on both codebases (Go AST tool + custom oxlint rule). Justfile uses `[doc()]` attributes instead of `#`. Only sanctioned comment: the `SECRET_KEY` hint in `.env.example` (explicitly requested)                                                                           | Requirement (d)                                                                                                                        |
+| Code layout           | Natural blank lines between logical blocks in **every** file we write: Go, TS/TSX, SQL, Justfile, Dockerfile, YAML, env files                                                                                                                                                                     | Non-negotiable readability rule                                                                                                        |
+| Lint/format (JS)      | **oxlint** + **oxfmt** only (no ESLint, no Prettier)                                                                                                                                                                                                                                              | One fast toolchain                                                                                                                     |
+| Config                | Handwritten `config.NewFromEnv()` over `os.LookupEnv`; no env library; no tests for the config package                                                                                                                                                                                            | Explicit requirement                                                                                                                   |
+| Token encryption      | Plaid access tokens encrypted at rest with AES-256-GCM keyed by `SECRET_KEY` (32 chars). No key versioning                                                                                                                                                                                        | Explicit requirement                                                                                                                   |
+| Re-auth               | Detected on every sync, stored as `connections.status = needs_reauth`, exposed via `GET /api/notifications`, shown as a banner + nav badge + per-connection **Reconnect** (Plaid update mode)                                                                                                     | You want to know when a bank needs sign-in again                                                                                       |
+| Tests                 | Backend business logic unit-tested (stdlib `testing`, `humatest`, interface fakes). No frontend tests yet. Complex flows verified manually (§5.13)                                                                                                                                                | Explicit requirement                                                                                                                   |
 
 Out of scope: admin UI, Plaid webhooks, push notifications, `SECRET_KEY` rotation/versioning, and budgets/categorization rules. CI/CD is specified in phase 2 (§12).
 
@@ -167,25 +167,25 @@ Out of scope: admin UI, Plaid webhooks, push notifications, `SECRET_KEY` rotatio
 
 Every dependency is added with `@latest` / `go get <mod>@latest` at scaffold time; no versions are copied from this document. Verified current at writing: Postgres **19** (GA 2026-11-19), oxlint 1.9x (JS plugins + type-aware), oxfmt 0.7x.
 
-| Area | Tool |
-|---|---|
-| Go | latest stable toolchain (`go.mod` `go` + `toolchain` lines), `log/slog`, `net/http` ServeMux patterns |
-| HTTP/OpenAPI | `github.com/danielgtaylor/huma/v2` + `adapters/humago` |
-| DB | `github.com/jackc/pgx/v5` (`pgxpool`); migrations via the golang-migrate CLI (`brew install golang-migrate`), not a Go dependency |
-| Config | stdlib only: handwritten `config.NewFromEnv()` over `os.LookupEnv` |
-| Auth | `golang.org/x/oauth2`, `github.com/coreos/go-oidc/v3` |
-| Provider | `github.com/plaid/plaid-go/v<latest major>/plaid` |
-| Metrics | `github.com/prometheus/client_golang` |
-| Scheduling | `github.com/robfig/cron/v3` — **parser only** (`cron.ParseStandard` → `Schedule.Next`); our own goroutine does the waiting |
-| Crypto | stdlib `crypto/aes`, `crypto/cipher` (`NewGCMWithRandomNonce`) |
-| Tests (Go) | stdlib `testing`, `humatest`, hand-written interface fakes (no mocking/assert library) |
-| Go lint | `golangci-lint` v2 (`gofumpt`, `goimports` formatters) + `tools/nocomments` |
-| JS runtime | Node LTS, **pnpm only** (`packageManager` + `devEngines.packageManager.onFail: "error"`) |
-| Build | `vite`, `@vitejs/plugin-react`, `@tailwindcss/vite`, `tailwindcss`, `vite-plugin-pwa`, `typescript` |
-| Routing | `react-router` with an explicit route table; `zod` for search parameters |
-| Data | `@tanstack/react-query`, `openapi-fetch`, `openapi-react-query`, `openapi-typescript` |
-| UI | `shadcn` CLI (`pnpm dlx shadcn@latest`), `react-plaid-link`, `lucide-react`, `sonner` |
-| Lint/format (JS) | **oxlint** (+ `oxlint-tsgolint` for type-aware rules, `eslint-plugin-react-hooks` loaded as an oxlint JS plugin) and **oxfmt** |
+| Area             | Tool                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Go               | latest stable toolchain (`go.mod` `go` + `toolchain` lines), `log/slog`, `net/http` ServeMux patterns                             |
+| HTTP/OpenAPI     | `github.com/danielgtaylor/huma/v2` + `adapters/humago`                                                                            |
+| DB               | `github.com/jackc/pgx/v5` (`pgxpool`); migrations via the golang-migrate CLI (`brew install golang-migrate`), not a Go dependency |
+| Config           | stdlib only: handwritten `config.NewFromEnv()` over `os.LookupEnv`                                                                |
+| Auth             | `golang.org/x/oauth2`, `github.com/coreos/go-oidc/v3`                                                                             |
+| Provider         | `github.com/plaid/plaid-go/v<latest major>/plaid`                                                                                 |
+| Metrics          | `github.com/prometheus/client_golang`                                                                                             |
+| Scheduling       | `github.com/robfig/cron/v3` — **parser only** (`cron.ParseStandard` → `Schedule.Next`); our own goroutine does the waiting        |
+| Crypto           | stdlib `crypto/aes`, `crypto/cipher` (`NewGCMWithRandomNonce`)                                                                    |
+| Tests (Go)       | stdlib `testing`, `humatest`, hand-written interface fakes (no mocking/assert library)                                            |
+| Go lint          | `golangci-lint` v2 (`gofumpt`, `goimports` formatters) + `tools/nocomments`                                                       |
+| JS runtime       | Node LTS, **pnpm only** (`packageManager` + `devEngines.packageManager.onFail: "error"`)                                          |
+| Build            | `vite`, `@vitejs/plugin-react`, `@tailwindcss/vite`, `tailwindcss`, `vite-plugin-pwa`, `typescript`                               |
+| Routing          | `react-router` with an explicit route table; `zod` for search parameters                                                          |
+| Data             | `@tanstack/react-query`, `openapi-fetch`, `openapi-react-query`, `openapi-typescript`                                             |
+| UI               | `shadcn` CLI (`pnpm dlx shadcn@latest`), `react-plaid-link`, `lucide-react`, `sonner`                                             |
+| Lint/format (JS) | **oxlint** (+ `oxlint-tsgolint` for type-aware rules, `eslint-plugin-react-hooks` loaded as an oxlint JS plugin) and **oxfmt**    |
 
 `just outdated` (§8) runs `go list -u -m all` and `pnpm outdated` so drift is visible.
 
@@ -854,34 +854,34 @@ func (h *TransactionHandler) Register(api huma.API) {
 }
 ```
 
-| Method | Path | Handler | Notes |
-|---|---|---|---|
-| GET | `/auth/google/login` | `AuthHandler.Login` | sets `fin_oauth` cookie, 302 to Google |
-| GET | `/auth/google/callback` | `AuthHandler.Callback` | sets `fin_session`, 303 to `/` (or `/login?error=not_allowed`) |
-| GET | `/api/me` | `AuthHandler.me` | 401 when no session |
-| POST | `/api/auth/logout` | `AuthHandler.logout` | deletes session, expires cookie |
-| GET | `/api/summary` | `SummaryHandler` | per-currency assets / liabilities / net; connection + account counts |
-| GET | `/api/summary/cash-flow` | `SummaryHandler.cashFlow` | `?days=` 1–365, default 30; per-currency daily money in / out (out positive), zero-filled through today; excludes `TRANSFER_IN`, `TRANSFER_OUT`, `LOAN_PAYMENTS` categories |
-| GET | `/api/connections` | `ConnectionHandler.list` | `Page[Connection]` |
-| POST | `/api/connections/link-token` | `ConnectionHandler.linkToken` | `{linkToken}` |
-| POST | `/api/connections` | `ConnectionHandler.create` | body `{publicToken}`; links + initial sync |
-| POST | `/api/connections/{connectionId}/sync` | `ConnectionHandler.sync` | |
-| POST | `/api/connections/sync` | `ConnectionHandler.syncAll` | manual refresh of all the user's active connections → `SyncSummary` |
-| DELETE | `/api/connections/{connectionId}` | `ConnectionHandler.remove` | 204 |
-| POST | `/api/connections/{connectionId}/reauth/link-token` | `ConnectionHandler.reauthLinkToken` | update-mode `{linkToken}`; 409 unless `needs_reauth` |
-| POST | `/api/connections/{connectionId}/reauth/complete` | `ConnectionHandler.completeReauth` | marks `active`, syncs |
-| GET | `/api/accounts` | `AccountHandler.list` | `Page[Account]`, optional `connectionId`; includes `cardArtId`, `cardArtUrl`, `cardArtSource` |
-| GET | `/api/card-art/search` | `CardArtHandler.search` | `?query=` (1–100 chars, not blank) → `{items: CatalogCard[]}`; 503 when the catalog is unavailable |
-| PUT | `/api/accounts/{accountId}/card-art` | `CardArtHandler.selectCardArt` | body `{cardId: string \| null}` → `Account`; 404 for unknown account or card |
-| GET | `/api/transactions` | `TransactionHandler.list` | `Page[Transaction]`, optional `accountId` |
-| GET | `/api/notifications` | `NotificationHandler.list` | `Page[Notification]`; currently only `reauth_required` |
-| GET | `/version` | `VersionHandler.get` | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset |
-| GET | `/openapi.json`, `/openapi.yaml` | huma | |
-| GET | `/swagger` | huma SwaggerUI | |
-| GET | `/*` | `server/spa.go` | only when `STATIC_DIR` set |
-| GET | `/healthz` | `HealthHandler.live` | always 200; `server/ops.go`, not observed |
-| GET | `/readyz` | `HealthHandler.ready` | `Pinger.Ping` (`SELECT 1`, 2s timeout) → 200 / 503 |
-| GET | `/metrics` | promhttp on custom registry | blocked at the ingress |
+| Method | Path                                                | Handler                             | Notes                                                                                                                                                                       |
+| ------ | --------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/auth/google/login`                                | `AuthHandler.Login`                 | sets `fin_oauth` cookie, 302 to Google                                                                                                                                      |
+| GET    | `/auth/google/callback`                             | `AuthHandler.Callback`              | sets `fin_session`, 303 to `/` (or `/login?error=not_allowed`)                                                                                                              |
+| GET    | `/api/me`                                           | `AuthHandler.me`                    | 401 when no session                                                                                                                                                         |
+| POST   | `/api/auth/logout`                                  | `AuthHandler.logout`                | deletes session, expires cookie                                                                                                                                             |
+| GET    | `/api/summary`                                      | `SummaryHandler`                    | per-currency assets / liabilities / net; connection + account counts                                                                                                        |
+| GET    | `/api/summary/cash-flow`                            | `SummaryHandler.cashFlow`           | `?days=` 1–365, default 30; per-currency daily money in / out (out positive), zero-filled through today; excludes `TRANSFER_IN`, `TRANSFER_OUT`, `LOAN_PAYMENTS` categories |
+| GET    | `/api/connections`                                  | `ConnectionHandler.list`            | `Page[Connection]`                                                                                                                                                          |
+| POST   | `/api/connections/link-token`                       | `ConnectionHandler.linkToken`       | `{linkToken}`                                                                                                                                                               |
+| POST   | `/api/connections`                                  | `ConnectionHandler.create`          | body `{publicToken}`; links + initial sync                                                                                                                                  |
+| POST   | `/api/connections/{connectionId}/sync`              | `ConnectionHandler.sync`            |                                                                                                                                                                             |
+| POST   | `/api/connections/sync`                             | `ConnectionHandler.syncAll`         | manual refresh of all the user's active connections → `SyncSummary`                                                                                                         |
+| DELETE | `/api/connections/{connectionId}`                   | `ConnectionHandler.remove`          | 204                                                                                                                                                                         |
+| POST   | `/api/connections/{connectionId}/reauth/link-token` | `ConnectionHandler.reauthLinkToken` | update-mode `{linkToken}`; 409 unless `needs_reauth`                                                                                                                        |
+| POST   | `/api/connections/{connectionId}/reauth/complete`   | `ConnectionHandler.completeReauth`  | marks `active`, syncs                                                                                                                                                       |
+| GET    | `/api/accounts`                                     | `AccountHandler.list`               | `Page[Account]`, optional `connectionId`; includes `cardArtId`, `cardArtUrl`, `cardArtSource`                                                                               |
+| GET    | `/api/card-art/search`                              | `CardArtHandler.search`             | `?query=` (1–100 chars, not blank) → `{items: CatalogCard[]}`; 503 when the catalog is unavailable                                                                          |
+| PUT    | `/api/accounts/{accountId}/card-art`                | `CardArtHandler.selectCardArt`      | body `{cardId: string \| null}` → `Account`; 404 for unknown account or card                                                                                                |
+| GET    | `/api/transactions`                                 | `TransactionHandler.list`           | `Page[Transaction]`, optional `accountId`                                                                                                                                   |
+| GET    | `/api/notifications`                                | `NotificationHandler.list`          | `Page[Notification]`; currently only `reauth_required`                                                                                                                      |
+| GET    | `/version`                                          | `VersionHandler.get`                | public; `{version}` from runtime `VERSION` (k8s sets it to the image tag), `null` when unset                                                                                |
+| GET    | `/openapi.json`, `/openapi.yaml`                    | huma                                |                                                                                                                                                                             |
+| GET    | `/swagger`                                          | huma SwaggerUI                      |                                                                                                                                                                             |
+| GET    | `/*`                                                | `server/spa.go`                     | only when `STATIC_DIR` set                                                                                                                                                  |
+| GET    | `/healthz`                                          | `HealthHandler.live`                | always 200; `server/ops.go`, not observed                                                                                                                                   |
+| GET    | `/readyz`                                           | `HealthHandler.ready`               | `Pinger.Ping` (`SELECT 1`, 2s timeout) → 200 / 503                                                                                                                          |
+| GET    | `/metrics`                                          | promhttp on custom registry         | blocked at the ingress                                                                                                                                                      |
 
 Huma config (`server/api.go`): `huma.DefaultConfig("fin", version)`, `OpenAPIPath = "/openapi"` (serves `.json` and `.yaml`), `DocsPath = "/swagger"`, `DocsRenderer = huma.DocsRendererSwaggerUI`, `Components.SecuritySchemes["cookieAuth"] = {Type: "apiKey", In: "cookie", Name: "fin_session"}`, `CreateHooks = nil` (drops the `$schema` response field so generated TS types stay clean).
 
@@ -906,10 +906,10 @@ type Page[T any] struct {
 
 ### 5.7 Cookies and auth details
 
-| Cookie | Attributes | Purpose |
-|---|---|---|
-| `fin_session` | `HttpOnly; Secure; SameSite=Strict; Path=/; Domain=COOKIE_DOMAIN; Max-Age=SESSION_TTL` | session |
-| `fin_oauth` | `HttpOnly; Secure; SameSite=Lax; Path=/auth/google/callback; Max-Age=600` | state + nonce + PKCE verifier |
+| Cookie        | Attributes                                                                             | Purpose                       |
+| ------------- | -------------------------------------------------------------------------------------- | ----------------------------- |
+| `fin_session` | `HttpOnly; Secure; SameSite=Strict; Path=/; Domain=COOKIE_DOMAIN; Max-Age=SESSION_TTL` | session                       |
+| `fin_oauth`   | `HttpOnly; Secure; SameSite=Lax; Path=/auth/google/callback; Max-Age=600`              | state + nonce + PKCE verifier |
 
 - `fin_oauth` must be `Lax`: the callback is a cross-site top-level navigation from Google, and `Strict` cookies are not sent on it.
 - With `Strict`, the HTML load right after the callback redirect may not carry `fin_session`. That is fine by design: the SPA shell is public and auth is decided by the same-origin `fetch('/api/me')`, which does carry it.
@@ -952,19 +952,19 @@ func allSyncTriggers() []SyncTrigger {
 }
 ```
 
-| Enum | Values |
-|---|---|
-| `SyncTrigger` | `link`, `manual`, `scheduled`, `reauth` |
-| `SyncOutcome` | `success`, `reauth_required`, `error` |
-| `ScheduledRunOutcome` | `success`, `partial_failure`, `failure` |
-| `LoginOutcome` | `success`, `not_allowed`, `invalid_state`, `error` |
-| `Provider` | `plaid` |
-| `ProviderOperation` | `create_link_token`, `create_update_link_token`, `exchange`, `accounts`, `sync_transactions`, `remove` |
-| `CallOutcome` | `success`, `error` |
-| `RouteGroup` | `api`, `auth`, `docs`, `static` |
-| `Method` | `get`, `post`, `put`, `patch`, `delete`, `other` |
-| `StatusClass` | `1xx`, `2xx`, `3xx`, `4xx`, `5xx` (derived inside the package from the status code) |
-| `ConnectionStatus` | `active`, `needs_reauth`, `other` (mapped from `domain.ConnectionStatus` inside the package) |
+| Enum                  | Values                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `SyncTrigger`         | `link`, `manual`, `scheduled`, `reauth`                                                                |
+| `SyncOutcome`         | `success`, `reauth_required`, `error`                                                                  |
+| `ScheduledRunOutcome` | `success`, `partial_failure`, `failure`                                                                |
+| `LoginOutcome`        | `success`, `not_allowed`, `invalid_state`, `error`                                                     |
+| `Provider`            | `plaid`                                                                                                |
+| `ProviderOperation`   | `create_link_token`, `create_update_link_token`, `exchange`, `accounts`, `sync_transactions`, `remove` |
+| `CallOutcome`         | `success`, `error`                                                                                     |
+| `RouteGroup`          | `api`, `auth`, `docs`, `static`                                                                        |
+| `Method`              | `get`, `post`, `put`, `patch`, `delete`, `other`                                                       |
+| `StatusClass`         | `1xx`, `2xx`, `3xx`, `4xx`, `5xx` (derived inside the package from the status code)                    |
+| `ConnectionStatus`    | `active`, `needs_reauth`, `other` (mapped from `domain.ConnectionStatus` inside the package)           |
 
 Domain enums stay `string`-typed because they round-trip through Postgres and JSON; metric enums are `iota` because they only ever become label values.
 
@@ -995,34 +995,34 @@ Both implementations are zero-sized. `Prometheus{}` writes to the package-level 
 
 **Recorded metrics** (callers in parentheses):
 
-| Metric | Type | Labels | Max series |
-|---|---|---|---|
-| `fin_http_requests_total` (server middleware) | counter | `group`, `method`, `status_class` | 120 |
-| `fin_http_request_duration_seconds` | histogram | `group`, `method` | 24 × buckets |
-| `fin_logins_total` (`AuthService`) | counter | `outcome` | 4 |
-| `fin_provider_requests_total` / `_duration_seconds` (Plaid provider) | counter / histogram | `provider`, `operation`, `outcome` | 12 |
-| `fin_syncs_total` (`ConnectionService.Sync`) | counter | `trigger`, `outcome` | 12 |
-| `fin_sync_duration_seconds` | histogram | `trigger` | 4 × buckets |
-| `fin_scheduled_sync_runs_total` (`SyncScheduler`) | counter | `outcome` | 3 |
-| `fin_scheduled_sync_duration_seconds` | histogram | — | buckets |
-| `fin_scheduled_sync_last_run_failed_connections` | gauge | — | 1 |
-| `fin_scheduled_sync_last_run_timestamp_seconds` | gauge | — | 1 |
-| `fin_scheduled_sync_last_success_timestamp_seconds` | gauge | — | 1 |
+| Metric                                                               | Type                | Labels                             | Max series   |
+| -------------------------------------------------------------------- | ------------------- | ---------------------------------- | ------------ |
+| `fin_http_requests_total` (server middleware)                        | counter             | `group`, `method`, `status_class`  | 120          |
+| `fin_http_request_duration_seconds`                                  | histogram           | `group`, `method`                  | 24 × buckets |
+| `fin_logins_total` (`AuthService`)                                   | counter             | `outcome`                          | 4            |
+| `fin_provider_requests_total` / `_duration_seconds` (Plaid provider) | counter / histogram | `provider`, `operation`, `outcome` | 12           |
+| `fin_syncs_total` (`ConnectionService.Sync`)                         | counter             | `trigger`, `outcome`               | 12           |
+| `fin_sync_duration_seconds`                                          | histogram           | `trigger`                          | 4 × buckets  |
+| `fin_scheduled_sync_runs_total` (`SyncScheduler`)                    | counter             | `outcome`                          | 3            |
+| `fin_scheduled_sync_duration_seconds`                                | histogram           | —                                  | buckets      |
+| `fin_scheduled_sync_last_run_failed_connections`                     | gauge               | —                                  | 1            |
+| `fin_scheduled_sync_last_run_timestamp_seconds`                      | gauge               | —                                  | 1            |
+| `fin_scheduled_sync_last_success_timestamp_seconds`                  | gauge               | —                                  | 1            |
 
 **DB snapshot — `database.go`.** `metrics.WatchDatabase(repo, pool)` registers a collector that calls `MetricsRepository.Snapshot` (3s timeout) on each scrape, so values are always current without another goroutine. A failed snapshot sets `fin_metrics_snapshot_up` to 0.
 
-| Metric | Labels |
-|---|---|
-| `fin_users` | — |
-| `fin_users_with_credentials` | `provider` |
-| `fin_active_sessions` | `user` |
-| `fin_connections` | `user`, `status` |
-| `fin_connections_with_errors` | `user` |
-| `fin_accounts` | `user` |
-| `fin_transactions` | `user` |
-| `fin_connection_oldest_sync_timestamp_seconds` | `user` |
+| Metric                                                        | Labels                 |
+| ------------------------------------------------------------- | ---------------------- |
+| `fin_users`                                                   | —                      |
+| `fin_users_with_credentials`                                  | `provider`             |
+| `fin_active_sessions`                                         | `user`                 |
+| `fin_connections`                                             | `user`, `status`       |
+| `fin_connections_with_errors`                                 | `user`                 |
+| `fin_accounts`                                                | `user`                 |
+| `fin_transactions`                                            | `user`                 |
+| `fin_connection_oldest_sync_timestamp_seconds`                | `user`                 |
 | `fin_db_pool_acquired_conns` / `_idle_conns` / `_total_conns` | — (from `pool.Stat()`) |
-| `fin_metrics_snapshot_up` | — |
+| `fin_metrics_snapshot_up`                                     | —                      |
 
 `user` is the one data-derived label: its values are emails from the `users` table only, so cardinality is the size of the allow-list (2) times the enum it is paired with.
 
@@ -1142,17 +1142,17 @@ type Notification struct {
 
 Every piece of business logic ships with unit tests in the same milestone. Tests use stdlib `testing`, table-driven `t.Run` cases, the embedded-interface fakes from §5.3, recorder fakes that embed `metrics.Noop`, and `humatest` for handlers. No network, no database, no sleeps (`RunOnce` instead of waiting for a tick; `now func() time.Time` injected where time matters). `just test` runs `go test -race ./...`.
 
-| Package | Covered behavior |
-|---|---|
-| `internal/encryption` | round-trip; same plaintext encrypts to different ciphertexts; flipped byte fails; wrong key fails; invalid base64 fails; `New` rejects keys that are not 32 bytes |
-| `internal/service` — auth | unverified email rejected; unknown email → `ErrNotAllowed`; email match is case-insensitive; first login stores `google_sub`; mismatched `google_sub` rejected; stored `token_hash` is SHA-256 of the cookie token, never the token; expired session → unauthorized; logout deletes the session |
-| `internal/service` — connection | missing credentials → `ErrNotAllowed`; `Link` stores ciphertext that decrypts to the provider token; provider always receives the decrypted token; accounts upserted before transactions; removed transactions deleted; cursor saved only after all writes (fake records call order); `ErrReauthRequired` → `needs_reauth` and cursor unchanged; other errors → `last_error`, status unchanged; every outcome calls `ConnectionSynced` with the right trigger/outcome; `SyncAll` covers only the user's active connections and its summary counts match; another user's connection → `ErrNotFound`; reauth link token → `ErrConflict` unless `needs_reauth`; `CompleteReauth` → `active` + sync; `Remove` calls provider then deletes |
-| `internal/service` — notification | only `needs_reauth` connections produce notifications; `since` = `status_changed_at`; ordering and paging |
-| `internal/service` — scheduler | `RunOnce` syncs every active connection with `SyncTriggerScheduled`; one failure does not stop the rest; failures → `partial_failure` with the right `FailedConnections`; list error → `failure`; all good → `success`; nil schedule → `Run` returns immediately |
-| `internal/provider/plaid` (mapping only) | sign flip and decimal formatting without exponents; `ITEM_LOGIN_REQUIRED` → `ErrReauthRequired`; other Plaid errors wrapped with their code; unknown account type → `other` |
-| `internal/handler` | 401 without session; sentinel error → 404/403/409; `pageSize=101` → 422; tenancy (user B gets 404 for user A's IDs); `NewPage` (`hasNext`, offset, non-nil `items`); readiness 200/503 with a fake `Pinger` |
-| `internal/server` | SPA: existing asset served with immutable cache header; unknown path → `index.html`; `/api/unknown` → 404 |
-| `internal/metrics` | every enum's `String()` is unique and never `unknown` for declared constants; all label combinations pre-initialized to 0; `Prometheus{}.ConnectionSynced(scheduled, error)` increments exactly `fin_syncs_total{trigger="scheduled",outcome="error"}` (`testutil.ToFloat64` delta); `ScheduledRunFinished` sets the timestamp gauges, and the success timestamp only on `success`; status code → `StatusClass` boundaries; unknown `domain.ConnectionStatus` → `other` |
+| Package                                  | Covered behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/encryption`                    | round-trip; same plaintext encrypts to different ciphertexts; flipped byte fails; wrong key fails; invalid base64 fails; `New` rejects keys that are not 32 bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `internal/service` — auth                | unverified email rejected; unknown email → `ErrNotAllowed`; email match is case-insensitive; first login stores `google_sub`; mismatched `google_sub` rejected; stored `token_hash` is SHA-256 of the cookie token, never the token; expired session → unauthorized; logout deletes the session                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `internal/service` — connection          | missing credentials → `ErrNotAllowed`; `Link` stores ciphertext that decrypts to the provider token; provider always receives the decrypted token; accounts upserted before transactions; removed transactions deleted; cursor saved only after all writes (fake records call order); `ErrReauthRequired` → `needs_reauth` and cursor unchanged; other errors → `last_error`, status unchanged; every outcome calls `ConnectionSynced` with the right trigger/outcome; `SyncAll` covers only the user's active connections and its summary counts match; another user's connection → `ErrNotFound`; reauth link token → `ErrConflict` unless `needs_reauth`; `CompleteReauth` → `active` + sync; `Remove` calls provider then deletes |
+| `internal/service` — notification        | only `needs_reauth` connections produce notifications; `since` = `status_changed_at`; ordering and paging                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `internal/service` — scheduler           | `RunOnce` syncs every active connection with `SyncTriggerScheduled`; one failure does not stop the rest; failures → `partial_failure` with the right `FailedConnections`; list error → `failure`; all good → `success`; nil schedule → `Run` returns immediately                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `internal/provider/plaid` (mapping only) | sign flip and decimal formatting without exponents; `ITEM_LOGIN_REQUIRED` → `ErrReauthRequired`; other Plaid errors wrapped with their code; unknown account type → `other`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `internal/handler`                       | 401 without session; sentinel error → 404/403/409; `pageSize=101` → 422; tenancy (user B gets 404 for user A's IDs); `NewPage` (`hasNext`, offset, non-nil `items`); readiness 200/503 with a fake `Pinger`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `internal/server`                        | SPA: existing asset served with immutable cache header; unknown path → `index.html`; `/api/unknown` → 404                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `internal/metrics`                       | every enum's `String()` is unique and never `unknown` for declared constants; all label combinations pre-initialized to 0; `Prometheus{}.ConnectionSynced(scheduled, error)` increments exactly `fin_syncs_total{trigger="scheduled",outcome="error"}` (`testutil.ToFloat64` delta); `ScheduledRunFinished` sets the timestamp gauges, and the success timestamp only on `success`; status code → `StatusClass` boundaries; unknown `domain.ConnectionStatus` → `other`                                                                                                                                                                                                                                                               |
 
 Not unit-tested: `internal/config` (by request), `repository/postgres` (raw SQL, exercised by the manual checks below), `identity/google.go` (thin go-oidc wrapper), wiring in `serve.go`, `cmd/seed` (flag parsing over two repository calls). No frontend tests at this time.
 
@@ -1276,6 +1276,7 @@ function TransactionsPage() {
 ```
 
 Rules:
+
 - No `useEffect`/`useLayoutEffect`/`useInsertionEffect` outside `src/lib/hooks/`. Browser subscriptions use `useSyncExternalStore` in `lib/hooks`.
 - At most one `useState` per component; anything more becomes a composite hook (`_hooks/` if page-local, `lib/hooks/` if shared).
 - shadcn components for everything; custom UI only for the install guide and list rows.
@@ -1289,13 +1290,13 @@ Rules:
 - The gate also prevents a real bug: iOS home-screen apps have their own cookie jar, so logging in from Safari would not carry over.
 - Install guide: horizontal CSS scroll-snap track (native swipe, no carousel lib, no effects), dots + Back/Next buttons driven by `use-step-scroller.ts` (`useRef` + `onScroll` → step index; buttons call `scrollTo`). Steps from `lib/pwa/platform.ts`. iOS Safari steps show light/dark screenshots from `src/assets/install/`, captured in the iOS 27 simulator with the tap target outlined; the step text also covers iOS 26.
 
-| Platform | Steps |
-|---|---|
-| iOS Safari | 1. Tap the **page menu** button next to the address bar · 2. Tap **Share** · 3. Tap **View More** · 4. Tap **Add to Home Screen** · 5. Leave **Open as Web App** on, tap **Add**, open fin from your Home Screen |
-| iOS other browser | 1. Open this page in **Safari** · then iOS Safari steps |
-| Android Chrome | 1. Tap **⋮** · 2. Tap **Install app** · 3. Open fin from your home screen |
-| Desktop Chrome/Edge | 1. Click the **install icon** in the address bar · 2. Open fin from your apps |
-| Desktop Safari | 1. **File → Add to Dock** · 2. Open fin from the Dock |
+| Platform            | Steps                                                                                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| iOS Safari          | 1. Tap the **page menu** button next to the address bar · 2. Tap **Share** · 3. Tap **View More** · 4. Tap **Add to Home Screen** · 5. Leave **Open as Web App** on, tap **Add**, open fin from your Home Screen |
+| iOS other browser   | 1. Open this page in **Safari** · then iOS Safari steps                                                                                                                                                          |
+| Android Chrome      | 1. Tap **⋮** · 2. Tap **Install app** · 3. Open fin from your home screen                                                                                                                                        |
+| Desktop Chrome/Edge | 1. Click the **install icon** in the address bar · 2. Open fin from your apps                                                                                                                                    |
+| Desktop Safari      | 1. **File → Add to Dock** · 2. Open fin from the Dock                                                                                                                                                            |
 
 ### 6.6 oxlint + oxfmt (aggressive)
 
@@ -1305,18 +1306,30 @@ oxlint and oxfmt are the only JS lint/format tools (no ESLint, no Prettier). Ins
 pnpm add -D oxlint oxlint-tsgolint oxfmt eslint-plugin-react-hooks
 ```
 
-| Tool | Config | Scope | Commands |
-|---|---|---|---|
-| oxlint | `js/.oxlintrc.json` + `js/lint/fin-plugin.ts` | `src/` | `pnpm lint`, `pnpm lint:fix`, `just lint-js`, `just fix` |
-| oxfmt | `js/.oxfmtrc.json` | all of `js/` except ignored paths | `pnpm fmt`, `pnpm fmt:check`, `just fmt`, `just lint-js` |
+| Tool   | Config                                        | Scope                             | Commands                                                 |
+| ------ | --------------------------------------------- | --------------------------------- | -------------------------------------------------------- |
+| oxlint | `js/.oxlintrc.json` + `js/lint/fin-plugin.ts` | `src/`                            | `pnpm lint`, `pnpm lint:fix`, `just lint-js`, `just fix` |
+| oxfmt  | `js/.oxfmtrc.json`                            | all of `js/` except ignored paths | `pnpm fmt`, `pnpm fmt:check`, `just fmt`, `just lint-js` |
 
 `.oxlintrc.json`:
 
 ```json
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "react-perf", "jsx-a11y", "import", "unicorn", "promise", "oxc"],
-  "jsPlugins": ["./lint/fin-plugin.ts", { "name": "react-hooks-js", "specifier": "eslint-plugin-react-hooks" }],
+  "plugins": [
+    "typescript",
+    "react",
+    "react-perf",
+    "jsx-a11y",
+    "import",
+    "unicorn",
+    "promise",
+    "oxc"
+  ],
+  "jsPlugins": [
+    "./lint/fin-plugin.ts",
+    { "name": "react-hooks-js", "specifier": "eslint-plugin-react-hooks" }
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -1331,14 +1344,27 @@ pnpm add -D oxlint oxlint-tsgolint oxfmt eslint-plugin-react-hooks
     "fin/route-private-imports": "error",
     "fin/no-effects-outside-hooks": "error",
     "fin/max-one-use-state": "error",
-    "no-restricted-imports": ["error", {
-      "paths": [
-        { "name": "@/lib/api/client", "message": "Use a hook from @/lib/queries." },
-        { "name": "openapi-react-query", "message": "Use a hook from @/lib/queries." },
-        { "name": "openapi-fetch", "message": "Use a hook from @/lib/queries." },
-        { "name": "@tanstack/react-query", "importNames": ["useQuery", "useMutation", "useInfiniteQuery", "useSuspenseQuery", "useQueryClient"], "message": "Use a hook from @/lib/queries." }
-      ]
-    }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "@/lib/api/client", "message": "Use a hook from @/lib/queries." },
+          { "name": "openapi-react-query", "message": "Use a hook from @/lib/queries." },
+          { "name": "openapi-fetch", "message": "Use a hook from @/lib/queries." },
+          {
+            "name": "@tanstack/react-query",
+            "importNames": [
+              "useQuery",
+              "useMutation",
+              "useInfiniteQuery",
+              "useSuspenseQuery",
+              "useQueryClient"
+            ],
+            "message": "Use a hook from @/lib/queries."
+          }
+        ]
+      }
+    ],
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-imports": "error",
     "typescript/no-floating-promises": "error",
@@ -1359,9 +1385,7 @@ pnpm add -D oxlint oxlint-tsgolint oxfmt eslint-plugin-react-hooks
     "eqeqeq": "error",
     "no-console": "error"
   },
-  "overrides": [
-    { "files": ["src/lib/**"], "rules": { "no-restricted-imports": "off" } }
-  ]
+  "overrides": [{ "files": ["src/lib/**"], "rules": { "no-restricted-imports": "off" } }]
 }
 ```
 
@@ -1369,13 +1393,13 @@ Tune noisy style/pedantic rules (e.g. `sort-keys`, `no-magic-numbers`, `id-lengt
 
 `lint/fin-plugin.ts` custom rules:
 
-| Rule | Behavior |
-|---|---|
-| `alias-imports` | Report any `import`/`export … from`/dynamic `import()` whose source starts with `.` (covers `./` and `../`). |
-| `no-comments` | Report every comment from `sourceCode.getAllComments()`. Generated files are in `ignorePatterns`. |
-| `route-private-imports` | Imports from a route's `_components/` or `_hooks/` are restricted to that route subtree; those directories belong under `src/app/`. |
-| `no-effects-outside-hooks` | Report calls to `useEffect`/`useLayoutEffect`/`useInsertionEffect` (bare or `React.` member) in files not under `src/lib/hooks/`. |
-| `max-one-use-state` | Count `useState` calls per enclosing function; report the second one unless the file is under `src/lib/hooks/`, `src/lib/queries/`, or a `_hooks/` dir. |
+| Rule                       | Behavior                                                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `alias-imports`            | Report any `import`/`export … from`/dynamic `import()` whose source starts with `.` (covers `./` and `../`).                                            |
+| `no-comments`              | Report every comment from `sourceCode.getAllComments()`. Generated files are in `ignorePatterns`.                                                       |
+| `route-private-imports`    | Imports from a route's `_components/` or `_hooks/` are restricted to that route subtree; those directories belong under `src/app/`.                     |
+| `no-effects-outside-hooks` | Report calls to `useEffect`/`useLayoutEffect`/`useInsertionEffect` (bare or `React.` member) in files not under `src/lib/hooks/`.                       |
+| `max-one-use-state`        | Count `useState` calls per enclosing function; report the second one unless the file is under `src/lib/hooks/`, `src/lib/queries/`, or a `_hooks/` dir. |
 
 Each rule gets a smoke check during M0: add a violating line, run `pnpm lint`, confirm failure, remove it.
 
@@ -1443,14 +1467,14 @@ docker run --rm -v "$PWD/db:/migrations" migrate/migrate -path=/migrations -data
 
 The `Justfile` in the repo root is the source of truth; `just --list` shows every recipe with its `[doc()]` description. Groups:
 
-| Group | Recipes |
-|---|---|
-| Setup | `install`, `db`, `db-stop` |
+| Group    | Recipes                                                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Setup    | `install`, `db`, `db-stop`                                                                                                 |
 | Database | `migrate`, `migrate-down n`, `migrate-version`, `migration name` (golang-migrate CLI), `seed email client_id secret [env]` |
-| Dev | `gen`, `dev-api`, `dev-web`, `dev` (db + migrate + gen + both servers) |
-| Quality | `lint`, `lint-go`, `lint-js`, `fix`, `fmt`, `test`, `cover` |
-| Dev aids | `sandbox-reset-login connection_id` |
-| Ship | `build`, `docker-build`, `outdated` |
+| Dev      | `gen`, `dev-api`, `dev-web`, `dev` (db + migrate + gen + both servers)                                                     |
+| Quality  | `lint`, `lint-go`, `lint-js`, `fix`, `fmt`, `test`, `cover`                                                                |
+| Dev aids | `sandbox-reset-login connection_id`                                                                                        |
+| Ship     | `build`, `docker-build`, `outdated`                                                                                        |
 
 Prerequisites (README): Go, Node LTS, pnpm (standalone, not corepack), just, Docker, golangci-lint, golang-migrate, jq.
 
@@ -1512,51 +1536,51 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 
 ## 11. Requirement traceability
 
-| Req | Where |
-|---|---|
-| oxlint + oxfmt | §6.1 scripts, §6.6, §8 `lint-js` / `fix` / `fmt` |
-| `config.NewFromEnv()` handwritten, untested | §3, §5.13 exclusions |
-| Backend business logic unit-tested, no frontend tests | §5.13, §9 |
-| Re-auth endpoint + indicator | §5.5, §5.6 routes, §5.12, §6.7 |
-| `SECRET_KEY` token encryption + `.env.example` hint | §3, §5.11 |
-| Natural newlines everywhere | §0, §5.10, every snippet |
-| Manual refresh + cron goroutine (env-configurable) | §3 `SYNC_CRON`, §5.5 `SyncAll` + `SyncScheduler`, §5.6 `POST /api/connections/sync`, §6.2 Refresh button |
-| Sync failures visible in Prometheus | §5.8 `fin_syncs_total`, `fin_scheduled_sync_*`, alerts |
-| `iota` enum labels, cardinality locked | §5.8 labels table + max-series column |
-| Metrics only via high-level functions; zero-sized recorder for tests | §5.8 `Recorder`, `Prometheus{}`, `Noop{}` |
-| Gitignored `.env` for local creds; seed CLI for email + Plaid creds | §1, §4 onboarding, §5.1 `cmd/seed`, §8 `seed` |
-| a, e, m | §5.1 (Go, `net/http`, wiring in `serve.go`) |
-| b, c, h (grouping) | §1 layout, §5.6 handler-per-resource `Register`, §5.10 file-size rule |
-| d | §5.10 `tools/nocomments`, §6.6 `fin/no-comments`, Justfile `[doc()]` |
-| f | §5.6 `server/routes.go` |
-| g (huma spec), ah | §5.1 `fin openapi`, §5.6 huma config, gitignored `openapi.json` |
-| h (config) | §3 |
-| g (DI) | §5.1, §5.2 |
-| i | §4, §5.3 (pgx, raw formatted SQL, no transactions) |
-| j | §5.3 interfaces + embedded-interface fakes |
-| k | §5.4 |
-| l | §5.5, §5.7 |
-| n | §5.8, ops routes in §5.6 |
-| o | §4 manual onboarding |
-| p | §1, §4, §5.1 (migrate CLI) |
-| q, r | §6.1, §6.2 |
-| s, aa5, t | §6.4 rules + §6.6 `no-effects-outside-hooks`, `max-one-use-state` |
-| u, v, z | §6.3 (`$api` only in `src/lib`, `lib/queries` hooks, lint-enforced) |
-| w | §6.4 |
-| x | §6.1 `gen`, gitignored `schema.gen.ts` |
-| y | §2, §7 (pnpm only, `devEngines`) |
-| aa | §6.2 `_components/`/`_hooks/`, §6.6 `route-private-imports` |
-| aa2 | §2 |
-| aa3 | §6.6 |
-| aa4 | §6.6 `alias-imports` |
-| ab | §1, §6.3 |
-| ab2, ab3 | §6.4 (shadcn, KISS) |
-| ab4 | §6.5 |
-| ac | §5.6 `Page[T]`, §6.3 infinite queries |
-| ad | §0, §4 (`text` + Go enums) |
-| ae | §8 |
-| af | §5.9 |
-| ag | §7 |
+| Req                                                                  | Where                                                                                                    |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| oxlint + oxfmt                                                       | §6.1 scripts, §6.6, §8 `lint-js` / `fix` / `fmt`                                                         |
+| `config.NewFromEnv()` handwritten, untested                          | §3, §5.13 exclusions                                                                                     |
+| Backend business logic unit-tested, no frontend tests                | §5.13, §9                                                                                                |
+| Re-auth endpoint + indicator                                         | §5.5, §5.6 routes, §5.12, §6.7                                                                           |
+| `SECRET_KEY` token encryption + `.env.example` hint                  | §3, §5.11                                                                                                |
+| Natural newlines everywhere                                          | §0, §5.10, every snippet                                                                                 |
+| Manual refresh + cron goroutine (env-configurable)                   | §3 `SYNC_CRON`, §5.5 `SyncAll` + `SyncScheduler`, §5.6 `POST /api/connections/sync`, §6.2 Refresh button |
+| Sync failures visible in Prometheus                                  | §5.8 `fin_syncs_total`, `fin_scheduled_sync_*`, alerts                                                   |
+| `iota` enum labels, cardinality locked                               | §5.8 labels table + max-series column                                                                    |
+| Metrics only via high-level functions; zero-sized recorder for tests | §5.8 `Recorder`, `Prometheus{}`, `Noop{}`                                                                |
+| Gitignored `.env` for local creds; seed CLI for email + Plaid creds  | §1, §4 onboarding, §5.1 `cmd/seed`, §8 `seed`                                                            |
+| a, e, m                                                              | §5.1 (Go, `net/http`, wiring in `serve.go`)                                                              |
+| b, c, h (grouping)                                                   | §1 layout, §5.6 handler-per-resource `Register`, §5.10 file-size rule                                    |
+| d                                                                    | §5.10 `tools/nocomments`, §6.6 `fin/no-comments`, Justfile `[doc()]`                                     |
+| f                                                                    | §5.6 `server/routes.go`                                                                                  |
+| g (huma spec), ah                                                    | §5.1 `fin openapi`, §5.6 huma config, gitignored `openapi.json`                                          |
+| h (config)                                                           | §3                                                                                                       |
+| g (DI)                                                               | §5.1, §5.2                                                                                               |
+| i                                                                    | §4, §5.3 (pgx, raw formatted SQL, no transactions)                                                       |
+| j                                                                    | §5.3 interfaces + embedded-interface fakes                                                               |
+| k                                                                    | §5.4                                                                                                     |
+| l                                                                    | §5.5, §5.7                                                                                               |
+| n                                                                    | §5.8, ops routes in §5.6                                                                                 |
+| o                                                                    | §4 manual onboarding                                                                                     |
+| p                                                                    | §1, §4, §5.1 (migrate CLI)                                                                               |
+| q, r                                                                 | §6.1, §6.2                                                                                               |
+| s, aa5, t                                                            | §6.4 rules + §6.6 `no-effects-outside-hooks`, `max-one-use-state`                                        |
+| u, v, z                                                              | §6.3 (`$api` only in `src/lib`, `lib/queries` hooks, lint-enforced)                                      |
+| w                                                                    | §6.4                                                                                                     |
+| x                                                                    | §6.1 `gen`, gitignored `schema.gen.ts`                                                                   |
+| y                                                                    | §2, §7 (pnpm only, `devEngines`)                                                                         |
+| aa                                                                   | §6.2 `_components/`/`_hooks/`, §6.6 `route-private-imports`                                              |
+| aa2                                                                  | §2                                                                                                       |
+| aa3                                                                  | §6.6                                                                                                     |
+| aa4                                                                  | §6.6 `alias-imports`                                                                                     |
+| ab                                                                   | §1, §6.3                                                                                                 |
+| ab2, ab3                                                             | §6.4 (shadcn, KISS)                                                                                      |
+| ab4                                                                  | §6.5                                                                                                     |
+| ac                                                                   | §5.6 `Page[T]`, §6.3 infinite queries                                                                    |
+| ad                                                                   | §0, §4 (`text` + Go enums)                                                                               |
+| ae                                                                   | §8                                                                                                       |
+| af                                                                   | §5.9                                                                                                     |
+| ag                                                                   | §7                                                                                                       |
 
 ## 12. Phase 2 — CI/CD
 
@@ -1564,13 +1588,13 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 
 Copy the reference repositories; do not invent mechanisms they do not use. When this section is silent, do what the reference does. Deliberate deviations are listed in §12.9 and nowhere else.
 
-| Reference (local checkout) | What to take from it |
-|---|---|
+| Reference (local checkout)                                | What to take from it                                                                                                                                                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/github/Patina-Network/members-admin-dashboard/.github` | **Primary template.** Backend + frontend app with one image: `ci.yml`/`cd.yml` job graph, composite actions, `src/consts.ts`, `build-image`, `create-tag`, `promote-image`, `deploy`, `pretest`, `test` scripts. |
-| `~/github/Patina-Network/members-grpc-service/.github` | Migration testing (`src/test/run-migration-tests.ts` with `LocalPostgresClient`), production migration step inside the deploy job (`composite/migrate`). |
-| `~/github/Patina-Network/codebloom/.github` | Separate backend pre-test vs test, frontend pre-test (lint, typecheck, build; no tests). |
-| `~/github/tahminator/abclang/.github` | Personal-account variant: hardcoded Docker Hub username, `k8s-personal` deploy target. |
-| `~/github/tahminator/pipeline` | `DockerClient`, `GitHubClient`, `VersioningClient`, `LocalPostgresClient`, and the setup action. Use these APIs only: no Octokit, no `gh api`, no hand-rolled HTTP. |
+| `~/github/Patina-Network/members-grpc-service/.github`    | Migration testing (`src/test/run-migration-tests.ts` with `LocalPostgresClient`), production migration step inside the deploy job (`composite/migrate`).                                                         |
+| `~/github/Patina-Network/codebloom/.github`               | Separate backend pre-test vs test, frontend pre-test (lint, typecheck, build; no tests).                                                                                                                         |
+| `~/github/tahminator/abclang/.github`                     | Personal-account variant: hardcoded Docker Hub username, `k8s-personal` deploy target.                                                                                                                           |
+| `~/github/tahminator/pipeline`                            | `DockerClient`, `GitHubClient`, `VersioningClient`, `LocalPostgresClient`, and the setup action. Use these APIs only: no Octokit, no `gh api`, no hand-rolled HTTP.                                              |
 
 ```mermaid
 flowchart LR
@@ -1662,16 +1686,16 @@ Copied from the references:
 
 ### 12.4 Scripts
 
-| Script | Args | Env | Behavior |
-|---|---|---|---|
-| `pretest/backend` | — | — | `just lint-go` (golangci-lint, no-comments check), then `golangci-lint fmt --diff ./...`. |
-| `pretest/frontend` | — | — | `pnpm --dir js install --frozen-lockfile`, `just gen`, `pnpm --dir js check`, `pnpm --dir js build`. No frontend tests. |
-| `test/backend` | — | — | `just test`. |
-| `test/migrations` | — | — | Copy grpc `run-migration-tests.ts`: `await using pgClient = await LocalPostgresClient.create({ database: "fin" })`, build `DATABASE_URL` from `pgClient.state` (`sslmode=disable`), then via `$.env({...process.env, DATABASE_URL})` run `just migrate && just migrate && just migrate-down 1 && just migrate && just migrate-down -all && just migrate`. |
-| `build-image` | `--environment staging\|production` (choices, `satisfies Environment[]`), `--sha` (required), `--prId` (default `""`) | `DOCKER_HUB_PAT`, `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` | Copy members-admin-dashboard `build-image` with a single `linux/amd64` platform. Tags: staging `[staging-<short>, sha-<sha>]`, production `[<short>, sha-<sha>]`. `dockerFileLocation: "infra/Dockerfile"`, `dockerRepository: DOCKER_REPOSITORY`. Pass `buildArgs` `GO_VERSION` (from the `go` directive in `go.mod`), `NODE_VERSION` (`js/package.json` `devEngines.runtime.version`) and `PNPM_VERSION` (`packageManager` without the `pnpm@` prefix and `+hash` suffix), matching `just docker-build`. If `prId` is set, send the reference PR comment listing the pushed tags. |
-| `create-tag` | — | GitHub App vars | Verbatim members-admin-dashboard `create-tag`: `VersioningClient(ghClient, VersionUpdatingStrategy.NONE)`, `ghClient.createTag({ nextTag: await versioningClient.next(), onPreTagCreate })`. Versions are plain `X.Y.Z`; the first is `1.0.0`. |
-| `promote-image` | `--releaseTag`, `--sha` (both required) | `DOCKER_HUB_PAT` | `promoteDockerImage({ originalTag: shortSha(sha), newGithubTags: [releaseTag, "latest"], repository: DOCKER_REPOSITORY })`. |
-| `deploy` | `--releaseTag` (required) | GitHub App vars | `updateK8sTagWithPR({ manifestRepo: [GITHUB_OWNER, K8S_MANIFESTS_REPOSITORY], originRepo: [GITHUB_OWNER, GITHUB_REPOSITORY], kustomizationFilePath: KUSTOMIZATION_FILE_PATH, imageName: \`${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}\`, newTag: releaseTag, environment: "production" })`. Production only, so there is no `--sha` or `--environment`. |
+| Script             | Args                                                                                                                  | Env                                                                                              | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pretest/backend`  | —                                                                                                                     | —                                                                                                | `just lint-go` (golangci-lint, no-comments check), then `golangci-lint fmt --diff ./...`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `pretest/frontend` | —                                                                                                                     | —                                                                                                | `pnpm --dir js install --frozen-lockfile`, `just gen`, `pnpm --dir js check`, `pnpm --dir js build`. No frontend tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `test/backend`     | —                                                                                                                     | —                                                                                                | `just test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `test/migrations`  | —                                                                                                                     | —                                                                                                | Copy grpc `run-migration-tests.ts`: `await using pgClient = await LocalPostgresClient.create({ database: "fin" })`, build `DATABASE_URL` from `pgClient.state` (`sslmode=disable`), then via `$.env({...process.env, DATABASE_URL})` run `just migrate && just migrate && just migrate-down 1 && just migrate && just migrate-down -all && just migrate`.                                                                                                                                                                                                                           |
+| `build-image`      | `--environment staging\|production` (choices, `satisfies Environment[]`), `--sha` (required), `--prId` (default `""`) | `DOCKER_HUB_PAT`, `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` | Copy members-admin-dashboard `build-image` with a single `linux/amd64` platform. Tags: staging `[staging-<short>, sha-<sha>]`, production `[<short>, sha-<sha>]`. `dockerFileLocation: "infra/Dockerfile"`, `dockerRepository: DOCKER_REPOSITORY`. Pass `buildArgs` `GO_VERSION` (from the `go` directive in `go.mod`), `NODE_VERSION` (`js/package.json` `devEngines.runtime.version`) and `PNPM_VERSION` (`packageManager` without the `pnpm@` prefix and `+hash` suffix), matching `just docker-build`. If `prId` is set, send the reference PR comment listing the pushed tags. |
+| `create-tag`       | —                                                                                                                     | GitHub App vars                                                                                  | Verbatim members-admin-dashboard `create-tag`: `VersioningClient(ghClient, VersionUpdatingStrategy.NONE)`, `ghClient.createTag({ nextTag: await versioningClient.next(), onPreTagCreate })`. Versions are plain `X.Y.Z`; the first is `1.0.0`.                                                                                                                                                                                                                                                                                                                                      |
+| `promote-image`    | `--releaseTag`, `--sha` (both required)                                                                               | `DOCKER_HUB_PAT`                                                                                 | `promoteDockerImage({ originalTag: shortSha(sha), newGithubTags: [releaseTag, "latest"], repository: DOCKER_REPOSITORY })`.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `deploy`           | `--releaseTag` (required)                                                                                             | GitHub App vars                                                                                  | `updateK8sTagWithPR({ manifestRepo: [GITHUB_OWNER, K8S_MANIFESTS_REPOSITORY], originRepo: [GITHUB_OWNER, GITHUB_REPOSITORY], kustomizationFilePath: KUSTOMIZATION_FILE_PATH, imageName: \`${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}\`, newTag: releaseTag, environment: "production" })`. Production only, so there is no `--sha`or`--environment`.                                                                                                                                                                                                                               |
 
 Production migrations have no script. As in grpc, the `migrate` composite runs the Justfile recipe: `just migrate` (which already reads `DATABASE_URL`).
 
@@ -1679,16 +1703,16 @@ Production migrations have no script. As in grpc, the `migrate` composite runs t
 
 Same shape as members-admin-dashboard: `name`, `description`, UPPER_SNAKE `inputs` with descriptions, `runs.using: composite`, and one named step with `shell: bash` and `run: bun run .github/scripts/src/<dir> --flag "${{ inputs.X }}"`.
 
-| Composite | Inputs | Runs |
-|---|---|---|
-| `pretest` | — | `src/pretest/backend` |
-| `frontend-pretest` | — | `src/pretest/frontend` |
-| `test` | — | `src/test/backend` |
-| `build-image` | `ENVIRONMENT`, `SHA`, `PR_ID` (default `""`) | `src/build-image` |
-| `create-tag` | — | `src/create-tag` |
-| `promote-image` | `RELEASE_TAG`, `SHA` | `src/promote-image` |
-| `migrate` | — | `just migrate`; caller supplies `DATABASE_URL` through step `env` |
-| `deploy` | `RELEASE_TAG` | `src/deploy` |
+| Composite          | Inputs                                       | Runs                                                              |
+| ------------------ | -------------------------------------------- | ----------------------------------------------------------------- |
+| `pretest`          | —                                            | `src/pretest/backend`                                             |
+| `frontend-pretest` | —                                            | `src/pretest/frontend`                                            |
+| `test`             | —                                            | `src/test/backend`                                                |
+| `build-image`      | `ENVIRONMENT`, `SHA`, `PR_ID` (default `""`) | `src/build-image`                                                 |
+| `create-tag`       | —                                            | `src/create-tag`                                                  |
+| `promote-image`    | `RELEASE_TAG`, `SHA`                         | `src/promote-image`                                               |
+| `migrate`          | —                                            | `just migrate`; caller supplies `DATABASE_URL` through step `env` |
+| `deploy`           | `RELEASE_TAG`                                | `src/deploy`                                                      |
 
 As in grpc, the workflow step runs `test/migrations` directly; it has no composite.
 
@@ -1698,22 +1722,22 @@ Header as in members-admin-dashboard: `name: CI`, `run-name: Running continuous 
 
 Every job: camelCase id with a `name`, `runs-on: ubuntu-26.04`, step `Checkout Repository` using `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1`, then step `Setup Pipeline` calling `tahminator/pipeline/actions/setup@3fe33a6496cc37947213e96e6f03445afa2e2a9c` (1.0.105) directly with `SECRETS: ${{ toJSON(secrets) }}` and `LINT_CI: true`, plus the job's install inputs. There is no local setup wrapper.
 
-| Job | Needs / condition | Extra setup inputs | Steps |
-|---|---|---|---|
-| `backendTest` "Backend tests" | — | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_GOLANGCI_LINT: true` | `pretest`, then `test` composites |
-| `frontendTest` "Frontend tests" | — | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_NPM: true`, `NODE_VERSION: "26.13.1"`, `INSTALL_PNPM: true`, `PNPM_VERSION: "12.21.0"` | `frontend-pretest` composite |
-| `testMigrations` "Test database migrations" | `timeout-minutes: 10` | `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"` | `run: bun run .github/scripts/src/test/migrations` |
-| `buildImage` "Build ${{ github.event_name == 'pull_request' && 'staging' \|\| 'production' }} image" | needs all three checks; no `if` (PR and main) | — | Checkout with `ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`; `build-image` composite with `ENVIRONMENT` (staging on PR, else production), `SHA: ${{ github.event.pull_request.head.sha \|\| github.sha }}`, `PR_ID: ${{ github.event.pull_request.number }}` |
-| `createTag` "Create new tag" | needs `buildImage`; `if: github.ref_name == 'main'`; `permissions: contents: write` | — | `create-tag` composite |
+| Job                                                                                                  | Needs / condition                                                                   | Extra setup inputs                                                                                                                                                   | Steps                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backendTest` "Backend tests"                                                                        | —                                                                                   | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_GOLANGCI_LINT: true`                                                                   | `pretest`, then `test` composites                                                                                                                                                                                                                                               |
+| `frontendTest` "Frontend tests"                                                                      | —                                                                                   | `INSTALL_GO: true`, `GO_VERSION_FILE: go.mod`, `INSTALL_JUST: true`, `INSTALL_NPM: true`, `NODE_VERSION: "26.13.1"`, `INSTALL_PNPM: true`, `PNPM_VERSION: "12.21.0"` | `frontend-pretest` composite                                                                                                                                                                                                                                                    |
+| `testMigrations` "Test database migrations"                                                          | `timeout-minutes: 10`                                                               | `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`                                                                                                                      | `run: bun run .github/scripts/src/test/migrations`                                                                                                                                                                                                                              |
+| `buildImage` "Build ${{ github.event_name == 'pull_request' && 'staging' \|\| 'production' }} image" | needs all three checks; no `if` (PR and main)                                       | —                                                                                                                                                                    | Checkout with `ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`; `build-image` composite with `ENVIRONMENT` (staging on PR, else production), `SHA: ${{ github.event.pull_request.head.sha \|\| github.sha }}`, `PR_ID: ${{ github.event.pull_request.number }}` |
+| `createTag` "Create new tag"                                                                         | needs `buildImage`; `if: github.ref_name == 'main'`; `permissions: contents: write` | —                                                                                                                                                                    | `create-tag` composite                                                                                                                                                                                                                                                          |
 
 ### 12.7 `cd.yaml`
 
 Header as in members-admin-dashboard: `name: CD`, `run-name: Running continuous deployment on ${{ github.actor }}'s commits`, `permissions: contents: read`, `on: push: tags: ["*"]`, `concurrency: group: cd`, `cancel-in-progress: false`.
 
-| Job | Details |
-|---|---|
-| `promoteImage` "Promote image to ${{ github.ref_name }}" | Checkout with `fetch-depth: 2`; setup; step `Get parent SHA` (`id: parent`) runs `echo "sha=$(git rev-parse ${{ github.sha }}^1)" >> "$GITHUB_OUTPUT"`; `promote-image` composite with `RELEASE_TAG: ${{ github.ref_name }}`, `SHA: ${{ steps.parent.outputs.sha }}`. |
-| `deployProduction` "Deploy to production" | `needs: promoteImage`; job concurrency `deploy-production`, `cancel-in-progress: false`; `timeout-minutes: 20`; setup adds `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`; step `Migrate production database` uses the `migrate` composite with `env: DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}`; step `Deploy` uses the `deploy` composite with `RELEASE_TAG: ${{ github.ref_name }}`. |
+| Job                                                      | Details                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `promoteImage` "Promote image to ${{ github.ref_name }}" | Checkout with `fetch-depth: 2`; setup; step `Get parent SHA` (`id: parent`) runs `echo "sha=$(git rev-parse ${{ github.sha }}^1)" >> "$GITHUB_OUTPUT"`; `promote-image` composite with `RELEASE_TAG: ${{ github.ref_name }}`, `SHA: ${{ steps.parent.outputs.sha }}`.                                                                                                                                         |
+| `deployProduction` "Deploy to production"                | `needs: promoteImage`; job concurrency `deploy-production`, `cancel-in-progress: false`; `timeout-minutes: 20`; setup adds `INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`; step `Migrate production database` uses the `migrate` composite with `env: DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}`; step `Deploy` uses the `deploy` composite with `RELEASE_TAG: ${{ github.ref_name }}`. |
 
 `GitHubClient.createTag` creates a release commit whose parent is the `main` head at tag time. With `VersionUpdatingStrategy.NONE`, its tree equals the parent's tree. That is why CD promotes the parent SHA's image, and why migrations from the tag checkout match that image. The first deploy replaces the `newTag: changeme` placeholder in `k8s-personal`.
 
@@ -1721,11 +1745,11 @@ Header as in members-admin-dashboard: `name: CD`, `run-name: Running continuous 
 
 Repository-level Actions secrets only; no GitHub environments. `tahminator/omnis` fans out its shared secrets to every personal repository. `gh secret list --repo tahminator/fin` returned `[]` during planning, so confirm the names once IaC has been applied.
 
-| Secret | Use |
-|---|---|
-| `DOCKER_HUB_PAT` (shared) | `DockerClient` as `tahminator`: build, push, promote. |
+| Secret                                                                                  | Use                                                                          |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `DOCKER_HUB_PAT` (shared)                                                               | `DockerClient` as `tahminator`: build, push, promote.                        |
 | `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` (shared) | `GitHubClient.createWithGithubAppToken`: PR comment, release tag, GitOps PR. |
-| `PRODUCTION_MIGRATION_DATABASE_URL` (fin-specific) | `DATABASE_URL` for `just migrate` in CD; use TLS and a migration role. |
+| `PRODUCTION_MIGRATION_DATABASE_URL` (fin-specific)                                      | `DATABASE_URL` for `just migrate` in CD; use TLS and a migration role.       |
 
 `SONAR_TOKEN` is also shared, but unused because fin has no Sonar project.
 

@@ -81,7 +81,7 @@ export function AppShell() {
 
       <nav
         aria-label="Primary navigation"
-        className="sticky bottom-0 z-20 mx-3 mb-[calc(env(safe-area-inset-bottom)+12px)] flex rounded-full border border-border/70 bg-background/75 p-1.5 shadow-lg shadow-black/5 backdrop-blur-xl"
+        className="sticky bottom-(--nav-gap) z-20 mx-4 mb-(--nav-gap) flex rounded-full border border-border/70 bg-background/75 p-1.5 shadow-lg shadow-black/5 backdrop-blur-xl [--nav-gap:max(1rem,calc(env(safe-area-inset-bottom)-0.75rem))]"
       >
         <span
           aria-hidden="true"

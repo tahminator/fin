@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { useConnections } from "@/lib/queries/connections";
+import { useSummary } from "@/lib/queries/summary";
 import { useVersion } from "@/lib/queries/version";
 
 function ConnectionResults() {
@@ -37,6 +38,20 @@ function ConnectionResults() {
   );
 }
 
+function ConnectionUsage() {
+  const summary = useSummary();
+
+  if (!summary.isSuccess) {
+    return null;
+  }
+
+  return (
+    <p className="px-4 type-footnote text-muted-foreground">
+      {summary.data.accountCount} accounts · {summary.data.connectionCount} of 10 connections
+    </p>
+  );
+}
+
 function AppVersion() {
   const version = useVersion().data?.version;
 
@@ -52,6 +67,7 @@ export function ConnectionsPage() {
     <>
       <PageHeader title="Connections" actions={<ConnectBankButton />} />
       <ConnectionResults />
+      <ConnectionUsage />
       <AppVersion />
     </>
   );

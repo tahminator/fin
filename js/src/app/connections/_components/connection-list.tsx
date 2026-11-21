@@ -9,18 +9,11 @@ import { InstitutionLogo } from "@/components/institution-logo";
 import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/format";
-import type { Connection, ConnectionStatus } from "@/lib/types/api";
+import { formatAge, formatDateTime } from "@/lib/format";
+import { useNow } from "@/lib/hooks/use-now";
+import type { Connection } from "@/lib/types/api";
 
-const statusBadges: Record<
-  ConnectionStatus,
-  { label: string; variant: "secondary" | "destructive" }
-> = {
-  active: { label: "Connected", variant: "secondary" },
-  needs_reauth: { label: "Sign-in needed", variant: "destructive" },
-};
-
-function statusLine(connection: Connection): string {
+function statusLine(connection: Connection, now: number): string {
   if (connection.status === "needs_reauth") {
     return `Since ${formatDateTime(connection.statusChangedAt)}`;
   }
@@ -29,12 +22,12 @@ function statusLine(connection: Connection): string {
     return "Never synced";
   }
 
-  return `Last synced ${formatDateTime(connection.lastSyncedAt)}`;
+  return `Synced ${formatAge(connection.lastSyncedAt, now)}`;
 }
 
 function ConnectionSection({ connection }: { connection: Connection }) {
   const name = connection.institutionName ?? "Unknown bank";
-  const badge = statusBadges[connection.status];
+  const now = useNow();
 
   return (
     <ListSection
@@ -49,9 +42,11 @@ function ConnectionSection({ connection }: { connection: Connection }) {
         <InstitutionLogo url={connection.institutionLogoUrl} />
         <ListRowLabel
           title={<span className="font-semibold">{name}</span>}
-          subtitle={statusLine(connection)}
+          subtitle={statusLine(connection, now)}
         />
-        <Badge variant={badge.variant}>{badge.label}</Badge>
+        {connection.status === "needs_reauth" ? (
+          <Badge variant="destructive">Sign-in needed</Badge>
+        ) : null}
       </ListRow>
       <ConnectionAccounts connectionId={connection.id} />
       <ListRow className="gap-2 not-first:before:left-4">

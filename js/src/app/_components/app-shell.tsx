@@ -1,6 +1,6 @@
 import { HouseIcon, LandmarkIcon, ReceiptTextIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 
 import { ReauthBanner } from "@/app/_components/reauth-banner";
 import { RefreshButton } from "@/app/_components/refresh-button";
@@ -39,7 +39,7 @@ function NavItem({ to, label, icon, badge }: NavItemProps) {
       to={to}
       end={to === "/"}
       className={({ isActive }) =>
-        `relative flex flex-1 flex-col items-center gap-1 py-2 text-xs ${isActive ? "text-foreground" : "text-muted-foreground"}`
+        `relative z-10 flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs transition-colors duration-300 ${isActive ? "text-foreground" : "text-muted-foreground"}`
       }
     >
       {icon}
@@ -50,6 +50,10 @@ function NavItem({ to, label, icon, badge }: NavItemProps) {
 }
 
 export function AppShell() {
+  const { pathname } = useLocation();
+  const activeIndex =
+    pathname === "/" ? 0 : pathname.startsWith("/transactions") ? 1 : 2;
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -66,7 +70,18 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      <nav className="sticky bottom-0 flex border-t bg-background pb-[env(safe-area-inset-bottom)]">
+      <nav
+        aria-label="Primary navigation"
+        className="sticky bottom-0 z-20 mx-3 mb-[calc(env(safe-area-inset-bottom)+12px)] flex rounded-full border border-border/70 bg-background/75 p-1.5 shadow-lg shadow-black/5 backdrop-blur-xl"
+      >
+        <span
+          aria-hidden="true"
+          className="absolute top-1.5 bottom-1.5 left-1.5 rounded-full bg-accent shadow-sm transition-transform duration-300 ease-out"
+          style={{
+            width: "calc((100% - 12px) / 3)",
+            transform: `translateX(${activeIndex * 100}%)`,
+          }}
+        />
         <NavItem to="/" label="Home" icon={<HouseIcon className="size-5" />} />
         <NavItem
           to="/transactions"

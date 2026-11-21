@@ -55,5 +55,6 @@ jobs:
         run: |
           bun run .github/scripts/src/revert \
             --prId "$PR_ID" \
+            --sha "$GITHUB_SHA" \
             --author "$AUTHOR" \
             --runUrl "$RUN_URL"

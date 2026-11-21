@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { InstallStep as InstallStepData } from "@/lib/pwa/platform";
 
 interface InstallStepProps {
@@ -11,13 +11,13 @@ export function InstallStep({ index, step }: InstallStepProps) {
     <div className="w-full shrink-0 snap-center px-6">
       <Card className="h-full">
         <CardHeader>
-          <span className="text-sm font-medium text-muted-foreground">Step {index + 1}</span>
-          <CardTitle className="text-xl">{step.title}</CardTitle>
+          <span className="type-subheadline font-semibold text-primary">Step {index + 1}</span>
+          <h2 className="type-title2 font-bold">{step.title}</h2>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <CardDescription className="text-base">{step.description}</CardDescription>
+          <p className="type-body text-muted-foreground">{step.description}</p>
           {step.screenshot && (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-2xl ring-[0.5px] ring-border">
               <img
                 src={step.screenshot.light}
                 alt={step.screenshot.alt}

@@ -29,7 +29,8 @@ export function RefreshButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-lg"
+      className="text-foreground"
       aria-label="Refresh all connections"
       disabled={syncAll.isPending}
       onClick={() => {

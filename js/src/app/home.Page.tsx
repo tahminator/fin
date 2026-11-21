@@ -4,10 +4,11 @@ import { AccountsOverview } from "@/app/_components/home/accounts-overview";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/queries/accounts";
 
-export function HomePage() {
+function HomeContent() {
   const accounts = useAccounts();
 
   if (accounts.isPending) {
@@ -39,5 +40,14 @@ export function HomePage() {
       loadingMore={accounts.isFetchingNextPage}
       onLoadMore={accounts.fetchNextPage}
     />
+  );
+}
+
+export function HomePage() {
+  return (
+    <>
+      <PageHeader title="Home" />
+      <HomeContent />
+    </>
   );
 }

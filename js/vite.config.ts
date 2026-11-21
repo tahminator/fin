@@ -7,7 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const apiTarget = "http://localhost:8080";
 
-const themeColor = "#ffffff";
+const themeColor = "#f2f2f7";
 
 const remoteImageMaxAgeSeconds = 7 * 24 * 60 * 60;
 

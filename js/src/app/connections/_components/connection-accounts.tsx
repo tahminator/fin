@@ -1,55 +1,26 @@
-import { CardArtDialog } from "@/app/connections/_components/card-art-dialog";
-import { AccountIcon } from "@/components/account-icon";
+import { ConnectionAccountRow } from "@/app/connections/_components/connection-account-row";
+import { ListRow } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { supportsCardArt } from "@/lib/card-art";
 import { errorMessage } from "@/lib/errors";
-import { formatMoney } from "@/lib/format";
 import { useConnectionAccounts } from "@/lib/queries/accounts";
-import type { Account } from "@/lib/types/api";
-
-function ConnectionAccountRow({ account }: { account: Account }) {
-  return (
-    <li className="flex items-center justify-between gap-4 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <AccountIcon account={account} className="shrink-0 text-muted-foreground" />
-        <p className="truncate text-sm">
-          {account.name}
-          {account.mask === null ? null : (
-            <span className="text-muted-foreground"> ••{account.mask}</span>
-          )}
-          <span className="text-muted-foreground capitalize">
-            {" · "}
-            {account.subtype ?? account.type}
-          </span>
-        </p>
-        {supportsCardArt(account) ? <CardArtDialog account={account} /> : null}
-      </div>
-      <p className="shrink-0 text-sm tabular-nums">
-        {account.currentBalance === null
-          ? "—"
-          : formatMoney(account.currentBalance, account.currency)}
-      </p>
-    </li>
-  );
-}
 
 export function ConnectionAccounts({ connectionId }: { connectionId: string }) {
   const accounts = useConnectionAccounts(connectionId);
 
   if (accounts.isPending) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <ListRow className="type-subheadline text-muted-foreground">
         <Spinner />
         Loading accounts…
-      </div>
+      </ListRow>
     );
   }
 
   if (accounts.isError) {
     return (
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <ListRow className="justify-between type-subheadline">
         <p className="text-destructive">{errorMessage(accounts.error)}</p>
         <Button
           size="sm"
@@ -60,24 +31,31 @@ export function ConnectionAccounts({ connectionId }: { connectionId: string }) {
         >
           Try again
         </Button>
-      </div>
+      </ListRow>
     );
   }
 
   if (accounts.data.length === 0) {
-    return <p className="text-sm text-muted-foreground">No accounts shared with this connection</p>;
+    return (
+      <ListRow className="type-subheadline text-muted-foreground">
+        No accounts shared with this connection
+      </ListRow>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border px-3">
-      <ul className="divide-y" aria-label="Accounts">
-        {accounts.data.map((account) => (
-          <ConnectionAccountRow key={account.id} account={account} />
-        ))}
-      </ul>
+    <>
+      {accounts.data.map((account) => (
+        <ConnectionAccountRow key={account.id} account={account} />
+      ))}
       {accounts.hasNextPage ? (
-        <LoadMoreButton loading={accounts.isFetchingNextPage} onLoadMore={accounts.fetchNextPage} />
+        <ListRow className="p-0">
+          <LoadMoreButton
+            loading={accounts.isFetchingNextPage}
+            onLoadMore={accounts.fetchNextPage}
+          />
+        </ListRow>
       ) : null}
-    </div>
+    </>
   );
 }

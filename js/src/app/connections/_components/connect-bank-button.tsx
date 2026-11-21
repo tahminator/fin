@@ -15,7 +15,7 @@ export function ConnectBankButton() {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button disabled={!launcher.ready || launcher.busy} onClick={launcher.launch}>
+      <Button size="sm" disabled={!launcher.ready || launcher.busy} onClick={launcher.launch}>
         {launcher.busy ? <Spinner /> : <PlusIcon />}
         Connect bank
       </Button>

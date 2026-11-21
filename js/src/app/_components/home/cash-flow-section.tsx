@@ -12,7 +12,7 @@ import type { CurrencyCashFlow } from "@/lib/types/api";
 const chartConfig = {
   in: {
     label: "In",
-    theme: { light: "var(--color-emerald-600)", dark: "var(--color-emerald-400)" },
+    color: "var(--chart-1)",
   },
   out: {
     label: "Out",
@@ -42,15 +42,14 @@ function CurrencyCashFlowCard({ flow }: { flow: CurrencyCashFlow }) {
   return (
     <Card>
       <CardHeader>
+        <CardTitle>Cash flow</CardTitle>
         <CardDescription>
-          Cash flow · last {flow.days.length} days · {flow.currency}
+          Last {flow.days.length} days · {flow.currency}
         </CardDescription>
-        <CardTitle className="flex flex-wrap gap-x-6 gap-y-1 tabular-nums">
-          <span className="text-emerald-600 dark:text-emerald-400">
-            In {formatMoney(totalIn, flow.currency)}
-          </span>
-          <span>Out {formatMoney(totalOut, flow.currency)}</span>
-        </CardTitle>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 type-headline tabular-nums">
+          <span className="text-chart-1">In {formatMoney(totalIn, flow.currency)}</span>
+          <span className="text-chart-2">Out {formatMoney(totalOut, flow.currency)}</span>
+        </div>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="aspect-auto h-48 w-full">
@@ -105,7 +104,7 @@ export function CashFlowSection({ excludeAccountId }: { excludeAccountId: string
   const cashFlow = useCashFlow(excludeAccountId);
 
   if (cashFlow.isPending) {
-    return <Skeleton className="h-72 w-full rounded-xl" />;
+    return <Skeleton className="h-80 w-full rounded-[26px] bg-card" />;
   }
 
   if (cashFlow.isError) {

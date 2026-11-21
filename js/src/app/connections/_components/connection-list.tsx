@@ -6,9 +6,9 @@ import {
 } from "@/app/connections/_components/connection-actions";
 import { RemoveConnectionButton } from "@/app/connections/_components/remove-connection-button";
 import { InstitutionLogo } from "@/components/institution-logo";
+import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
 import type { Connection, ConnectionStatus } from "@/lib/types/api";
 
@@ -32,27 +32,29 @@ function statusLine(connection: Connection): string {
   return `Last synced ${formatDateTime(connection.lastSyncedAt)}`;
 }
 
-function ConnectionRow({ connection }: { connection: Connection }) {
+function ConnectionSection({ connection }: { connection: Connection }) {
   const name = connection.institutionName ?? "Unknown bank";
   const badge = statusBadges[connection.status];
 
   return (
-    <li className="flex flex-col gap-3 py-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <InstitutionLogo url={connection.institutionLogoUrl} />
-          <div className="min-w-0">
-            <p className="truncate font-medium">{name}</p>
-            <p className="text-sm text-muted-foreground">{statusLine(connection)}</p>
-            {connection.lastError === null ? null : (
-              <p className="text-sm text-destructive">{connection.lastError}</p>
-            )}
-          </div>
-        </div>
+    <ListSection
+      label={name}
+      footer={
+        connection.lastError === null ? undefined : (
+          <span className="text-destructive">{connection.lastError}</span>
+        )
+      }
+    >
+      <ListRow>
+        <InstitutionLogo url={connection.institutionLogoUrl} />
+        <ListRowLabel
+          title={<span className="font-semibold">{name}</span>}
+          subtitle={statusLine(connection)}
+        />
         <Badge variant={badge.variant}>{badge.label}</Badge>
-      </div>
+      </ListRow>
       <ConnectionAccounts connectionId={connection.id} />
-      <div className="flex items-center gap-2">
+      <ListRow className="gap-2 not-first:before:left-4">
         {connection.status === "needs_reauth" ? (
           <ReconnectButton connectionId={connection.id} />
         ) : (
@@ -62,8 +64,8 @@ function ConnectionRow({ connection }: { connection: Connection }) {
           </>
         )}
         <RemoveConnectionButton connectionId={connection.id} name={name} />
-      </div>
-    </li>
+      </ListRow>
+    </ListSection>
   );
 }
 
@@ -81,15 +83,17 @@ export function ConnectionList({
   onLoadMore,
 }: ConnectionListProps) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-2">
-        <ul className="divide-y">
-          {connections.map((connection) => (
-            <ConnectionRow key={connection.id} connection={connection} />
-          ))}
-        </ul>
-        {hasMore ? <LoadMoreButton loading={loadingMore} onLoadMore={onLoadMore} /> : null}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-6">
+      {connections.map((connection) => (
+        <ConnectionSection key={connection.id} connection={connection} />
+      ))}
+      {hasMore ? (
+        <ListSection>
+          <ListRow className="p-0">
+            <LoadMoreButton loading={loadingMore} onLoadMore={onLoadMore} />
+          </ListRow>
+        </ListSection>
+      ) : null}
+    </div>
   );
 }

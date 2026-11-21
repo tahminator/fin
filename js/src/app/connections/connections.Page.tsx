@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { useConnections } from "@/lib/queries/connections";
+import { useVersion } from "@/lib/queries/version";
 
 function ConnectionResults() {
   const connections = useConnections();
@@ -35,6 +36,16 @@ function ConnectionResults() {
   );
 }
 
+function AppVersion() {
+  const version = useVersion().data?.version;
+
+  if (version === undefined || version === null) {
+    return null;
+  }
+
+  return <p className="mt-auto pt-6 text-center text-xs text-muted-foreground">v{version}</p>;
+}
+
 export function ConnectionsPage() {
   return (
     <>
@@ -43,6 +54,7 @@ export function ConnectionsPage() {
         <ConnectBankButton />
       </header>
       <ConnectionResults />
+      <AppVersion />
     </>
   );
 }

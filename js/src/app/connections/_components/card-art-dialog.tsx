@@ -32,7 +32,7 @@ export function CardArtDialog({ account }: { account: Account }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="link" className="h-auto shrink-0 p-0 text-xs">
+        <Button size="sm" variant="link" className="h-auto p-0 align-baseline font-normal">
           {account.cardArtUrl === null ? "Pick card" : "Wrong card?"}
         </Button>
       </DialogTrigger>

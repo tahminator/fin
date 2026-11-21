@@ -12,8 +12,8 @@ export function InstallGuide() {
   return (
     <main className="flex min-h-dvh flex-col justify-center gap-8 py-10">
       <header className="px-6">
-        <h1 className="text-3xl font-semibold tracking-tight">Install fin</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="type-large-title font-bold">Install fin</h1>
+        <p className="mt-1 type-body text-muted-foreground">
           Swipe through the steps to add fin to your device.
         </p>
       </header>

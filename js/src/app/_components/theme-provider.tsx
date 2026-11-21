@@ -43,16 +43,22 @@ export function ThemeToggle() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Choose color theme">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          className="text-foreground"
+          aria-label="Choose color theme"
+        >
           <CurrentIcon />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto flex-row">
+      <PopoverContent align="end" className="w-auto flex-row gap-1 rounded-full p-1.5">
         {themeOptions.map(({ value, icon: Icon, label }) => (
           <Button
             key={value}
             variant="ghost"
             size="icon"
+            className="text-foreground aria-pressed:bg-fill aria-pressed:text-primary"
             aria-label={label}
             aria-pressed={preference === value}
             onClick={() => {

@@ -28,7 +28,13 @@ export function RemoveConnectionButton({ connectionId, name }: RemoveConnectionB
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost" disabled={remove.isPending} aria-label={`Remove ${name}`}>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="ml-auto text-destructive"
+          disabled={remove.isPending}
+          aria-label={`Remove ${name}`}
+        >
           {remove.isPending ? <Spinner /> : <Trash2Icon />}
         </Button>
       </AlertDialogTrigger>

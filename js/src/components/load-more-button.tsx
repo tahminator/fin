@@ -9,7 +9,8 @@ interface LoadMoreButtonProps {
 export function LoadMoreButton({ loading, onLoadMore }: LoadMoreButtonProps) {
   return (
     <Button
-      variant="outline"
+      variant="ghost"
+      className="min-h-13 w-full rounded-none font-normal"
       disabled={loading}
       onClick={() => {
         void onLoadMore();

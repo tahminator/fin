@@ -147,12 +147,13 @@ export function TransactionsFilter() {
           <Button
             variant="ghost"
             size="xs"
-            disabled={hidden.size === 0}
             onClick={() => {
-              setHidden(new Set());
+              setHidden(
+                hiddenCount === 0 ? new Set(accounts.data.map((account) => account.id)) : new Set(),
+              );
             }}
           >
-            Show all
+            {hiddenCount === 0 ? "Hide all" : "Show all"}
           </Button>
         </div>
         <div className="flex max-h-80 flex-col gap-3 overflow-y-auto">

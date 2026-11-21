@@ -3,6 +3,7 @@ import { ConnectionList } from "@/app/connections/_components/connection-list";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { PageHeader } from "@/components/page-header";
 import { useConnections } from "@/lib/queries/connections";
 import { useVersion } from "@/lib/queries/version";
 
@@ -43,16 +44,13 @@ function AppVersion() {
     return null;
   }
 
-  return <p className="mt-auto pt-6 text-center text-xs text-muted-foreground">v{version}</p>;
+  return <p className="mt-auto text-center type-footnote text-muted-foreground">{version}</p>;
 }
 
 export function ConnectionsPage() {
   return (
     <>
-      <header className="flex items-start justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Connections</h1>
-        <ConnectBankButton />
-      </header>
+      <PageHeader title="Connections" actions={<ConnectBankButton />} />
       <ConnectionResults />
       <AppVersion />
     </>

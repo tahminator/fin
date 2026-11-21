@@ -3,9 +3,9 @@ import { Link } from "react-router";
 
 import { AccountIcon } from "@/components/account-icon";
 import { InstitutionLogo } from "@/components/institution-logo";
+import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import type { Account } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
@@ -22,32 +22,35 @@ function AccountRow({ account, hidden, onToggle }: AccountRowProps) {
     .join(" · ");
 
   return (
-    <li className={cn("flex items-center gap-1", hidden ? "opacity-50" : null)}>
+    <ListRow className="gap-0 py-0 pr-1 pl-0">
       <Link
         to={{
           pathname: "/transactions",
           search: new URLSearchParams({ accountId: account.id }).toString(),
         }}
-        className="flex min-w-0 flex-1 items-center justify-between gap-4 rounded-lg px-2 py-3 hover:bg-muted"
+        className={cn(
+          "flex min-h-15 min-w-0 flex-1 items-center gap-3 py-2 pl-4 transition-[background-color,opacity] outline-none focus-visible:bg-accent active:bg-fill",
+          hidden ? "opacity-40" : null,
+        )}
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="relative shrink-0">
-            <InstitutionLogo url={account.institutionLogoUrl} />
-            <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full border bg-background">
-              <AccountIcon account={account} className="size-2.5" />
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-medium">
+        <div className="relative shrink-0">
+          <InstitutionLogo url={account.institutionLogoUrl} />
+          <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-card ring-2 ring-card">
+            <AccountIcon account={account} className="size-2.5" />
+          </span>
+        </div>
+        <ListRowLabel
+          title={
+            <>
               {account.name}
               {account.mask === null ? null : (
                 <span className="text-muted-foreground"> ••{account.mask}</span>
               )}
-            </p>
-            <p className="truncate text-sm text-muted-foreground capitalize">{details}</p>
-          </div>
-        </div>
-        <p className="shrink-0 font-medium tabular-nums">
+            </>
+          }
+          subtitle={<span className="capitalize">{details}</span>}
+        />
+        <p className="shrink-0 type-body tabular-nums">
           {account.currentBalance === null
             ? "—"
             : formatMoney(account.currentBalance, account.currency)}
@@ -56,7 +59,7 @@ function AccountRow({ account, hidden, onToggle }: AccountRowProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="shrink-0"
+        className="ml-1 shrink-0"
         aria-label={hidden ? `Show ${account.name}` : `Hide ${account.name}`}
         aria-pressed={hidden}
         onClick={() => {
@@ -65,7 +68,7 @@ function AccountRow({ account, hidden, onToggle }: AccountRowProps) {
       >
         {hidden ? <EyeOffIcon /> : <EyeIcon />}
       </Button>
-    </li>
+    </ListRow>
   );
 }
 
@@ -87,23 +90,20 @@ export function AccountList({
   onLoadMore,
 }: AccountListProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Accounts</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <ul className="divide-y">
-          {accounts.map((account) => (
-            <AccountRow
-              key={account.id}
-              account={account}
-              hidden={hiddenAccountIds.includes(account.id)}
-              onToggle={onToggleAccount}
-            />
-          ))}
-        </ul>
-        {hasMore ? <LoadMoreButton loading={loadingMore} onLoadMore={onLoadMore} /> : null}
-      </CardContent>
-    </Card>
+    <ListSection header="Accounts" footer="Hidden accounts are left out of the totals above.">
+      {accounts.map((account) => (
+        <AccountRow
+          key={account.id}
+          account={account}
+          hidden={hiddenAccountIds.includes(account.id)}
+          onToggle={onToggleAccount}
+        />
+      ))}
+      {hasMore ? (
+        <ListRow className="p-0">
+          <LoadMoreButton loading={loadingMore} onLoadMore={onLoadMore} />
+        </ListRow>
+      ) : null}
+    </ListSection>
   );
 }

@@ -13,6 +13,8 @@ import {
 } from "../lib/consts";
 import { parseCiEnv } from "../lib/env";
 
+const PR_MESSAGE_KEY = "build-image";
+
 const { environment, sha, prId } = await yargs(hideBin(process.argv))
   .option("environment", {
     choices: ["staging", "production"] satisfies Environment[],
@@ -82,6 +84,7 @@ ${tags.map((t) => `- \`${DOCKER_REPOSITORY}:${t}\``).join("\n")}
 
 Comment \`/try\` to deploy \`${stagingTag(sha)}\` to production, then \`/revert\` to restore the image it replaced.
 `,
+      key: PR_MESSAGE_KEY,
     });
   }
 }

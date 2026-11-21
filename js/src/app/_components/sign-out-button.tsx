@@ -11,7 +11,8 @@ export function SignOutButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-lg"
+      className="text-foreground"
       aria-label="Sign out"
       disabled={logout.isPending}
       onClick={() => {

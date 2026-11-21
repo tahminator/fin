@@ -12,11 +12,11 @@ import type { CurrencyCashFlow } from "@/lib/types/api";
 const chartConfig = {
   in: {
     label: "In",
-    theme: { light: "var(--color-emerald-600)", dark: "var(--color-emerald-400)" },
+    color: "var(--positive)",
   },
   out: {
     label: "Out",
-    color: "var(--chart-2)",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 
@@ -46,9 +46,7 @@ function CurrencyCashFlowCard({ flow }: { flow: CurrencyCashFlow }) {
           Cash flow · last {flow.days.length} days · {flow.currency}
         </CardDescription>
         <CardTitle className="flex flex-wrap gap-x-6 gap-y-1 tabular-nums">
-          <span className="text-emerald-600 dark:text-emerald-400">
-            In {formatMoney(totalIn, flow.currency)}
-          </span>
+          <span className="text-positive">In {formatMoney(totalIn, flow.currency)}</span>
           <span>Out {formatMoney(totalOut, flow.currency)}</span>
         </CardTitle>
       </CardHeader>

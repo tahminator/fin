@@ -36,7 +36,7 @@ export function BalanceSummary({ summary }: { summary: Summary }) {
       {summary.balances.map((balance) => (
         <CurrencyCard key={balance.currency} balance={balance} />
       ))}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 tabular-nums">
         <Badge variant="secondary">{summary.accountCount} accounts</Badge>
         <Badge variant="secondary">{summary.connectionCount} / 10 connections</Badge>
       </div>

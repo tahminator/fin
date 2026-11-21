@@ -34,7 +34,7 @@ function TransactionRow({
       <p
         className={cn(
           "shrink-0 font-medium tabular-nums",
-          !isNegative(transaction.amount) && "text-emerald-600 dark:text-emerald-400",
+          !isNegative(transaction.amount) && "text-positive",
         )}
       >
         {formatMoney(transaction.amount, transaction.currency)}

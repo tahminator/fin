@@ -10,7 +10,7 @@ export function AuthenticatedLayout() {
   const me = useMe();
 
   if (me.isPending) {
-    return <LoadingState />;
+    return <LoadingState className="mx-auto w-full max-w-2xl p-4" />;
   }
 
   if (me.isError) {

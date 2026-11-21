@@ -19,7 +19,7 @@ function ReauthBadge() {
   return (
     <Badge
       variant="destructive"
-      className="absolute top-1 left-1/2 ml-2 h-4 min-w-4 px-1 text-[10px]"
+      className="absolute top-1 left-1/2 ml-2 h-4 min-w-4 px-1 text-[10px] tabular-nums"
     >
       {notifications.data.total}
     </Badge>
@@ -39,7 +39,7 @@ function NavItem({ to, label, icon, badge }: NavItemProps) {
       to={to}
       end={to === "/"}
       className={({ isActive }) =>
-        `relative flex flex-1 flex-col items-center gap-1 py-2 text-xs ${isActive ? "text-foreground" : "text-muted-foreground"}`
+        `relative flex flex-1 flex-col items-center gap-1 py-2 text-xs ${isActive ? "font-semibold text-primary" : "text-muted-foreground"}`
       }
     >
       {icon}
@@ -52,8 +52,8 @@ function NavItem({ to, label, icon, badge }: NavItemProps) {
 export function AppShell() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur">
-        <span className="py-3 text-lg font-semibold tracking-tight">fin</span>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-4 pt-[env(safe-area-inset-top)]">
+        <span className="py-3 text-xl font-bold tracking-tight text-primary">fin</span>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <RefreshButton />

@@ -17,6 +17,9 @@ import {
   reportToPr,
   type TryState,
 } from "../lib/production";
+import { completeStatusCheck, startStatusCheck, updateStatusCheck } from "../lib/status-check";
+
+const CHECK_NAME = "Try in production";
 
 const { prId, sha, author, runUrl } = await yargs(hideBin(process.argv))
   .option("prId", {
@@ -56,9 +59,21 @@ async function main() {
   });
 
   const tag = stagingTag(sha);
+  const image = `${DOCKER_IMAGE}:${tag}`;
   let state: TryState | undefined;
+  let checkRunId: number | undefined;
 
   try {
+    checkRunId = await startStatusCheck(ghClient, {
+      name: CHECK_NAME,
+      sha,
+      detailsUrl: runUrl,
+      output: {
+        title: "Waiting for the staging image",
+        summary: `Waiting for CI to push \`${image}\` before deploying it to production.`,
+      },
+    });
+
     state = await readTryState(ghClient, prId);
 
     const pushed = await Utils.waitUntil({
@@ -69,7 +84,7 @@ async function main() {
           if (await imageTagExists(tag)) {
             return true;
           }
-          console.log(`Waiting for ${DOCKER_IMAGE}:${tag} (${attempt}/${IMAGE_WAIT_ATTEMPTS})`);
+          console.log(`Waiting for ${image} (${attempt}/${IMAGE_WAIT_ATTEMPTS})`);
         } catch (e) {
           console.warn(e);
         }
@@ -78,7 +93,7 @@ async function main() {
     });
     if (!pushed) {
       throw new Error(
-        `${DOCKER_IMAGE}:${tag} was never pushed; check CI's "Build staging image" job on ${sha}, then comment /try again.`,
+        `${image} was never pushed; check CI's "Build staging image" job on ${sha}, then comment /try again.`,
       );
     }
 
@@ -91,34 +106,41 @@ async function main() {
       );
     }
 
+    await updateStatusCheck(ghClient, checkRunId, {
+      title: "Deploying to production",
+      summary: `Deploying \`${image}\` to production, replacing \`${current}\`.`,
+    });
+
     if (current !== tag) {
       await deployToProduction(ghClient, tag);
     }
     state = { tried: tag, revertTo };
 
-    await reportToPr(
-      ghClient,
-      prId,
-      `### Production is running this PR
+    const summary = `@${author} deployed \`${image}\` (${sha}) to production with \`/try\`, replacing \`${current}\`. ([run](${runUrl}))
 
-@${author} deployed \`${DOCKER_IMAGE}:${tag}\` (${sha}) to production with \`/try\`, replacing \`${current}\`. ([run](${runUrl}))
+Comment \`/revert\` to restore \`${revertTo}\`. Database migrations from this PR were not applied.`;
 
-Comment \`/revert\` to restore \`${revertTo}\`. Database migrations from this PR were not applied.`,
-      state,
-    );
-  } catch (error) {
-    await reportToPr(
-      ghClient,
-      prId,
-      `### \`/try\` failed
-
-${error instanceof Error ? error.message : String(error)}
-
-See the [run](${runUrl}) for details.${state ? `\n\n\`/revert\` restores \`${state.revertTo}\` as long as production still runs \`${state.tried}\`.` : ""}`,
-      state,
-    ).catch((reportError: unknown) => {
-      console.error("Failed to report /try failure:", reportError);
+    await reportToPr(ghClient, prId, `### Production is running this PR\n\n${summary}`, state);
+    await completeStatusCheck(ghClient, checkRunId, "success", {
+      title: "Production is running this PR",
+      summary,
     });
+  } catch (error) {
+    const summary = `${error instanceof Error ? error.message : String(error)}
+
+See the [run](${runUrl}) for details.${state ? `\n\n\`/revert\` restores \`${state.revertTo}\` as long as production still runs \`${state.tried}\`.` : ""}`;
+
+    await reportToPr(ghClient, prId, `### \`/try\` failed\n\n${summary}`, state).catch(
+      (reportError: unknown) => {
+        console.error("Failed to report /try failure:", reportError);
+      },
+    );
+    if (checkRunId !== undefined) {
+      await completeStatusCheck(ghClient, checkRunId, "failure", {
+        title: "/try failed",
+        summary,
+      });
+    }
 
     throw error;
   }

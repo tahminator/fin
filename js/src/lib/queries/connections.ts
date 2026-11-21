@@ -10,7 +10,7 @@ export function useConnections() {
   return $api.useInfiniteQuery(
     "get",
     "/api/connections",
-    { params: { query: { pageSize } } },
+    { params: { query: { pageSize } }, headers: { "X-Fake-Lag": "850" } },
     {
       pageParamName: "page",
       initialPageParam: 1,
@@ -21,11 +21,16 @@ export function useConnections() {
 }
 
 export function useLinkToken() {
-  return $api.useQuery("post", "/api/connections/link-token", undefined, {
-    staleTime: linkTokenStaleTime,
-    gcTime: linkTokenStaleTime,
-    refetchOnWindowFocus: false,
-  });
+  return $api.useQuery(
+    "post",
+    "/api/connections/link-token",
+    { headers: { "X-Fake-Lag": "650" } },
+    {
+      staleTime: linkTokenStaleTime,
+      gcTime: linkTokenStaleTime,
+      refetchOnWindowFocus: false,
+    },
+  );
 }
 
 export function useLinkConnection() {

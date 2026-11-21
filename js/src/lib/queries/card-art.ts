@@ -8,7 +8,7 @@ export function useCardArtSearch(query: string) {
   return $api.useQuery(
     "get",
     "/api/card-art/search",
-    { params: { query: { query } } },
+    { params: { query: { query } }, headers: { "X-Fake-Lag": "700" } },
     {
       enabled: query !== "",
       staleTime: cardArtSearchCacheTime,

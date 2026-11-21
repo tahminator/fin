@@ -10,7 +10,7 @@ export function useTransactions(accountId: string | undefined, excludeAccountId:
   return $api.useInfiniteQuery(
     "get",
     "/api/transactions",
-    { params: { query } },
+    { params: { query }, headers: { "X-Fake-Lag": "950" } },
     {
       pageParamName: "page",
       initialPageParam: 1,

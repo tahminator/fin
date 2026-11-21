@@ -4,7 +4,9 @@ import { useNavigate } from "react-router";
 import { $api } from "@/lib/api/client";
 
 export function meQueryOptions() {
-  return $api.queryOptions("get", "/api/me");
+  return $api.queryOptions("get", "/api/me", {
+    headers: { "X-Fake-Lag": "600" },
+  });
 }
 
 export function useMe() {

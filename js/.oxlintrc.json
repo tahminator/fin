@@ -147,6 +147,12 @@
   },
   "overrides": [
     {
+      "files": ["src/lib/fake-lag.ts"],
+      "rules": {
+        "promise/avoid-new": "off"
+      }
+    },
+    {
       "files": ["src/lib/**"],
       "rules": {
         "no-restricted-imports": "off"

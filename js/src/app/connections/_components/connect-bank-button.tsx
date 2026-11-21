@@ -17,7 +17,6 @@ export function ConnectBankButton() {
     <div className="flex flex-col items-end gap-1">
       <Button size="sm" disabled={!launcher.ready || launcher.busy} onClick={launcher.launch}>
         {launcher.busy ? <Spinner /> : <PlusIcon />}
-        Connect bank
       </Button>
       {linkToken.isError ? (
         <p className="text-xs text-destructive">{errorMessage(linkToken.error)}</p>

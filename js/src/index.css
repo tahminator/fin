@@ -141,8 +141,8 @@
   --sidebar-border: rgba(84, 84, 88, 0.65);
   --sidebar-ring: #0a84ff;
 
-  --glass-rim: rgba(166, 166, 166, 1);
-  --glass-rim-sm: rgba(230, 230, 230, 1);
+  --glass-rim: rgba(255, 255, 255, 0.16);
+  --glass-rim-sm: rgba(255, 255, 255, 0.2);
   --glass-inner: rgba(26, 26, 26, 1);
   --glass-rgb: 26, 26, 26;
   --glass-alpha: 0.7;
@@ -168,9 +168,9 @@
     calc(var(--glass-alpha) * (1.6 - 1.1 * var(--glass-transparency)))
   );
   background-image: linear-gradient(var(--glass-overlay), var(--glass-overlay));
+  border: 0.5px solid var(--glass-rim);
   box-shadow:
     var(--glass-shadow),
-    0 0 0 0.5px var(--glass-rim),
     inset 0 40px 10px -40px var(--glass-inner),
     inset 0 -40px 10px -40px var(--glass-inner);
   backdrop-filter: blur(calc(6px * (0.5 + 0.8 * var(--glass-transparency)))) saturate(1.8);
@@ -181,9 +181,9 @@
     var(--glass-sm-rgb),
     calc(var(--glass-sm-alpha) * (1.6 - 1.1 * var(--glass-transparency)))
   );
+  border: 0.5px solid var(--glass-rim-sm);
   box-shadow:
     var(--glass-sm-shadow),
-    0 0 0 0.5px var(--glass-rim-sm),
     inset 0 40px 10px -40px var(--glass-inner),
     inset 0 -40px 10px -40px var(--glass-inner);
   backdrop-filter: blur(calc(3.6px * (0.5 + 0.8 * var(--glass-transparency)))) saturate(1.8);

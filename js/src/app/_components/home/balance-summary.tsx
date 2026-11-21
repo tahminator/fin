@@ -44,15 +44,10 @@ function CurrencyCard({ balance }: { balance: CurrencyBalance }) {
 
 export function BalanceSummary({ summary }: { summary: Summary }) {
   return (
-    <section className="flex flex-col gap-1.5">
-      <div className="flex flex-col gap-3">
-        {summary.balances.map((balance) => (
-          <CurrencyCard key={balance.currency} balance={balance} />
-        ))}
-      </div>
-      <p className="px-4 type-footnote text-muted-foreground">
-        {summary.accountCount} accounts · {summary.connectionCount} of 10 connections
-      </p>
+    <section className="flex flex-col gap-3">
+      {summary.balances.map((balance) => (
+        <CurrencyCard key={balance.currency} balance={balance} />
+      ))}
     </section>
   );
 }

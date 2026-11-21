@@ -33,7 +33,7 @@ export function CardArtDialog({ account }: { account: Account }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="link" className="h-auto p-0 align-baseline font-normal">
-          {account.cardArtUrl === null ? "Pick card" : "Wrong card?"}
+          Logo
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">

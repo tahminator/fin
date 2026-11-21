@@ -1,5 +1,5 @@
 import { ErrorState } from "@/components/error-state";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCardArtSearch } from "@/lib/queries/card-art";
 import { cn } from "@/lib/utils";
 
@@ -18,8 +18,14 @@ export function CardArtResults({ query, selectedCardId, onChoose }: CardArtResul
 
   if (search.isPending) {
     return (
-      <div className="flex justify-center py-6 text-muted-foreground">
-        <Spinner className="size-5" />
+      <div className="grid grid-cols-2 gap-2" aria-label="Loading card results">
+        {["one", "two", "three", "four"].map((key) => (
+          <div key={key} className="flex flex-col gap-1.5 rounded-lg border p-2">
+            <Skeleton className="aspect-[1.586] w-full rounded-md" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        ))}
       </div>
     );
   }

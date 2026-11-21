@@ -1,8 +1,13 @@
-import { GitHubClient } from "@tahminator/pipeline";
+import { GitHubClient, Utils } from "@tahminator/pipeline";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import { DOCKER_IMAGE, stagingTag } from "../lib/consts";
+import {
+  DOCKER_IMAGE,
+  IMAGE_WAIT_ATTEMPTS,
+  IMAGE_WAIT_INTERVAL_MS,
+  stagingTag,
+} from "../lib/consts";
 import { imageTagExists } from "../lib/docker-hub";
 import { parseCiEnv } from "../lib/env";
 import {
@@ -56,9 +61,24 @@ async function main() {
   try {
     state = await readTryState(ghClient, prId);
 
-    if (!(await imageTagExists(tag))) {
+    const pushed = await Utils.waitUntil({
+      attempts: IMAGE_WAIT_ATTEMPTS,
+      intervalMs: IMAGE_WAIT_INTERVAL_MS,
+      predicate: async (attempt) => {
+        try {
+          if (await imageTagExists(tag)) {
+            return true;
+          }
+          console.log(`Waiting for ${DOCKER_IMAGE}:${tag} (${attempt}/${IMAGE_WAIT_ATTEMPTS})`);
+        } catch (e) {
+          console.warn(e);
+        }
+        return false;
+      },
+    });
+    if (!pushed) {
       throw new Error(
-        `${DOCKER_IMAGE}:${tag} has not been pushed yet. Wait for CI's "Build staging image" job on ${sha}, then comment /try again.`,
+        `${DOCKER_IMAGE}:${tag} was never pushed; check CI's "Build staging image" job on ${sha}, then comment /try again.`,
       );
     }
 

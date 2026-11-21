@@ -33,6 +33,16 @@ interface NavItemProps {
   badge?: ReactNode;
 }
 
+function getActiveIndex(pathname: string) {
+  if (pathname === "/") {
+    return 0;
+  }
+  if (pathname.startsWith("/transactions")) {
+    return 1;
+  }
+  return 2;
+}
+
 function NavItem({ to, label, icon, badge }: NavItemProps) {
   return (
     <NavLink
@@ -51,8 +61,7 @@ function NavItem({ to, label, icon, badge }: NavItemProps) {
 
 export function AppShell() {
   const { pathname } = useLocation();
-  const activeIndex =
-    pathname === "/" ? 0 : pathname.startsWith("/transactions") ? 1 : 2;
+  const activeIndex = getActiveIndex(pathname);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">

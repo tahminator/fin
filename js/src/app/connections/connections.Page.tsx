@@ -1,9 +1,13 @@
 import { ConnectBankButton } from "@/app/connections/_components/connect-bank-button";
-import { ConnectionList } from "@/app/connections/_components/connection-list";
+import {
+  ConnectionList,
+  ConnectionListSkeleton,
+} from "@/app/connections/_components/connection-list";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
-import { LoadingState } from "@/components/loading-state";
+import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { PageHeader } from "@/components/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useConnections } from "@/lib/queries/connections";
 import { useSummary } from "@/lib/queries/summary";
 import { useVersion } from "@/lib/queries/version";
@@ -12,7 +16,7 @@ function ConnectionResults() {
   const connections = useConnections();
 
   if (connections.isPending) {
-    return <LoadingState />;
+    return <ConnectionListSkeleton />;
   }
 
   if (connections.isError) {
@@ -41,14 +45,27 @@ function ConnectionResults() {
 function ConnectionUsage() {
   const summary = useSummary();
 
-  if (!summary.isSuccess) {
-    return null;
-  }
-
   return (
-    <p className="px-4 type-footnote text-muted-foreground">
-      {summary.data.accountCount} accounts · {summary.data.connectionCount} of 10 connections
-    </p>
+    <ListSection header="Overview">
+      <ListRow>
+        <ListRowLabel title="Accounts" />
+        {summary.isSuccess ? (
+          <span className="type-headline tabular-nums">{summary.data.accountCount}</span>
+        ) : (
+          <Skeleton className="h-6 w-8" />
+        )}
+      </ListRow>
+      <ListRow>
+        <ListRowLabel title="Connections" />
+        {summary.isSuccess ? (
+          <span className="type-headline tabular-nums">
+            {summary.data.connectionCount} <span className="text-muted-foreground">of 10</span>
+          </span>
+        ) : (
+          <Skeleton className="h-6 w-16" />
+        )}
+      </ListRow>
+    </ListSection>
   );
 }
 
@@ -66,8 +83,8 @@ export function ConnectionsPage() {
   return (
     <>
       <PageHeader title="Connections" actions={<ConnectBankButton />} />
-      <ConnectionResults />
       <ConnectionUsage />
+      <ConnectionResults />
       <AppVersion />
     </>
   );

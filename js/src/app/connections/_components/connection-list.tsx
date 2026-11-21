@@ -9,6 +9,7 @@ import { InstitutionLogo } from "@/components/institution-logo";
 import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatAge, formatDateTime } from "@/lib/format";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Connection } from "@/lib/types/api";
@@ -22,7 +23,7 @@ function statusLine(connection: Connection, now: number): string {
     return "Never synced";
   }
 
-  return `Synced ${formatAge(connection.lastSyncedAt, now)}`;
+  return `Synced ${formatAge(connection.lastSyncedAt, now)} ago`;
 }
 
 function ConnectionSection({ connection }: { connection: Connection }) {
@@ -61,6 +62,42 @@ function ConnectionSection({ connection }: { connection: Connection }) {
         <RemoveConnectionButton connectionId={connection.id} name={name} />
       </ListRow>
     </ListSection>
+  );
+}
+
+function ConnectionSectionSkeleton() {
+  return (
+    <ListSection>
+      <ListRow>
+        <Skeleton className="size-8 rounded-full" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </ListRow>
+      <ListRow>
+        <Skeleton className="size-8 rounded-full" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <Skeleton className="h-4 w-16" />
+      </ListRow>
+      <ListRow>
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="ml-auto h-8 w-8" />
+      </ListRow>
+    </ListSection>
+  );
+}
+
+export function ConnectionListSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-label="Loading connections">
+      <ConnectionSectionSkeleton />
+      <ConnectionSectionSkeleton />
+    </div>
   );
 }
 

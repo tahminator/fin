@@ -4,7 +4,7 @@ import { AccountList } from "@/app/_components/home/account-list";
 import { BalanceSummary } from "@/app/_components/home/balance-summary";
 import { CashFlowSection } from "@/app/_components/home/cash-flow-section";
 import { ErrorState } from "@/components/error-state";
-import { LoadingState } from "@/components/loading-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSummary } from "@/lib/queries/summary";
 import type { Account } from "@/lib/types/api";
 
@@ -13,6 +13,22 @@ interface AccountsOverviewProps {
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => Promise<unknown>;
+}
+
+function AccountsOverviewSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-label="Loading account overview">
+      <div className="flex flex-col gap-4 rounded-[26px] border p-4">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-10 w-52" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-16 rounded-2xl" />
+          <Skeleton className="h-16 rounded-2xl" />
+        </div>
+      </div>
+      <Skeleton className="h-80 w-full rounded-[26px]" />
+    </div>
+  );
 }
 
 export function AccountsOverview({
@@ -25,7 +41,7 @@ export function AccountsOverview({
   const summary = useSummary(hiddenAccountIds);
 
   if (summary.isPending) {
-    return <LoadingState />;
+    return <AccountsOverviewSkeleton />;
   }
 
   if (summary.isError) {

@@ -5,7 +5,7 @@ export function useAccounts() {
   return $api.useInfiniteQuery(
     "get",
     "/api/accounts",
-    { params: { query: { pageSize } } },
+    { params: { query: { pageSize } }, headers: { "X-Fake-Lag": "900" } },
     {
       pageParamName: "page",
       initialPageParam: 1,
@@ -19,7 +19,7 @@ export function useConnectionAccounts(connectionId: string) {
   return $api.useInfiniteQuery(
     "get",
     "/api/accounts",
-    { params: { query: { pageSize, connectionId } } },
+    { params: { query: { pageSize, connectionId } }, headers: { "X-Fake-Lag": "800" } },
     {
       pageParamName: "page",
       initialPageParam: 1,
@@ -33,7 +33,7 @@ export function useAllAccounts() {
   return $api.useQuery(
     "get",
     "/api/accounts",
-    { params: { query: { pageSize: 100 } } },
+    { params: { query: { pageSize: 100 } }, headers: { "X-Fake-Lag": "850" } },
     { select: (data) => data.items },
   );
 }

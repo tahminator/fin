@@ -19,12 +19,26 @@ interface AccountIconProps {
   className?: string;
 }
 
+function getDepositoryIcon(account: AccountIconAccount, iconClassName: string) {
+  const subtype = account.subtype?.toLowerCase() ?? "";
+
+  if (subtype.includes("checking")) {
+    return <LandmarkIcon className={iconClassName} aria-hidden="true" />;
+  }
+
+  if (subtype.includes("saving")) {
+    return <PiggyBankIcon className={iconClassName} aria-hidden="true" />;
+  }
+
+  return <WalletIcon className={iconClassName} aria-hidden="true" />;
+}
+
 export function AccountIcon({ account, className }: AccountIconProps) {
   const iconClassName = cn("size-4", className);
   const [failedCardArtUrl, setFailedCardArtUrl] = useState<string | null>(null);
   const { cardArtUrl } = account;
 
-  if (cardArtUrl !== null && cardArtUrl !== failedCardArtUrl) {
+  if (account.type === "credit" && cardArtUrl !== null && cardArtUrl !== failedCardArtUrl) {
     return (
       <img
         src={cardArtUrl}
@@ -51,13 +65,7 @@ export function AccountIcon({ account, className }: AccountIconProps) {
   }
 
   if (account.type === "depository") {
-    const isSavings = account.subtype !== null && account.subtype.toLowerCase().includes("saving");
-
-    return isSavings ? (
-      <PiggyBankIcon className={iconClassName} aria-hidden="true" />
-    ) : (
-      <WalletIcon className={iconClassName} aria-hidden="true" />
-    );
+    return getDepositoryIcon(account, iconClassName);
   }
 
   return <CircleDollarSignIcon className={iconClassName} aria-hidden="true" />;

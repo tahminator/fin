@@ -138,7 +138,7 @@ export function TransactionsFilter() {
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm">
           <ListFilterIcon />
-          {hiddenCount === 0 ? "Filter" : `Filter (${hiddenCount} hidden)`}
+          Filter
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">

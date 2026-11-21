@@ -1,10 +1,7 @@
 import type { Account } from "@/lib/types/api";
 
 export function isCardAccount(account: Pick<Account, "subtype" | "type">): boolean {
-  return (
-    account.type === "credit" ||
-    (account.type === "depository" && account.subtype?.toLowerCase().includes("checking") === true)
-  );
+  return account.type === "credit";
 }
 
 export function supportsCardArt(account: Pick<Account, "type">): boolean {

@@ -2,12 +2,15 @@ import { DockerClient, Utils } from "@tahminator/pipeline";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import { DOCKER_HUB_USERNAME, DOCKER_REPOSITORY, shortSha } from "../lib/consts";
+import {
+  DOCKER_HUB_USERNAME,
+  DOCKER_REPOSITORY,
+  IMAGE_WAIT_ATTEMPTS,
+  IMAGE_WAIT_INTERVAL_MS,
+  shortSha,
+} from "../lib/consts";
 import { imageTagExists } from "../lib/docker-hub";
 import { parseCiEnv } from "../lib/env";
-
-const IMAGE_WAIT_INTERVAL_MS = 15_000;
-const IMAGE_WAIT_ATTEMPTS = 120;
 
 const { releaseTag, sha } = await yargs(hideBin(process.argv))
   .option("releaseTag", {

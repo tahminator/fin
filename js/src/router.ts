@@ -10,6 +10,10 @@ import { TransactionsPage } from "@/app/transactions/transactions.Page";
 import { createQueryClient } from "@/lib/query-client";
 
 export const queryClient = createQueryClient(() => {
+  if (router.state.location.pathname === "/consent") {
+    return;
+  }
+
   queryClient.clear();
 
   void router.navigate("/login", { replace: true });

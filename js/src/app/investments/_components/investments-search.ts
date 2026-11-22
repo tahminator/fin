@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import type { PortfolioRange } from "@/lib/types/api";
 
 export const portfolioRanges = [
@@ -12,36 +10,10 @@ export const portfolioRanges = [
   { value: "all", label: "ALL", description: "All time" },
 ] as const satisfies { value: PortfolioRange; label: string; description: string }[];
 
-const rangeValues = [
-  "1h",
-  "1d",
-  "3d",
-  "7d",
-  "1mo",
-  "1y",
-  "all",
-] as const satisfies PortfolioRange[];
+const defaultRange: PortfolioRange = "1d";
 
-export const investmentsSearchSchema = z.object({
-  range: z.enum(rangeValues).default("1d"),
-  accountId: z.uuid().optional(),
-  securityId: z.uuid().optional(),
-});
-
-export type InvestmentsSearch = z.infer<typeof investmentsSearchSchema>;
-
-export function investmentsLink(search: InvestmentsSearch) {
-  const params = new URLSearchParams({ range: search.range });
-
-  if (search.accountId !== undefined) {
-    params.set("accountId", search.accountId);
-  }
-
-  if (search.securityId !== undefined) {
-    params.set("securityId", search.securityId);
-  }
-
-  return { pathname: "/investments", search: params.toString() };
+export function parseRange(value: string | null): PortfolioRange {
+  return portfolioRanges.find((option) => option.value === value)?.value ?? defaultRange;
 }
 
 export function rangeDescription(range: PortfolioRange): string {
@@ -50,4 +22,25 @@ export function rangeDescription(range: PortfolioRange): string {
 
 export function isIntraday(range: PortfolioRange): boolean {
   return range !== "1y" && range !== "all";
+}
+
+function withRange(pathname: string, range: PortfolioRange) {
+  return { pathname, search: new URLSearchParams({ range }).toString() };
+}
+
+export function portfolioLink(range: PortfolioRange) {
+  return withRange("/investments", range);
+}
+
+export function accountLink(range: PortfolioRange, accountId: string) {
+  return withRange(`/investments/accounts/${accountId}`, range);
+}
+
+export function holdingLink(range: PortfolioRange, securityId: string, accountId?: string) {
+  return withRange(
+    accountId === undefined
+      ? `/investments/holdings/${securityId}`
+      : `/investments/accounts/${accountId}/holdings/${securityId}`,
+    range,
+  );
 }

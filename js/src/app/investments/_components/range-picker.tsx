@@ -1,19 +1,24 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
-import type { InvestmentsSearch } from "@/app/investments/_components/investments-search";
-import { investmentsLink, portfolioRanges } from "@/app/investments/_components/investments-search";
+import { portfolioRanges } from "@/app/investments/_components/investments-search";
+import type { PortfolioRange } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 
-export function RangePicker({ search }: { search: InvestmentsSearch }) {
+export function RangePicker({ range }: { range: PortfolioRange }) {
+  const location = useLocation();
+
   return (
     <nav aria-label="Time range" className="flex gap-1">
       {portfolioRanges.map((option) => {
-        const active = option.value === search.range;
+        const active = option.value === range;
 
         return (
           <Link
             key={option.value}
-            to={investmentsLink({ ...search, range: option.value })}
+            to={{
+              pathname: location.pathname,
+              search: new URLSearchParams({ range: option.value }).toString(),
+            }}
             replace
             preventScrollReset
             aria-current={active ? "page" : undefined}

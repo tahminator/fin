@@ -5,7 +5,7 @@ import { RootLayout } from "@/app/_components/root-layout";
 import { ConnectionsPage } from "@/app/connections/connections.Page";
 import { OAuthReturnPage } from "@/app/connections/oauth.Page";
 import { HomePage } from "@/app/home.Page";
-import { InvestmentsPage } from "@/app/investments/investments.Page";
+import { investmentsRoute } from "@/app/investments/investments-route";
 import { LoginPage } from "@/app/login.Page";
 import { TransactionsPage } from "@/app/transactions/transactions.Page";
 import { createQueryClient } from "@/lib/query-client";
@@ -40,7 +40,7 @@ export const router = createBrowserRouter([
           { path: "/connections", Component: ConnectionsPage },
           { path: "/connections/oauth", Component: OAuthReturnPage },
           { path: "/transactions", Component: TransactionsPage },
-          { path: "/investments", Component: InvestmentsPage },
+          investmentsRoute,
           {
             path: "/apps",
             lazy: async () => {

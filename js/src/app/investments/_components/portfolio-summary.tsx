@@ -1,5 +1,4 @@
 import { ChangeLabel } from "@/app/investments/_components/change-label";
-import type { InvestmentsSearch } from "@/app/investments/_components/investments-search";
 import { rangeDescription } from "@/app/investments/_components/investments-search";
 import { PortfolioChart } from "@/app/investments/_components/portfolio-chart";
 import { RangePicker } from "@/app/investments/_components/range-picker";
@@ -10,10 +9,9 @@ import type { PortfolioPerformance } from "@/lib/types/api";
 interface PortfolioSummaryProps {
   title: string;
   performance: PortfolioPerformance;
-  search: InvestmentsSearch;
 }
 
-export function PortfolioSummary({ title, performance, search }: PortfolioSummaryProps) {
+export function PortfolioSummary({ title, performance }: PortfolioSummaryProps) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
@@ -36,7 +34,7 @@ export function PortfolioSummary({ title, performance, search }: PortfolioSummar
           currency={performance.currency}
           tone={changeTone(performance.change)}
         />
-        <RangePicker search={search} />
+        <RangePicker range={performance.range} />
       </CardContent>
     </Card>
   );

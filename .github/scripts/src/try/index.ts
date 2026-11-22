@@ -10,6 +10,7 @@ import {
 } from "../lib/consts";
 import { imageTagExists } from "../lib/docker-hub";
 import { parseCiEnv } from "../lib/env";
+import { describeSchemaVersion, migrateUp, readSchemaVersion } from "../lib/migrations";
 import {
   deployToProduction,
   readProductionTag,
@@ -46,11 +47,13 @@ const { prId, sha, author, runUrl } = await yargs(hideBin(process.argv))
   .parse();
 
 async function main() {
-  const { _GITHUB_APP_APP_ID, _GITHUB_APP_INSTALLATION_ID, _GITHUB_APP_PEM_CONTENT } = parseCiEnv([
-    "_GITHUB_APP_APP_ID",
-    "_GITHUB_APP_INSTALLATION_ID",
-    "_GITHUB_APP_PEM_CONTENT",
-  ]);
+  const { _GITHUB_APP_APP_ID, _GITHUB_APP_INSTALLATION_ID, _GITHUB_APP_PEM_CONTENT, DATABASE_URL } =
+    parseCiEnv([
+      "_GITHUB_APP_APP_ID",
+      "_GITHUB_APP_INSTALLATION_ID",
+      "_GITHUB_APP_PEM_CONTENT",
+      "DATABASE_URL",
+    ]);
 
   const ghClient = await GitHubClient.createWithGithubAppToken({
     appId: _GITHUB_APP_APP_ID,
@@ -62,6 +65,7 @@ async function main() {
   const image = `${DOCKER_IMAGE}:${tag}`;
   let state: TryState | undefined;
   let checkRunId: number | undefined;
+  let migration: string | undefined;
 
   try {
     checkRunId = await startStatusCheck(ghClient, {
@@ -106,9 +110,29 @@ async function main() {
       );
     }
 
+    const before = await readSchemaVersion(DATABASE_URL);
+    if (before.dirty) {
+      throw new Error(
+        `The production database is dirty at ${describeSchemaVersion(before)}, so nothing was migrated or deployed. Fix it manually, then comment /try again.`,
+      );
+    }
+
+    await updateStatusCheck(ghClient, checkRunId, {
+      title: "Migrating production database",
+      summary: `Applying pending migrations from this PR to the production database, currently at ${describeSchemaVersion(before)}.`,
+    });
+
+    await migrateUp(DATABASE_URL);
+
+    const after = await readSchemaVersion(DATABASE_URL);
+    migration =
+      before.version === after.version
+        ? `No pending migrations (${describeSchemaVersion(after)}).`
+        : `Migrated production from ${describeSchemaVersion(before)} to ${describeSchemaVersion(after)}.`;
+
     await updateStatusCheck(ghClient, checkRunId, {
       title: "Deploying to production",
-      summary: `Deploying \`${image}\` to production, replacing \`${current}\`.`,
+      summary: `${migration} Deploying \`${image}\` to production, replacing \`${current}\`.`,
     });
 
     if (current !== tag) {
@@ -118,7 +142,7 @@ async function main() {
 
     const summary = `@${author} deployed \`${image}\` (${sha}) to production with \`/try\`, replacing \`${current}\`. ([run](${runUrl}))
 
-Comment \`/revert\` to restore \`${revertTo}\`. Database migrations from this PR were not applied.`;
+${migration} Comment \`/revert\` to restore \`${revertTo}\`; it does not roll back database migrations, so the restored image runs against the migrated schema.`;
 
     await reportToPr(ghClient, prId, `### Production is running this PR\n\n${summary}`, state);
     await completeStatusCheck(ghClient, checkRunId, "success", {
@@ -128,7 +152,7 @@ Comment \`/revert\` to restore \`${revertTo}\`. Database migrations from this PR
   } catch (error) {
     const summary = `${error instanceof Error ? error.message : String(error)}
 
-See the [run](${runUrl}) for details.${state ? `\n\n\`/revert\` restores \`${state.revertTo}\` as long as production still runs \`${state.tried}\`.` : ""}`;
+See the [run](${runUrl}) for details.${migration ? `\n\n${migration}` : ""}${state ? `\n\n\`/revert\` restores \`${state.revertTo}\` as long as production still runs \`${state.tried}\`.` : ""}`;
 
     await reportToPr(ghClient, prId, `### \`/try\` failed\n\n${summary}`, state).catch(
       (reportError: unknown) => {

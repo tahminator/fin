@@ -1,5 +1,5 @@
 name: Try in production
-run-name: Deploy PR #${{ inputs.prId }}'s staging image to production
+run-name: Migrate production and deploy PR #${{ inputs.prId }}'s staging image to production
 
 permissions:
   contents: read
@@ -31,9 +31,9 @@ concurrency:
 
 jobs:
   try:
-    name: Deploy staging image to production
+    name: Migrate production and deploy staging image
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Repository
@@ -46,9 +46,12 @@ jobs:
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
+          INSTALL_JUST: true
+          INSTALL_MIGRATE: "true"
 
-      - name: Deploy staging image
+      - name: Migrate production and deploy staging image
         env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}
           PR_ID: ${{ inputs.prId }}
           AUTHOR: ${{ inputs.author }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

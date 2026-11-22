@@ -59,7 +59,7 @@ Migrations `000014_create_investment_securities`, `000015_create_investment_hold
 2. Quantity at time `t` = current quantity − quantities of trades dated after `t`'s day (clamped at zero). Trades carry a date only, so a trade counts from the start of its day.
 3. Fetch bars for every equity or ETF ticker from the range start minus a lookback (4 days intraday, 10 days daily) so each range opens on a real price, plus the latest trade for the final point.
 4. For `1h` and `1d`, when the market is closed and the window has no bars, the window shifts to end at the last bar (the most recent session), as Robinhood does.
-5. Series times are the range start, every bar time in the window and now. A position's price at `t` is the last close at or before `t`; holdings without market data (cash, mutual funds, bonds, crypto) use the brokerage's price throughout.
+5. Series times are the range start, every bar time in the window and an end point: the latest trade when it is newer than the last bar (normally a moment ago while the market is open), otherwise the last bar, so a closed market ends on its last session rather than on today. Without market data the end point is now. A position's price at `t` is the last close at or before `t`; holdings without market data (cash, mutual funds, bonds, crypto) use the brokerage's price throughout.
 6. Totals are summed per point, per security and per account, with gain as in §1.
 
 Without an Alpaca key the response is `marketData: not_configured` and every value uses the brokerage's price, so only quantity changes move the chart. If Alpaca fails, `marketData: unavailable` with the same fallback; the failure is logged, not returned.

@@ -255,7 +255,7 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 		Connections:  f.connections,
 		Accounts:     f.accounts,
 		Transactions: f.transactions,
-	}, f.provider, f, f.cipher, f.recorder, testRedirectURI)
+	}, f.provider, f, f.cipher, f.recorder, SyncCooldown{}, testRedirectURI)
 	f.service.now = fixedClock
 
 	return f

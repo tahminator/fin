@@ -18,8 +18,8 @@ func TestEnumLabels(t *testing.T) {
 		{
 			name:       "SyncOutcome",
 			labels:     labelValues(allSyncOutcomes()),
-			declared:   int(SyncOutcomeError) + 1,
-			outOfRange: []string{SyncOutcome(-1).String(), (SyncOutcomeError + 1).String()},
+			declared:   int(SyncOutcomeThrottled) + 1,
+			outOfRange: []string{SyncOutcome(-1).String(), (SyncOutcomeThrottled + 1).String()},
 		},
 		{
 			name:       "ScheduledRunOutcome",

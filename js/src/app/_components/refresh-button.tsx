@@ -12,7 +12,22 @@ function showSyncSummary(summary: SyncSummary) {
     summary.failed > 0 ? `${summary.failed} failed` : null,
   ].filter((problem) => problem !== null);
 
+  const recent =
+    summary.throttled > 0
+      ? `${summary.throttled} refreshed recently, try again in a few minutes`
+      : null;
+
   const title = `Synced ${summary.synced} connection${summary.synced === 1 ? "" : "s"}`;
+
+  if (summary.synced === 0 && problems.length === 0 && recent !== null) {
+    toast.info("Already up to date", { description: recent });
+
+    return;
+  }
+
+  if (recent !== null) {
+    problems.push(recent);
+  }
 
   if (problems.length === 0) {
     toast.success(title);

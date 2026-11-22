@@ -37,6 +37,7 @@ const (
 	SyncOutcomeSuccess SyncOutcome = iota
 	SyncOutcomeReauthRequired
 	SyncOutcomeError
+	SyncOutcomeThrottled
 )
 
 func (o SyncOutcome) String() string {
@@ -47,13 +48,15 @@ func (o SyncOutcome) String() string {
 		return "reauth_required"
 	case SyncOutcomeError:
 		return "error"
+	case SyncOutcomeThrottled:
+		return "throttled"
 	}
 
 	return "unknown"
 }
 
 func allSyncOutcomes() []SyncOutcome {
-	return []SyncOutcome{SyncOutcomeSuccess, SyncOutcomeReauthRequired, SyncOutcomeError}
+	return []SyncOutcome{SyncOutcomeSuccess, SyncOutcomeReauthRequired, SyncOutcomeError, SyncOutcomeThrottled}
 }
 
 type ScheduledRunOutcome int

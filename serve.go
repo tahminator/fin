@@ -64,6 +64,7 @@ func serve() error {
 	transactions := postgres.NewTransactionRepository(pool)
 	summary := postgres.NewSummaryRepository(pool)
 	metricsRepo := postgres.NewMetricsRepository(pool)
+	rateLimits := postgres.NewRateLimitRepository(pool)
 	pinger := postgres.NewPinger(pool)
 
 	recorder := metrics.Prometheus{}
@@ -77,6 +78,7 @@ func serve() error {
 		return err
 	}
 
+	rateLimiter := service.NewRateLimiter(rateLimits)
 	authService := service.NewAuthService(users, sessions, google, recorder, cfg.SessionTTL)
 	cardArtService := service.NewCardArtService(accounts, cardart.NewOpenCard(&http.Client{Timeout: cardArtTimeout}))
 	connectionService := service.NewConnectionService(
@@ -90,6 +92,7 @@ func serve() error {
 		cardArtService,
 		cipher,
 		recorder,
+		service.SyncCooldown{Limiter: rateLimiter, Window: cfg.SyncCooldown},
 		cfg.PlaidRedirectURI(),
 	)
 	notificationService := service.NewNotificationService(connections)

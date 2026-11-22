@@ -7,12 +7,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 	"uuid"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/handler"
+	"github.com/tahminator/fin/internal/metrics"
+	"github.com/tahminator/fin/internal/service"
 )
 
 const accessToken = "access-sandbox-123"
@@ -258,5 +261,47 @@ func TestConnectionDeleteByOwner(t *testing.T) {
 
 	if deletedUser != user.ID || deletedID != connection.ID {
 		t.Errorf("deleted (%s, %s), want (%s, %s)", deletedUser, deletedID, user.ID, connection.ID)
+	}
+}
+
+type refusingLimiter struct{}
+
+func (refusingLimiter) Allow(context.Context, domain.RateLimit, string) (domain.RateLimitDecision, error) {
+	return domain.RateLimitDecision{Allowed: false, RetryAfter: 90 * time.Second}, nil
+}
+
+func (refusingLimiter) Stamp(context.Context, domain.RateLimit, string) error {
+	return nil
+}
+
+func (refusingLimiter) Release(context.Context, domain.RateLimit, string) error {
+	return nil
+}
+
+func TestConnectionSyncInsideCooldownIsTooManyRequests(t *testing.T) {
+	user := newUser()
+	connection := ownedConnection(t, user, domain.ConnectionStatusActive)
+	connections := &fakeConnections{get: ownedConnections(connection)}
+
+	connectionService := service.NewConnectionService(
+		service.ConnectionRepositories{Credentials: plaidCredentials(), Connections: connections},
+		failingProvider(t),
+		nil,
+		newCipher(t),
+		metrics.Noop{},
+		service.SyncCooldown{Limiter: refusingLimiter{}, Window: 10 * time.Minute},
+		"https://fin.example.com/connections",
+	)
+
+	api := newAPI(t, user, handler.NewConnectionHandler(connections, connectionService))
+
+	rec := api.Post("/api/connections/" + connection.ID.String() + "/sync")
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusTooManyRequests, rec.Body.String())
+	}
+
+	if got := rec.Header().Get("Retry-After"); got != "90" {
+		t.Errorf("Retry-After = %q, want %q", got, "90")
 	}
 }

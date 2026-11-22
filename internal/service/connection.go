@@ -23,6 +23,26 @@ type SyncSummary struct {
 	Synced         int
 	ReauthRequired int
 	Failed         int
+	Throttled      int
+}
+
+type SyncLimiter interface {
+	Allow(ctx context.Context, limit domain.RateLimit, key string) (domain.RateLimitDecision, error)
+	Stamp(ctx context.Context, limit domain.RateLimit, key string) error
+	Release(ctx context.Context, limit domain.RateLimit, key string) error
+}
+
+type SyncCooldown struct {
+	Limiter SyncLimiter
+	Window  time.Duration
+}
+
+func (c SyncCooldown) limit() domain.RateLimit {
+	return domain.RateLimit{Scope: domain.RateLimitScopeSync, Max: 1, Window: c.Window}
+}
+
+func (c SyncCooldown) enabled() bool {
+	return c.Limiter != nil && c.limit().Enabled()
 }
 
 type ConnectionRepositories struct {
@@ -41,6 +61,7 @@ type ConnectionService struct {
 	cardArt      CardArtMatcher
 	cipher       *encryption.Cipher
 	recorder     metrics.Recorder
+	cooldown     SyncCooldown
 	redirectURI  string
 	now          func() time.Time
 }
@@ -51,6 +72,7 @@ func NewConnectionService(
 	cardArt CardArtMatcher,
 	cipher *encryption.Cipher,
 	recorder metrics.Recorder,
+	cooldown SyncCooldown,
 	redirectURI string,
 ) *ConnectionService {
 	return &ConnectionService{
@@ -62,6 +84,7 @@ func NewConnectionService(
 		cardArt:      cardArt,
 		cipher:       cipher,
 		recorder:     recorder,
+		cooldown:     cooldown,
 		redirectURI:  redirectURI,
 		now:          time.Now,
 	}
@@ -128,6 +151,8 @@ func (s *ConnectionService) SyncAll(ctx context.Context, userID uuid.UUID, trigg
 			summary.Synced++
 		case errors.Is(err, domain.ErrReauthRequired):
 			summary.ReauthRequired++
+		case errors.Is(err, domain.ErrThrottled):
+			summary.Throttled++
 		default:
 			summary.Failed++
 		}
@@ -204,7 +229,7 @@ func (s *ConnectionService) Remove(ctx context.Context, userID, connectionID uui
 
 func (s *ConnectionService) syncAndReload(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger, pruneAccounts bool) (domain.Connection, error) {
 	err := s.recordSync(ctx, userID, connectionID, trigger, pruneAccounts)
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrThrottled) {
 		return domain.Connection{}, err
 	}
 
@@ -214,20 +239,64 @@ func (s *ConnectionService) syncAndReload(ctx context.Context, userID, connectio
 func (s *ConnectionService) recordSync(ctx context.Context, userID, connectionID uuid.UUID, trigger metrics.SyncTrigger, pruneAccounts bool) error {
 	started := s.now()
 
-	err := s.sync(ctx, userID, connectionID, pruneAccounts)
+	connection, err := s.connections.Get(ctx, userID, connectionID)
+	if err == nil {
+		err = s.acquireSyncSlot(ctx, connectionID, trigger)
+	}
+
+	if err == nil {
+		err = s.sync(ctx, connection, pruneAccounts)
+		s.releaseSyncSlotAfterFailure(ctx, connectionID, err)
+	}
 
 	s.recorder.ConnectionSynced(trigger, syncOutcomeOf(err), s.now().Sub(started))
 
 	return err
 }
 
-func (s *ConnectionService) sync(ctx context.Context, userID, connectionID uuid.UUID, pruneAccounts bool) error {
-	connection, err := s.connections.Get(ctx, userID, connectionID)
-	if err != nil {
-		return err
+func (s *ConnectionService) acquireSyncSlot(ctx context.Context, connectionID uuid.UUID, trigger metrics.SyncTrigger) error {
+	if !s.cooldown.enabled() {
+		return nil
 	}
 
-	err = s.pull(ctx, connection, pruneAccounts)
+	if !enforcesCooldown(trigger) {
+		if err := s.cooldown.Limiter.Stamp(ctx, s.cooldown.limit(), connectionID.String()); err != nil {
+			return fmt.Errorf("start sync cooldown: %w", err)
+		}
+
+		return nil
+	}
+
+	decision, err := s.cooldown.Limiter.Allow(ctx, s.cooldown.limit(), connectionID.String())
+	if err != nil {
+		return fmt.Errorf("check sync cooldown: %w", err)
+	}
+
+	if !decision.Allowed {
+		return &domain.ThrottledError{RetryAfter: decision.RetryAfter}
+	}
+
+	return nil
+}
+
+func (s *ConnectionService) releaseSyncSlotAfterFailure(ctx context.Context, connectionID uuid.UUID, err error) {
+	if err == nil || errors.Is(err, domain.ErrReauthRequired) || !s.cooldown.enabled() {
+		return
+	}
+
+	if releaseErr := s.cooldown.Limiter.Release(ctx, s.cooldown.limit(), connectionID.String()); releaseErr != nil {
+		slog.WarnContext(ctx, "release sync cooldown", "connection_id", connectionID, "err", releaseErr)
+	}
+}
+
+func enforcesCooldown(trigger metrics.SyncTrigger) bool {
+	return trigger == metrics.SyncTriggerManual
+}
+
+func (s *ConnectionService) sync(ctx context.Context, connection domain.Connection, pruneAccounts bool) error {
+	userID, connectionID := connection.UserID, connection.ID
+
+	err := s.pull(ctx, connection, pruneAccounts)
 
 	switch {
 	case err == nil:
@@ -357,6 +426,8 @@ func syncOutcomeOf(err error) metrics.SyncOutcome {
 		return metrics.SyncOutcomeSuccess
 	case errors.Is(err, domain.ErrReauthRequired):
 		return metrics.SyncOutcomeReauthRequired
+	case errors.Is(err, domain.ErrThrottled):
+		return metrics.SyncOutcomeThrottled
 	}
 
 	return metrics.SyncOutcomeError

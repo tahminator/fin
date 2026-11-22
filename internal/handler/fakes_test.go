@@ -153,6 +153,7 @@ func newConnectionHandler(
 		nil,
 		cipher,
 		metrics.Noop{},
+		service.SyncCooldown{},
 		"https://fin.example.com/connections",
 	)
 

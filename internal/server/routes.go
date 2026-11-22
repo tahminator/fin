@@ -6,6 +6,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/tahminator/fin/internal/handler"
+	"github.com/tahminator/fin/internal/mcpserver"
 )
 
 type Handlers struct {
@@ -42,6 +43,7 @@ func RegisterRoutes(mux *http.ServeMux, api huma.API, h Handlers) {
 	h.OAuthConsent.Register(authed)
 
 	handler.DocumentOAuth(api)
+	mcpserver.Document(api)
 
 	if h.OAuth != nil {
 		registerOAuthRoutes(mux, h.OAuth)

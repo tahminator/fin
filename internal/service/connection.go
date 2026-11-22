@@ -290,7 +290,7 @@ func (s *ConnectionService) releaseSyncSlotAfterFailure(ctx context.Context, con
 }
 
 func enforcesCooldown(trigger metrics.SyncTrigger) bool {
-	return trigger == metrics.SyncTriggerManual
+	return trigger == metrics.SyncTriggerManual || trigger == metrics.SyncTriggerMCP
 }
 
 func (s *ConnectionService) sync(ctx context.Context, connection domain.Connection, pruneAccounts bool) error {

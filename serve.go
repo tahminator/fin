@@ -18,6 +18,7 @@ import (
 	"github.com/tahminator/fin/internal/encryption"
 	"github.com/tahminator/fin/internal/handler"
 	"github.com/tahminator/fin/internal/identity"
+	"github.com/tahminator/fin/internal/mcpserver"
 	"github.com/tahminator/fin/internal/metrics"
 	"github.com/tahminator/fin/internal/oauth"
 	"github.com/tahminator/fin/internal/provider/plaid"
@@ -135,6 +136,22 @@ func serve() error {
 
 	if cfg.MCP.Enabled {
 		handlers.OAuth = handler.NewOAuthHandler(oauthService, rateLimiter, handler.DefaultOAuthLimits())
+		handlers.MCP = mcpserver.NewHandler(mcpserver.Deps{
+			Verifier:     oauthService,
+			Connections:  connections,
+			Accounts:     accounts,
+			Balances:     summary,
+			Transactions: postgres.NewTransactionQueryRepository(pool),
+			Syncer:       connectionService,
+			Limiter:      rateLimiter,
+			Recorder:     recorder,
+			Config: mcpserver.Config{
+				ResourceMetadataURL: cfg.PublicURL + handler.ResourceMetadataPath,
+				AllowedOrigins:      cfg.MCP.AllowedOrigins,
+				Version:             cfg.Version,
+				CallLimit:           mcpserver.DefaultCallLimit(),
+			},
+		})
 	}
 
 	if cfg.StaticDir != "" {

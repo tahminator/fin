@@ -38,4 +38,4 @@ The tag push starts `.github/workflows/cd.yaml`. The tag points at a release com
 
 Secrets are repository-level: `DOCKER_HUB_PAT`, `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID` and `_GITHUB_APP_PEM_CONTENT` (shared), plus `PRODUCTION_MIGRATION_DATABASE_URL` for CD. Application runtime secrets belong in the SOPS-managed Kubernetes manifest, not CI.
 
-`backendTest` installs golangci-lint through the pipeline setup action, and the migration test runs `LocalPostgresClient` with Postgres 19 because fin's migrations use `uuidv7()`. Both require `@tahminator/pipeline` 1.0.105 or later. See `PLAN.md` §12 for the full contract and prerequisites.
+`backendTest` installs golangci-lint through the pipeline setup action, and the migration test runs `LocalPostgresClient` with Postgres 19 because fin's migrations use `uuidv7()`. Both require `@tahminator/pipeline` 1.0.105 or later. See `agents/plan/init.md` §12 for the full contract and prerequisites.

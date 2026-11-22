@@ -10,7 +10,7 @@ Install Go, Node, pnpm, just, Docker, golangci-lint, golang-migrate and jq. Dock
 2. Register `http://localhost:5173/auth/google/callback` with the Google OAuth web client. Add each local user as a Google test user if the OAuth app is in testing mode.
 3. Run `just install`, `just db` and `just migrate`.
 4. Add each allowed user and their Plaid sandbox credentials with `just seed <email> <client-id> <secret>`. The command accepts an optional final environment argument, `sandbox` or `production`. Arguments can appear in shell history and process listings; avoid using production credentials on a shared machine.
-5. Run `just dev` and open `http://localhost:5173`. Install the app using the on-screen guide before signing in. For development in a browser tab, set `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local` and restart Vite.
+5. Run `just dev` and open `http://localhost:5173`. Mobile browsers must install the app using the on-screen guide before signing in; desktop browsers can use fin directly or install it through the browser. For development in a browser tab, set `VITE_SKIP_INSTALL_GATE=true` in `js/.env.local` and restart Vite.
 
 The local Postgres container listens on port 5433. `just --list` shows all available commands. `just lint` runs Go and frontend checks; `just test` runs backend tests. To use your own Postgres instead of the Docker container, set `DATABASE_URL` and run `just dev --no-db`, which skips `just db` but still runs migrations, codegen, the API and web against it.
 

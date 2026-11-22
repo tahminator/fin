@@ -141,6 +141,10 @@ export function detectPlatform(userAgent: string, maxTouchPoints: number): Platf
   return "desktop-chromium";
 }
 
+export function isDesktopPlatform(platform: Platform): boolean {
+  return platform === "desktop-chromium" || platform === "desktop-safari";
+}
+
 export function installSteps(platform: Platform): InstallStep[] {
   return stepsByPlatform[platform];
 }

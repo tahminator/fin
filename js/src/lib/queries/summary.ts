@@ -11,11 +11,22 @@ export function useSummary(excludeAccountId: string[] = []) {
   );
 }
 
+const excludeAccountType: "investment"[] = ["investment"];
+
+export function useCashSummary(excludeAccountId: string[]) {
+  return $api.useQuery(
+    "get",
+    "/api/summary",
+    { params: { query: { excludeAccountId, excludeAccountType } } },
+    { placeholderData: keepPreviousData },
+  );
+}
+
 export function useCashFlow(excludeAccountId: string[] = []) {
   return $api.useQuery(
     "get",
     "/api/summary/cash-flow",
-    { params: { query: { excludeAccountId } } },
+    { params: { query: { excludeAccountId, excludeAccountType } } },
     { placeholderData: keepPreviousData },
   );
 }

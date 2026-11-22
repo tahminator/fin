@@ -27,7 +27,7 @@ func TestCashFlowGroupsDaysByCurrency(t *testing.T) {
 	user := newUser()
 
 	summary := &fakeSummary{
-		cashFlow: func(_ context.Context, userID uuid.UUID, _ int, _ []uuid.UUID) ([]domain.DailyCashFlow, error) {
+		cashFlow: func(_ context.Context, userID uuid.UUID, _ int, _ []uuid.UUID, _ []domain.AccountType) ([]domain.DailyCashFlow, error) {
 			if userID != user.ID {
 				t.Errorf("userID = %s, want %s", userID, user.ID)
 			}
@@ -67,7 +67,7 @@ func TestCashFlowGroupsDaysByCurrency(t *testing.T) {
 
 func TestCashFlowWithoutTransactionsIsEmptyList(t *testing.T) {
 	summary := &fakeSummary{
-		cashFlow: func(context.Context, uuid.UUID, int, []uuid.UUID) ([]domain.DailyCashFlow, error) {
+		cashFlow: func(context.Context, uuid.UUID, int, []uuid.UUID, []domain.AccountType) ([]domain.DailyCashFlow, error) {
 			return nil, nil
 		},
 	}
@@ -107,7 +107,7 @@ func TestCashFlowDays(t *testing.T) {
 			called := false
 
 			summary := &fakeSummary{
-				cashFlow: func(_ context.Context, _ uuid.UUID, days int, _ []uuid.UUID) ([]domain.DailyCashFlow, error) {
+				cashFlow: func(_ context.Context, _ uuid.UUID, days int, _ []uuid.UUID, _ []domain.AccountType) ([]domain.DailyCashFlow, error) {
 					called = true
 
 					if days != tc.days {
@@ -136,14 +136,16 @@ func TestSummaryExcludesAccounts(t *testing.T) {
 	user := newUser()
 	excludeIDs := []uuid.UUID{uuid.New(), uuid.New()}
 	var gotExclude []uuid.UUID
+	var gotTypes []domain.AccountType
 
 	summary := &fakeSummary{
-		balances: func(_ context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID) ([]domain.CurrencyBalance, error) {
+		balances: func(_ context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.CurrencyBalance, error) {
 			if userID != user.ID {
 				t.Errorf("userID = %s, want %s", userID, user.ID)
 			}
 
 			gotExclude = excludeAccountIDs
+			gotTypes = excludeAccountTypes
 
 			return nil, nil
 		},
@@ -153,7 +155,7 @@ func TestSummaryExcludesAccounts(t *testing.T) {
 	}
 	api := newAPI(t, user, handler.NewSummaryHandler(summary))
 
-	rec := api.Get("/api/summary?excludeAccountId=" + excludeIDs[0].String() + "&excludeAccountId=" + excludeIDs[1].String())
+	rec := api.Get("/api/summary?excludeAccountId=" + excludeIDs[0].String() + "&excludeAccountId=" + excludeIDs[1].String() + "&excludeAccountType=investment")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
@@ -162,11 +164,32 @@ func TestSummaryExcludesAccounts(t *testing.T) {
 	if !slices.Equal(gotExclude, excludeIDs) {
 		t.Errorf("excludeAccountIDs = %v, want %v", gotExclude, excludeIDs)
 	}
+
+	if !slices.Equal(gotTypes, []domain.AccountType{domain.AccountTypeInvestment}) {
+		t.Errorf("excludeAccountTypes = %v, want [investment]", gotTypes)
+	}
+}
+
+func TestSummaryRejectsUnknownExcludeAccountType(t *testing.T) {
+	summary := &fakeSummary{
+		balances: func(context.Context, uuid.UUID, []uuid.UUID, []domain.AccountType) ([]domain.CurrencyBalance, error) {
+			t.Error("repository called for unknown account type")
+
+			return nil, nil
+		},
+	}
+	api := newAPI(t, newUser(), handler.NewSummaryHandler(summary))
+
+	rec := api.Get("/api/summary?excludeAccountType=crypto")
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+	}
 }
 
 func TestSummaryRejectsInvalidExcludeAccountID(t *testing.T) {
 	summary := &fakeSummary{
-		balances: func(context.Context, uuid.UUID, []uuid.UUID) ([]domain.CurrencyBalance, error) {
+		balances: func(context.Context, uuid.UUID, []uuid.UUID, []domain.AccountType) ([]domain.CurrencyBalance, error) {
 			t.Error("repository called for invalid exclude id")
 
 			return nil, nil
@@ -190,21 +213,23 @@ func TestCashFlowExcludesAccounts(t *testing.T) {
 	user := newUser()
 	excludeIDs := []uuid.UUID{uuid.New(), uuid.New()}
 	var gotExclude []uuid.UUID
+	var gotTypes []domain.AccountType
 
 	summary := &fakeSummary{
-		cashFlow: func(_ context.Context, userID uuid.UUID, _ int, excludeAccountIDs []uuid.UUID) ([]domain.DailyCashFlow, error) {
+		cashFlow: func(_ context.Context, userID uuid.UUID, _ int, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.DailyCashFlow, error) {
 			if userID != user.ID {
 				t.Errorf("userID = %s, want %s", userID, user.ID)
 			}
 
 			gotExclude = excludeAccountIDs
+			gotTypes = excludeAccountTypes
 
 			return nil, nil
 		},
 	}
 	api := newAPI(t, user, handler.NewSummaryHandler(summary))
 
-	rec := api.Get("/api/summary/cash-flow?excludeAccountId=" + excludeIDs[0].String() + "&excludeAccountId=" + excludeIDs[1].String())
+	rec := api.Get("/api/summary/cash-flow?excludeAccountId=" + excludeIDs[0].String() + "&excludeAccountId=" + excludeIDs[1].String() + "&excludeAccountType=investment")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
@@ -213,11 +238,15 @@ func TestCashFlowExcludesAccounts(t *testing.T) {
 	if !slices.Equal(gotExclude, excludeIDs) {
 		t.Errorf("excludeAccountIDs = %v, want %v", gotExclude, excludeIDs)
 	}
+
+	if !slices.Equal(gotTypes, []domain.AccountType{domain.AccountTypeInvestment}) {
+		t.Errorf("excludeAccountTypes = %v, want [investment]", gotTypes)
+	}
 }
 
 func TestCashFlowRejectsInvalidExcludeAccountID(t *testing.T) {
 	summary := &fakeSummary{
-		cashFlow: func(context.Context, uuid.UUID, int, []uuid.UUID) ([]domain.DailyCashFlow, error) {
+		cashFlow: func(context.Context, uuid.UUID, int, []uuid.UUID, []domain.AccountType) ([]domain.DailyCashFlow, error) {
 			t.Error("repository called for invalid exclude id")
 
 			return nil, nil

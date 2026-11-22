@@ -2,10 +2,11 @@ import { $api } from "@/lib/api/client";
 import { flattenPages, nextPage, pageSize } from "@/lib/queries/pagination";
 
 export function useTransactions(accountId: string | undefined, excludeAccountId: string[] = []) {
+  const excludeAccountType: "investment"[] = ["investment"];
   const query =
     accountId === undefined
-      ? { pageSize, excludeAccountId }
-      : { pageSize, accountId, excludeAccountId };
+      ? { pageSize, excludeAccountId, excludeAccountType }
+      : { pageSize, accountId, excludeAccountId, excludeAccountType };
 
   return $api.useInfiniteQuery(
     "get",

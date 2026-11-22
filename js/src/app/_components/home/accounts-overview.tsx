@@ -5,7 +5,7 @@ import { BalanceSummary } from "@/app/_components/home/balance-summary";
 import { CashFlowSection } from "@/app/_components/home/cash-flow-section";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
-import { useSummary } from "@/lib/queries/summary";
+import { useCashSummary } from "@/lib/queries/summary";
 import type { Account } from "@/lib/types/api";
 
 interface AccountsOverviewProps {
@@ -22,7 +22,7 @@ export function AccountsOverview({
   onLoadMore,
 }: AccountsOverviewProps) {
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>([]);
-  const summary = useSummary(hiddenAccountIds);
+  const summary = useCashSummary(hiddenAccountIds);
 
   if (summary.isPending) {
     return <LoadingState />;

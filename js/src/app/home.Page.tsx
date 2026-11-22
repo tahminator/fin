@@ -6,10 +6,10 @@ import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { useAccounts } from "@/lib/queries/accounts";
+import { useCashAccounts } from "@/lib/queries/accounts";
 
 function HomeContent() {
-  const accounts = useAccounts();
+  const accounts = useCashAccounts();
 
   if (accounts.isPending) {
     return <LoadingState />;

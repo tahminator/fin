@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAllAccounts } from "@/lib/queries/accounts";
+import { useAllCashAccounts } from "@/lib/queries/accounts";
 import type { Account } from "@/lib/types/api";
 
 interface ConnectionGroup {
@@ -79,7 +79,7 @@ function ConnectionGroupFields({
 
 export function TransactionsFilter() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const accounts = useAllAccounts();
+  const accounts = useAllCashAccounts();
 
   const hidden = new Set(searchParams.getAll("hide"));
 

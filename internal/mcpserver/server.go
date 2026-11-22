@@ -42,7 +42,7 @@ type AccountReader interface {
 }
 
 type BalanceReader interface {
-	Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID) ([]domain.CurrencyBalance, error)
+	Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.CurrencyBalance, error)
 }
 
 type ConnectionSyncer interface {

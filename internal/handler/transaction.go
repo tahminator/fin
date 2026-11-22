@@ -52,8 +52,9 @@ func newTransaction(transaction domain.Transaction) Transaction {
 
 type ListTransactionsInput struct {
 	PageParams
-	AccountID        string   `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
-	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude transactions of these accounts"`
+	AccountID          string               `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	ExcludeAccountID   []string             `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude transactions of these accounts"`
+	ExcludeAccountType []domain.AccountType `query:"excludeAccountType,explode" enum:"depository,credit,loan,investment,other" doc:"Exclude transactions of accounts of these types"`
 }
 
 type TransactionHandler struct {
@@ -76,7 +77,7 @@ func (h *TransactionHandler) Register(api huma.API) {
 }
 
 func (h *TransactionHandler) list(ctx context.Context, input *ListTransactionsInput) (*PageOutput[Transaction], error) {
-	var filter repository.TransactionFilter
+	filter := repository.TransactionFilter{ExcludeAccountTypes: input.ExcludeAccountType}
 
 	if input.AccountID != "" {
 		accountID, err := uuid.Parse(input.AccountID)

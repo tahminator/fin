@@ -51,7 +51,8 @@ func newAccount(account domain.Account) Account {
 
 type ListAccountsInput struct {
 	PageParams
-	ConnectionID string `query:"connectionId" format:"uuid" doc:"Only accounts of this connection"`
+	ConnectionID string               `query:"connectionId" format:"uuid" doc:"Only accounts of this connection"`
+	ExcludeType  []domain.AccountType `query:"excludeType,explode" enum:"depository,credit,loan,investment,other" doc:"Leave out accounts of these types"`
 }
 
 type AccountHandler struct {
@@ -74,7 +75,7 @@ func (h *AccountHandler) Register(api huma.API) {
 }
 
 func (h *AccountHandler) list(ctx context.Context, input *ListAccountsInput) (*PageOutput[Account], error) {
-	var filter repository.AccountFilter
+	filter := repository.AccountFilter{ExcludeTypes: input.ExcludeType}
 
 	if input.ConnectionID != "" {
 		connectionID, err := uuid.Parse(input.ConnectionID)

@@ -8,8 +8,9 @@ import (
 )
 
 type TransactionFilter struct {
-	AccountID        *uuid.UUID
-	ExcludeAccountID []uuid.UUID
+	AccountID           *uuid.UUID
+	ExcludeAccountID    []uuid.UUID
+	ExcludeAccountTypes []domain.AccountType
 }
 
 type TransactionRepository interface {

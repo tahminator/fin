@@ -16,10 +16,11 @@ import {
 const PR_MESSAGE_KEY = "production-try";
 const TRY_STATE_PATTERN = /<!-- fin-try-state:(.+?) -->/;
 
-/** What a PR's `/try` put in production, and what `/revert` restores. */
 export type TryState = {
   tried: string;
   revertTo: string;
+  revertSchemaVersion: number | null;
+  triedSchemaVersion: number | null;
 };
 
 export async function deployToProduction(ghClient: GitHubClient, tag: string) {
@@ -76,10 +77,20 @@ export async function readTryState(
   }
 
   const state = JSON.parse(json);
-  if (typeof state?.tried !== "string" || typeof state?.revertTo !== "string") {
+  if (
+    typeof state?.tried !== "string" ||
+    typeof state?.revertTo !== "string" ||
+    (typeof state?.revertSchemaVersion !== "number" && state?.revertSchemaVersion !== null) ||
+    (typeof state?.triedSchemaVersion !== "number" && state?.triedSchemaVersion !== null)
+  ) {
     throw new Error(`Malformed /try state on PR #${prId}: ${json}`);
   }
-  return { tried: state.tried, revertTo: state.revertTo };
+  return {
+    tried: state.tried,
+    revertTo: state.revertTo,
+    revertSchemaVersion: state.revertSchemaVersion,
+    triedSchemaVersion: state.triedSchemaVersion,
+  };
 }
 
 /**

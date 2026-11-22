@@ -46,9 +46,11 @@ jobs:
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
+          INSTALL_MIGRATE: "true"
 
       - name: Restore last release
         env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}
           PR_ID: ${{ inputs.prId }}
           AUTHOR: ${{ inputs.author }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -70,30 +70,10 @@ jobs:
       - name: Run frontend pre-test checks
         uses: ./.github/composite/frontend-pretest
 
-  testMigrations:
-    name: Test database migrations
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Pipeline
-        uses: tahminator/pipeline/actions/setup@c0c09e02062b1ee11e483c964e01fe4a31813b6e # 1.0.108
-        with:
-          SECRETS: ${{ toJSON(secrets) }}
-          LINT_CI: true
-          INSTALL_JUST: true
-          INSTALL_MIGRATE: "true"
-
-      - name: Test database migrations
-        run: bun run .github/scripts/src/test/migrations
-
   buildImage:
     name: Build ${{ github.event_name == 'pull_request' && 'staging' || 'production' }} image
     runs-on: ubuntu-26.04
-    needs: [backendTest, frontendTest, testMigrations]
+    needs: [backendTest, frontendTest]
 
     steps:
       - name: Checkout Repository

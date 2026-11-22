@@ -65,7 +65,7 @@ export function TransactionsPage() {
         }
       />
       <div className="flex flex-col gap-8">
-        <InvestmentResults accountId={accountId} />
+        <InvestmentResults accountId={accountId} excludeAccountId={hide} />
         <TransactionResults accountId={accountId} excludeAccountId={hide} />
       </div>
     </>

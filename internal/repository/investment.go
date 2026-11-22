@@ -8,7 +8,8 @@ import (
 )
 
 type InvestmentFilter struct {
-	AccountID *uuid.UUID
+	AccountID         *uuid.UUID
+	ExcludeAccountIDs []uuid.UUID
 }
 
 type InvestmentRepository interface {

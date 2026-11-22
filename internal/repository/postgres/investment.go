@@ -9,16 +9,11 @@ import (
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/repository"
 )
-
-type execer interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-}
 
 type InvestmentRepository struct {
 	pool *pgxpool.Pool
@@ -68,7 +63,7 @@ SET name          = COALESCE(EXCLUDED.name, investment_securities.name),
     updated_at    = now();
 `
 
-func upsertSecurities(ctx context.Context, db execer, securities []domain.InvestmentSecurity) error {
+func (r *InvestmentRepository) upsertSecurities(ctx context.Context, securities []domain.InvestmentSecurity) error {
 	if len(securities) == 0 {
 		return nil
 	}
@@ -89,7 +84,7 @@ func upsertSecurities(ctx context.Context, db execer, securities []domain.Invest
 		currencies[i] = security.Currency
 	}
 
-	_, err := db.Exec(ctx, upsertInvestmentSecurities, externalIDs, names, tickers, types, subtypes, currencies)
+	_, err := r.pool.Exec(ctx, upsertInvestmentSecurities, externalIDs, names, tickers, types, subtypes, currencies)
 	if err != nil {
 		return fmt.Errorf("upsert investment securities: %w", err)
 	}
@@ -220,40 +215,38 @@ func (r *InvestmentRepository) ReplaceHoldings(
 		vestedValues = append(vestedValues, holding.VestedValue)
 	}
 
-	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		if err := upsertSecurities(ctx, tx, securities); err != nil {
-			return err
-		}
+	if err := r.upsertSecurities(ctx, securities); err != nil {
+		return err
+	}
 
-		if _, err := tx.Exec(ctx, deleteInvestmentHoldings, userID, allAccountIDs); err != nil {
-			return fmt.Errorf("delete investment holdings: %w", err)
-		}
+	if _, err := r.pool.Exec(ctx, deleteInvestmentHoldings, userID, allAccountIDs); err != nil {
+		return fmt.Errorf("delete investment holdings: %w", err)
+	}
 
-		if len(resolvedAccountIDs) == 0 {
-			return nil
-		}
-
-		_, err := tx.Exec(
-			ctx,
-			replaceInvestmentHoldings,
-			userID,
-			resolvedAccountIDs,
-			securityExternalIDs,
-			institutionPrices,
-			institutionPriceAsOf,
-			institutionValues,
-			costBases,
-			quantities,
-			currencies,
-			vestedQuantities,
-			vestedValues,
-		)
-		if err != nil {
-			return fmt.Errorf("replace investment holdings: %w", err)
-		}
-
+	if len(resolvedAccountIDs) == 0 {
 		return nil
-	})
+	}
+
+	_, err := r.pool.Exec(
+		ctx,
+		replaceInvestmentHoldings,
+		userID,
+		resolvedAccountIDs,
+		securityExternalIDs,
+		institutionPrices,
+		institutionPriceAsOf,
+		institutionValues,
+		costBases,
+		quantities,
+		currencies,
+		vestedQuantities,
+		vestedValues,
+	)
+	if err != nil {
+		return fmt.Errorf("replace investment holdings: %w", err)
+	}
+
+	return nil
 }
 
 const upsertInvestmentTransactions = `
@@ -402,40 +395,38 @@ func (r *InvestmentRepository) UpsertTransactions(
 		currencies = append(currencies, transaction.Currency)
 	}
 
-	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		if err := upsertSecurities(ctx, tx, securities); err != nil {
-			return err
-		}
+	if err := r.upsertSecurities(ctx, securities); err != nil {
+		return err
+	}
 
-		if len(resolvedAccountIDs) == 0 {
-			return nil
-		}
-
-		_, err := tx.Exec(
-			ctx,
-			upsertInvestmentTransactions,
-			userID,
-			resolvedAccountIDs,
-			securityExternalIDs,
-			externalIDs,
-			cancelExternalIDs,
-			postedOn,
-			transactionDateTimes,
-			names,
-			quantities,
-			amounts,
-			prices,
-			fees,
-			types,
-			subtypes,
-			currencies,
-		)
-		if err != nil {
-			return fmt.Errorf("upsert investment transactions: %w", err)
-		}
-
+	if len(resolvedAccountIDs) == 0 {
 		return nil
-	})
+	}
+
+	_, err := r.pool.Exec(
+		ctx,
+		upsertInvestmentTransactions,
+		userID,
+		resolvedAccountIDs,
+		securityExternalIDs,
+		externalIDs,
+		cancelExternalIDs,
+		postedOn,
+		transactionDateTimes,
+		names,
+		quantities,
+		amounts,
+		prices,
+		fees,
+		types,
+		subtypes,
+		currencies,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert investment transactions: %w", err)
+	}
+
+	return nil
 }
 
 const listInvestmentHoldingsByUser = `
@@ -459,6 +450,7 @@ JOIN accounts AS a ON a.id = h.account_id
 JOIN investment_securities AS s ON s.id = h.security_id
 WHERE h.user_id = $1
   AND ($2::uuid IS NULL OR h.account_id = $2)
+  AND h.account_id <> ALL(coalesce($3::uuid[], '{}'))
 ORDER BY h.institution_value DESC, s.name, h.id;
 `
 
@@ -467,7 +459,7 @@ func (r *InvestmentRepository) ListHoldingsByUser(
 	userID uuid.UUID,
 	filter repository.InvestmentFilter,
 ) ([]domain.InvestmentHolding, error) {
-	rows, err := r.pool.Query(ctx, listInvestmentHoldingsByUser, userID, filter.AccountID)
+	rows, err := r.pool.Query(ctx, listInvestmentHoldingsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query investment holdings: %w", err)
 	}
@@ -505,16 +497,18 @@ JOIN accounts AS a ON a.id = t.account_id
 LEFT JOIN investment_securities AS s ON s.id = t.security_id
 WHERE t.user_id = $1
   AND ($2::uuid IS NULL OR t.account_id = $2)
+  AND t.account_id <> ALL(coalesce($3::uuid[], '{}'))
 ORDER BY t.posted_on DESC, t.id DESC
-LIMIT $3
-OFFSET $4;
+LIMIT $4
+OFFSET $5;
 `
 
 const countInvestmentTransactionsByUser = `
 SELECT COUNT(*) AS count
 FROM investment_transactions AS t
 WHERE t.user_id = $1
-  AND ($2::uuid IS NULL OR t.account_id = $2);
+  AND ($2::uuid IS NULL OR t.account_id = $2)
+  AND t.account_id <> ALL(coalesce($3::uuid[], '{}'));
 `
 
 func (r *InvestmentRepository) ListTransactionsByUser(
@@ -523,7 +517,7 @@ func (r *InvestmentRepository) ListTransactionsByUser(
 	filter repository.InvestmentFilter,
 	limit, offset int,
 ) ([]domain.InvestmentTransaction, int, error) {
-	rows, err := r.pool.Query(ctx, listInvestmentTransactionsByUser, userID, filter.AccountID, limit, offset)
+	rows, err := r.pool.Query(ctx, listInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query investment transactions: %w", err)
 	}
@@ -533,7 +527,7 @@ func (r *InvestmentRepository) ListTransactionsByUser(
 		return nil, 0, fmt.Errorf("collect investment transactions: %w", err)
 	}
 
-	total, err := count(ctx, r.pool, countInvestmentTransactionsByUser, userID, filter.AccountID)
+	total, err := count(ctx, r.pool, countInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs)
 	if err != nil {
 		return nil, 0, err
 	}

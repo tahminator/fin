@@ -79,12 +79,34 @@ func TestClientFromMetadataDocument(t *testing.T) {
 		"no redirects":      {ClientID: id, ClientName: "App"},
 		"bad redirect":      {ClientID: id, ClientName: "App", RedirectURIs: []string{"http://example.com/cb"}},
 		"confidential auth": {ClientID: id, ClientName: "App", RedirectURIs: valid.RedirectURIs, TokenEndpointAuthMethod: "client_secret_basic"},
+		"no public auth":    {ClientID: id, ClientName: "App", RedirectURIs: valid.RedirectURIs, TokenEndpointAuthMethodsSupported: []string{"private_key_jwt"}},
 	}
 
 	for name, metadata := range invalid {
 		if _, err := ClientFromMetadataDocument(id, metadata); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+func TestClientFromMetadataDocumentNegotiatesPublicAuth(t *testing.T) {
+	id := "https://chatgpt.com/oauth/client.json"
+	methods := []string{"none", "private_key_jwt"}
+	metadata := ClientMetadata{
+		ClientID:                          id,
+		ClientName:                        "ChatGPT",
+		RedirectURIs:                      []string{"https://chatgpt.com/connector_platform_oauth_redirect"},
+		TokenEndpointAuthMethod:           methods[1],
+		TokenEndpointAuthMethodsSupported: methods,
+	}
+
+	client, err := ClientFromMetadataDocument(id, metadata)
+	if err != nil {
+		t.Fatalf("ClientFromMetadataDocument: %v", err)
+	}
+
+	if client.TokenEndpointAuthMethod != domain.TokenAuthNone {
+		t.Errorf("auth method = %q, want none", client.TokenEndpointAuthMethod)
 	}
 }
 

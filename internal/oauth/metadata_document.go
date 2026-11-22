@@ -28,15 +28,16 @@ const (
 var errBlockedAddress = errors.New("client metadata document resolves to a non-public address")
 
 type ClientMetadata struct {
-	ClientID                string   `json:"client_id"`
-	ClientName              string   `json:"client_name"`
-	ClientURI               string   `json:"client_uri"`
-	LogoURI                 string   `json:"logo_uri"`
-	RedirectURIs            []string `json:"redirect_uris"`
-	GrantTypes              []string `json:"grant_types"`
-	ResponseTypes           []string `json:"response_types"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
-	Scope                   string   `json:"scope"`
+	ClientID                          string   `json:"client_id"`
+	ClientName                        string   `json:"client_name"`
+	ClientURI                         string   `json:"client_uri"`
+	LogoURI                           string   `json:"logo_uri"`
+	RedirectURIs                      []string `json:"redirect_uris"`
+	GrantTypes                        []string `json:"grant_types"`
+	ResponseTypes                     []string `json:"response_types"`
+	TokenEndpointAuthMethod           string   `json:"token_endpoint_auth_method"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+	Scope                             string   `json:"scope"`
 }
 
 type FetchedClient struct {
@@ -165,13 +166,27 @@ func ClientFromMetadataDocument(clientID string, metadata ClientMetadata) (domai
 		return domain.OAuthClient{}, NewError(ErrInvalidClient, "client metadata document needs client_name and redirect_uris")
 	}
 
-	method := domain.TokenAuthMethod(metadata.TokenEndpointAuthMethod)
-	if method == "" {
-		method = domain.TokenAuthNone
+	var method domain.TokenAuthMethod
+
+	if len(metadata.TokenEndpointAuthMethodsSupported) == 0 {
+		method = domain.TokenAuthMethod(metadata.TokenEndpointAuthMethod)
+		if method == "" {
+			method = domain.TokenAuthNone
+		}
+	} else {
+		method = ""
+
+		for _, supported := range metadata.TokenEndpointAuthMethodsSupported {
+			if supported == string(domain.TokenAuthNone) {
+				method = domain.TokenAuthNone
+
+				break
+			}
+		}
 	}
 
 	if method != domain.TokenAuthNone {
-		return domain.OAuthClient{}, NewError(ErrInvalidClient, "client metadata documents must use token_endpoint_auth_method none")
+		return domain.OAuthClient{}, NewError(ErrInvalidClient, "client metadata documents must support token_endpoint_auth_method none")
 	}
 
 	for _, redirectURI := range metadata.RedirectURIs {

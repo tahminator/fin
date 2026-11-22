@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from "react-router";
 import { z } from "zod";
 
+import { InvestmentResults } from "@/app/transactions/_components/investment-results";
 import { TransactionResults } from "@/app/transactions/_components/transaction-results";
 import { TransactionsFilter } from "@/app/transactions/_components/transactions-filter";
 import { EmptyState } from "@/components/empty-state";
@@ -63,7 +64,10 @@ export function TransactionsPage() {
           )
         }
       />
-      <TransactionResults accountId={accountId} excludeAccountId={hide} />
+      <div className="flex flex-col gap-8">
+        <InvestmentResults accountId={accountId} />
+        <TransactionResults accountId={accountId} excludeAccountId={hide} />
+      </div>
     </>
   );
 }

@@ -64,6 +64,7 @@ func serve() error {
 	connections := postgres.NewConnectionRepository(pool)
 	accounts := postgres.NewAccountRepository(pool)
 	transactions := postgres.NewTransactionRepository(pool)
+	investments := postgres.NewInvestmentRepository(pool)
 	summary := postgres.NewSummaryRepository(pool)
 	metricsRepo := postgres.NewMetricsRepository(pool)
 	rateLimits := postgres.NewRateLimitRepository(pool)
@@ -95,6 +96,7 @@ func serve() error {
 			Connections:  connections,
 			Accounts:     accounts,
 			Transactions: transactions,
+			Investments:  investments,
 		},
 		accountProvider,
 		cardArtService,
@@ -128,6 +130,7 @@ func serve() error {
 		Accounts:       handler.NewAccountHandler(accounts),
 		CardArt:        handler.NewCardArtHandler(cardArtService),
 		Transactions:   handler.NewTransactionHandler(transactions),
+		Investments:    handler.NewInvestmentHandler(investments),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),
 		OAuthConsent:   handler.NewOAuthConsentHandler(oauthService),

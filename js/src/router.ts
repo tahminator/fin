@@ -21,12 +21,28 @@ export const router = createBrowserRouter([
     children: [
       { path: "/login", Component: LoginPage },
       {
+        path: "/consent",
+        lazy: async () => {
+          const { ConsentPage } = await import("@/app/consent/consent.Page");
+
+          return { Component: ConsentPage };
+        },
+      },
+      {
         Component: AuthenticatedLayout,
         children: [
           { index: true, Component: HomePage },
           { path: "/connections", Component: ConnectionsPage },
           { path: "/connections/oauth", Component: OAuthReturnPage },
           { path: "/transactions", Component: TransactionsPage },
+          {
+            path: "/apps",
+            lazy: async () => {
+              const { AppsPage } = await import("@/app/apps/apps.Page");
+
+              return { Component: AppsPage };
+            },
+          },
         ],
       },
     ],

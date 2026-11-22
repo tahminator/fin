@@ -20,6 +20,10 @@ export type Account = Schemas["Account"];
 
 export type Transaction = Schemas["Transaction"];
 
+export type InvestmentHolding = Schemas["InvestmentHolding"];
+
+export type InvestmentTransaction = Schemas["InvestmentTransaction"];
+
 export type Notification = Schemas["Notification"];
 
 export type ConsentRequest = Schemas["ConsentRequest"];

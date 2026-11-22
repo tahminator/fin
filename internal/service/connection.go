@@ -50,6 +50,7 @@ type ConnectionRepositories struct {
 	Connections  repository.ConnectionRepository
 	Accounts     repository.AccountRepository
 	Transactions repository.TransactionRepository
+	Investments  repository.InvestmentRepository
 }
 
 type ConnectionService struct {
@@ -57,6 +58,7 @@ type ConnectionService struct {
 	connections  repository.ConnectionRepository
 	accounts     repository.AccountRepository
 	transactions repository.TransactionRepository
+	investments  repository.InvestmentRepository
 	provider     provider.Provider
 	cardArt      CardArtMatcher
 	cipher       *encryption.Cipher
@@ -80,6 +82,7 @@ func NewConnectionService(
 		connections:  repos.Connections,
 		accounts:     repos.Accounts,
 		transactions: repos.Transactions,
+		investments:  repos.Investments,
 		provider:     accountProvider,
 		cardArt:      cardArt,
 		cipher:       cipher,
@@ -354,6 +357,34 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 
 	if err := s.transactions.DeleteByExternalIDs(ctx, connection.UserID, result.Removed); err != nil {
 		return fmt.Errorf("delete removed transactions: %w", err)
+	}
+
+	for _, account := range accounts {
+		if account.Type != domain.AccountTypeInvestment {
+			continue
+		}
+
+		holdings, err := s.provider.InvestmentHoldings(ctx, credential, accessToken)
+		if err != nil {
+			return fmt.Errorf("fetch investment holdings: %w", err)
+		}
+
+		securities, holdingsData := toDomainInvestmentHoldings(holdings)
+		if err := s.investments.ReplaceHoldings(ctx, connection.UserID, accountIDs, securities, holdingsData); err != nil {
+			return fmt.Errorf("save investment holdings: %w", err)
+		}
+
+		investmentTransactions, err := s.provider.InvestmentTransactions(ctx, credential, accessToken)
+		if err != nil {
+			return fmt.Errorf("fetch investment transactions: %w", err)
+		}
+
+		securities, investmentData := toDomainInvestmentTransactions(investmentTransactions)
+		if err := s.investments.UpsertTransactions(ctx, connection.UserID, accountIDs, securities, investmentData); err != nil {
+			return fmt.Errorf("save investment transactions: %w", err)
+		}
+
+		break
 	}
 
 	if err := s.connections.UpdateSyncState(ctx, connection.UserID, connection.ID, result.NextCursor, s.now()); err != nil {

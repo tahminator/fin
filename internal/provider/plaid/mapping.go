@@ -146,3 +146,72 @@ func currencyOf(iso, unofficial *string) *string {
 
 	return unofficial
 }
+
+func mapInvestmentSecurity(security *plaidsdk.Security) provider.InvestmentSecurity {
+	return provider.InvestmentSecurity{
+		ExternalID: security.SecurityID,
+		Name:       security.Name,
+		Ticker:     security.TickerSymbol,
+		Type:       security.Type,
+		Subtype:    security.Subtype,
+		Currency:   currencyOf(security.IsoCurrencyCode, security.UnofficialCurrencyCode),
+	}
+}
+
+func mapInvestmentHolding(holding *plaidsdk.Holding) provider.InvestmentHolding {
+	mapped := provider.InvestmentHolding{
+		AccountExternalID:    holding.AccountID,
+		SecurityExternalID:   holding.SecurityID,
+		InstitutionPrice:     formatInvestmentDecimal(holding.InstitutionPrice),
+		InstitutionPriceAsOf: holding.InstitutionPriceAsOf,
+		InstitutionValue:     formatInvestmentDecimal(holding.InstitutionValue),
+		Quantity:             formatInvestmentDecimal(holding.Quantity),
+		Currency:             currencyOf(holding.IsoCurrencyCode, holding.UnofficialCurrencyCode),
+	}
+
+	if holding.CostBasis != nil {
+		costBasis := formatInvestmentDecimal(*holding.CostBasis)
+		mapped.CostBasis = &costBasis
+	}
+
+	if holding.VestedQuantity != nil {
+		vestedQuantity := formatInvestmentDecimal(*holding.VestedQuantity)
+		mapped.VestedQuantity = &vestedQuantity
+	}
+
+	if holding.VestedValue != nil {
+		vestedValue := formatInvestmentDecimal(*holding.VestedValue)
+		mapped.VestedValue = &vestedValue
+	}
+
+	return mapped
+}
+
+func mapInvestmentTransaction(transaction *plaidsdk.InvestmentTransaction) provider.InvestmentTransaction {
+	mapped := provider.InvestmentTransaction{
+		ExternalID:          transaction.InvestmentTransactionID,
+		CancelExternalID:    transaction.CancelTransactionID,
+		AccountExternalID:   transaction.AccountID,
+		SecurityExternalID:  transaction.SecurityID,
+		PostedOn:            transaction.Date,
+		TransactionDateTime: transaction.TransactionDatetime,
+		Name:                transaction.Name,
+		Quantity:            formatInvestmentDecimal(transaction.Quantity),
+		Amount:              formatInvestmentDecimal(transaction.Amount),
+		Price:               formatInvestmentDecimal(transaction.Price),
+		Type:                string(transaction.Type),
+		Subtype:             string(transaction.Subtype),
+		Currency:            currencyOf(transaction.IsoCurrencyCode, transaction.UnofficialCurrencyCode),
+	}
+
+	if transaction.Fees != nil {
+		fees := formatInvestmentDecimal(*transaction.Fees)
+		mapped.Fees = &fees
+	}
+
+	return mapped
+}
+
+func formatInvestmentDecimal(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}

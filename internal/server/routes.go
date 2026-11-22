@@ -16,6 +16,7 @@ type Handlers struct {
 	Accounts       *handler.AccountHandler
 	CardArt        *handler.CardArtHandler
 	Transactions   *handler.TransactionHandler
+	Investments    *handler.InvestmentHandler
 	Notifications  *handler.NotificationHandler
 	Version        *handler.VersionHandler
 	OAuth          *handler.OAuthHandler
@@ -39,6 +40,7 @@ func RegisterRoutes(mux *http.ServeMux, api huma.API, h Handlers) {
 	h.Accounts.Register(authed)
 	h.CardArt.Register(authed)
 	h.Transactions.Register(authed)
+	h.Investments.Register(authed)
 	h.Notifications.Register(authed)
 	h.OAuthConsent.Register(authed)
 

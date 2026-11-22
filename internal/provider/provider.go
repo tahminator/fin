@@ -13,6 +13,8 @@ type Provider interface {
 	Exchange(ctx context.Context, creds domain.Credential, publicToken string) (LinkedItem, error)
 	Accounts(ctx context.Context, creds domain.Credential, accessToken string) ([]Account, error)
 	SyncTransactions(ctx context.Context, creds domain.Credential, accessToken, cursor string) (SyncResult, error)
+	InvestmentHoldings(ctx context.Context, creds domain.Credential, accessToken string) (InvestmentHoldingsResult, error)
+	InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) ([]InvestmentTransaction, error)
 	Remove(ctx context.Context, creds domain.Credential, accessToken string) error
 	Institution(ctx context.Context, creds domain.Credential, institutionID string) (InstitutionInfo, error)
 }

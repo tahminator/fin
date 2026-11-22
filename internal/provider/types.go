@@ -48,3 +48,47 @@ type SyncResult struct {
 	Removed    []string
 	NextCursor string
 }
+
+type InvestmentSecurity struct {
+	ExternalID string
+	Name       *string
+	Ticker     *string
+	Type       *string
+	Subtype    *string
+	Currency   *string
+}
+
+type InvestmentHolding struct {
+	AccountExternalID    string
+	SecurityExternalID   string
+	InstitutionPrice     string
+	InstitutionPriceAsOf *time.Time
+	InstitutionValue     string
+	CostBasis            *string
+	Quantity             string
+	Currency             *string
+	VestedQuantity       *string
+	VestedValue          *string
+}
+
+type InvestmentHoldingsResult struct {
+	Securities []InvestmentSecurity
+	Holdings   []InvestmentHolding
+}
+
+type InvestmentTransaction struct {
+	ExternalID          string
+	CancelExternalID    *string
+	AccountExternalID   string
+	SecurityExternalID  *string
+	PostedOn            time.Time
+	TransactionDateTime *time.Time
+	Name                string
+	Quantity            string
+	Amount              string
+	Price               string
+	Fees                *string
+	Type                string
+	Subtype             string
+	Currency            *string
+}

@@ -109,6 +109,7 @@ func TestMapErrorItemLoginRequiredIsReauthRequired(t *testing.T) {
 	}{
 		{name: "bare SDK error", err: badRequest("ITEM_LOGIN_REQUIRED", "the login details of this item have changed")},
 		{name: "wrapped SDK error", err: fmt.Errorf("call: %w", badRequest("ITEM_LOGIN_REQUIRED", "the login details of this item have changed"))},
+		{name: "missing product consent", err: badRequest("ADDITIONAL_CONSENT_REQUIRED", "the login details of this item have changed")},
 	}
 
 	for _, tt := range tests {
@@ -121,6 +122,37 @@ func TestMapErrorItemLoginRequiredIsReauthRequired(t *testing.T) {
 
 			if !strings.Contains(err.Error(), "the login details of this item have changed") {
 				t.Fatalf("message %q does not contain the Plaid message", err.Error())
+			}
+		})
+	}
+}
+
+func TestMapErrorUnsupportedInvestmentsAreUnsupported(t *testing.T) {
+	for _, code := range []string{"NO_INVESTMENT_ACCOUNTS", "PRODUCTS_NOT_SUPPORTED"} {
+		t.Run(code, func(t *testing.T) {
+			if err := mapError(badRequest(code, "no investments")); !errors.Is(err, domain.ErrUnsupported) {
+				t.Fatalf("got %v, want ErrUnsupported", err)
+			}
+		})
+	}
+}
+
+func TestMapInvestmentTransactionUsesFinSignConvention(t *testing.T) {
+	tests := []struct {
+		name   string
+		amount float64
+		want   string
+	}{
+		{name: "buy is money out", amount: 150.25, want: "-150.25"},
+		{name: "sell is money in", amount: -80, want: "80"},
+		{name: "zero", amount: 0, want: "0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mapInvestmentTransaction(&plaidsdk.InvestmentTransaction{Amount: tt.amount})
+			if got.Amount != tt.want {
+				t.Errorf("amount = %q, want %q", got.Amount, tt.want)
 			}
 		})
 	}

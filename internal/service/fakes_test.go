@@ -192,21 +192,45 @@ func (f *fakeTransactions) DeleteByExternalIDs(ctx context.Context, userID uuid.
 type fakeProvider struct {
 	provider.Provider
 	createLinkToken                 func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
-	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string, consentInvestments bool) (string, error)
 	createAccountSelectionLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
 	exchange                        func(ctx context.Context, creds domain.Credential, publicToken string) (provider.LinkedItem, error)
 	accounts                        func(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.Account, error)
 	syncTransactions                func(ctx context.Context, creds domain.Credential, accessToken, cursor string) (provider.SyncResult, error)
 	remove                          func(ctx context.Context, creds domain.Credential, accessToken string) error
 	institution                     func(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error)
+	investmentHoldings              func(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error)
+	investmentTransactions          func(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentTransactionsResult, error)
+}
+
+func (f *fakeProvider) InvestmentHoldings(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error) {
+	return f.investmentHoldings(ctx, creds, accessToken)
+}
+
+func (f *fakeProvider) InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentTransactionsResult, error) {
+	return f.investmentTransactions(ctx, creds, accessToken)
+}
+
+type fakeInvestments struct {
+	repository.InvestmentRepository
+	replaceHoldings    func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error
+	upsertTransactions func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, transactions []domain.InvestmentTransaction) error
+}
+
+func (f *fakeInvestments) ReplaceHoldings(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error {
+	return f.replaceHoldings(ctx, userID, accountIDs, securities, holdings)
+}
+
+func (f *fakeInvestments) UpsertTransactions(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, transactions []domain.InvestmentTransaction) error {
+	return f.upsertTransactions(ctx, userID, accountIDs, securities, transactions)
 }
 
 func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {
 	return f.createLinkToken(ctx, creds, userID, redirectURI)
 }
 
-func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
-	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI)
+func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string, consentInvestments bool) (string, error) {
+	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI, consentInvestments)
 }
 
 func (f *fakeProvider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {

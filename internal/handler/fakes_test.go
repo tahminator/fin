@@ -120,7 +120,7 @@ func plaidCredentials() *fakeCredentials {
 type fakeProvider struct {
 	provider.Provider
 	createLinkToken                 func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
-	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+	createUpdateLinkToken           func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string, consentInvestments bool) (string, error)
 	createAccountSelectionLinkToken func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
 	remove                          func(ctx context.Context, creds domain.Credential, accessToken string) error
 }
@@ -129,8 +129,8 @@ func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credent
 	return f.createLinkToken(ctx, creds, userID, redirectURI)
 }
 
-func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
-	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI)
+func (f *fakeProvider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string, consentInvestments bool) (string, error) {
+	return f.createUpdateLinkToken(ctx, creds, userID, accessToken, redirectURI, consentInvestments)
 }
 
 func (f *fakeProvider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
@@ -147,8 +147,14 @@ func newConnectionHandler(
 	credentials repository.CredentialRepository,
 	accountProvider provider.Provider,
 ) *handler.ConnectionHandler {
+	accounts := &fakeAccounts{
+		listByUser: func(context.Context, uuid.UUID, repository.AccountFilter, int, int) ([]domain.Account, int, error) {
+			return nil, 0, nil
+		},
+	}
+
 	connectionService := service.NewConnectionService(
-		service.ConnectionRepositories{Credentials: credentials, Connections: connections},
+		service.ConnectionRepositories{Credentials: credentials, Connections: connections, Accounts: accounts},
 		accountProvider,
 		nil,
 		cipher,

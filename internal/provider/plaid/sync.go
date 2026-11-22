@@ -8,6 +8,7 @@ import (
 
 	plaidsdk "github.com/plaid/plaid-go/v50"
 	"github.com/plaid/plaid-go/v50/client"
+	"github.com/plaid/plaid-go/v50/core"
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/metrics"
@@ -47,17 +48,17 @@ func (p *Provider) InvestmentHoldings(ctx context.Context, creds domain.Credenti
 
 	result, err := p.investmentHoldings(ctx, creds, accessToken)
 
-	p.observe(metrics.OperationAccounts, started, err)
+	p.observe(metrics.OperationInvestmentHoldings, started, err)
 
 	return result, err
 }
 
-func (p *Provider) InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.InvestmentTransaction, error) {
+func (p *Provider) InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentTransactionsResult, error) {
 	started := time.Now()
 
 	result, err := p.investmentTransactions(ctx, creds, accessToken)
 
-	p.observe(metrics.OperationSyncTransactions, started, err)
+	p.observe(metrics.OperationInvestmentTransactions, started, err)
 
 	return result, err
 }
@@ -116,14 +117,8 @@ func (p *Provider) investmentHoldings(ctx context.Context, creds domain.Credenti
 	}
 
 	result := provider.InvestmentHoldingsResult{
-		Securities: make([]provider.InvestmentSecurity, 0, len(response.Securities)),
+		Securities: mapInvestmentSecurities(response.Securities),
 		Holdings:   make([]provider.InvestmentHolding, 0, len(response.Holdings)),
-	}
-
-	for _, security := range response.Securities {
-		if security != nil {
-			result.Securities = append(result.Securities, mapInvestmentSecurity(security))
-		}
 	}
 
 	for _, holding := range response.Holdings {
@@ -135,32 +130,39 @@ func (p *Provider) investmentHoldings(ctx context.Context, creds domain.Credenti
 	return result, nil
 }
 
-func (p *Provider) investmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.InvestmentTransaction, error) {
+func (p *Provider) investmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentTransactionsResult, error) {
 	c, err := p.client(creds)
 	if err != nil {
-		return nil, err
+		return provider.InvestmentTransactionsResult{}, err
 	}
 
 	end := time.Now().UTC()
 	start := end.AddDate(-2, 0, 0)
+
 	page, err := c.Investments.GetTransactions(ctx, &plaidsdk.InvestmentsTransactionsGetRequest{
 		AccessToken: accessToken,
 		StartDate:   start,
 		EndDate:     end,
 	})
-	if err != nil {
-		return nil, mapError(err)
+
+	var result provider.InvestmentTransactionsResult
+
+	for err == nil && page != nil && len(page.Results) > 0 {
+		if page.Response != nil {
+			result.Securities = append(result.Securities, mapInvestmentSecurities(page.Response.Securities)...)
+		}
+
+		for _, transaction := range page.Results {
+			if transaction != nil {
+				result.Transactions = append(result.Transactions, mapInvestmentTransaction(transaction))
+			}
+		}
+
+		page, err = page.GetNextPage(ctx)
 	}
 
-	result := make([]provider.InvestmentTransaction, 0)
-	iterator := page.Iterator()
-
-	for iterator.Next(ctx) {
-		result = append(result, mapInvestmentTransaction(iterator.Current()))
-	}
-
-	if err := iterator.Err(); err != nil {
-		return nil, mapError(err)
+	if err != nil && !errors.Is(err, core.ErrNoPages) {
+		return provider.InvestmentTransactionsResult{}, mapError(err)
 	}
 
 	return result, nil

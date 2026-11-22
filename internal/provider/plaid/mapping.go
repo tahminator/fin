@@ -11,7 +11,12 @@ import (
 	"github.com/tahminator/fin/internal/provider"
 )
 
-const itemLoginRequired = "ITEM_LOGIN_REQUIRED"
+const (
+	itemLoginRequired         = "ITEM_LOGIN_REQUIRED"
+	additionalConsentRequired = "ADDITIONAL_CONSENT_REQUIRED"
+	noInvestmentAccounts      = "NO_INVESTMENT_ACCOUNTS"
+	productsNotSupported      = "PRODUCTS_NOT_SUPPORTED"
+)
 
 type plaidError interface {
 	GetBody() *plaidsdk.PlaidError
@@ -44,8 +49,11 @@ func mapError(err error) error {
 
 	body := plaidErr.GetBody()
 
-	if body.ErrorCode == itemLoginRequired {
+	switch body.ErrorCode {
+	case itemLoginRequired, additionalConsentRequired:
 		return fmt.Errorf("%w: %s", domain.ErrReauthRequired, body.ErrorMessage)
+	case noInvestmentAccounts, productsNotSupported:
+		return fmt.Errorf("%w: %s", domain.ErrUnsupported, body.ErrorMessage)
 	}
 
 	return &Error{Code: body.ErrorCode, Message: body.ErrorMessage, cause: err}
@@ -147,6 +155,17 @@ func currencyOf(iso, unofficial *string) *string {
 	return unofficial
 }
 
+func mapInvestmentSecurities(securities []*plaidsdk.Security) []provider.InvestmentSecurity {
+	mapped := make([]provider.InvestmentSecurity, 0, len(securities))
+	for _, security := range securities {
+		if security != nil {
+			mapped = append(mapped, mapInvestmentSecurity(security))
+		}
+	}
+
+	return mapped
+}
+
 func mapInvestmentSecurity(security *plaidsdk.Security) provider.InvestmentSecurity {
 	return provider.InvestmentSecurity{
 		ExternalID: security.SecurityID,
@@ -197,7 +216,7 @@ func mapInvestmentTransaction(transaction *plaidsdk.InvestmentTransaction) provi
 		TransactionDateTime: transaction.TransactionDatetime,
 		Name:                transaction.Name,
 		Quantity:            formatInvestmentDecimal(transaction.Quantity),
-		Amount:              formatInvestmentDecimal(transaction.Amount),
+		Amount:              formatAmount(transaction.Amount),
 		Price:               formatInvestmentDecimal(transaction.Price),
 		Type:                string(transaction.Type),
 		Subtype:             string(transaction.Subtype),

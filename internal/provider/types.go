@@ -92,3 +92,8 @@ type InvestmentTransaction struct {
 	Subtype             string
 	Currency            *string
 }
+
+type InvestmentTransactionsResult struct {
+	Securities   []InvestmentSecurity
+	Transactions []InvestmentTransaction
+}

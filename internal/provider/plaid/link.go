@@ -26,8 +26,13 @@ func (p *Provider) CreateLinkToken(ctx context.Context, creds domain.Credential,
 	return token, err
 }
 
-func (p *Provider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
-	return p.createUpdateLinkToken(ctx, creds, p.updateLinkTokenRequest(userID, accessToken, redirectURI))
+func (p *Provider) CreateUpdateLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string, consentInvestments bool) (string, error) {
+	request := p.updateLinkTokenRequest(userID, accessToken, redirectURI)
+	if consentInvestments {
+		request.AdditionalConsentedProducts = []plaidsdk.Products{plaidsdk.ProductsInvestments}
+	}
+
+	return p.createUpdateLinkToken(ctx, creds, request)
 }
 
 func (p *Provider) CreateAccountSelectionLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
@@ -80,10 +85,8 @@ func (p *Provider) linkTokenRequest(userID, redirectURI string) *plaidsdk.LinkTo
 
 func (p *Provider) initialLinkTokenRequest(userID, redirectURI string) *plaidsdk.LinkTokenCreateRequest {
 	request := p.linkTokenRequest(userID, redirectURI)
-	request.Products = []plaidsdk.Products{
-		plaidsdk.ProductsTransactions,
-		plaidsdk.ProductsInvestments,
-	}
+	request.Products = []plaidsdk.Products{plaidsdk.ProductsTransactions}
+	request.OptionalProducts = []plaidsdk.Products{plaidsdk.ProductsInvestments}
 
 	return request
 }
@@ -91,7 +94,6 @@ func (p *Provider) initialLinkTokenRequest(userID, redirectURI string) *plaidsdk
 func (p *Provider) updateLinkTokenRequest(userID, accessToken, redirectURI string) *plaidsdk.LinkTokenCreateRequest {
 	request := p.linkTokenRequest(userID, redirectURI)
 	request.AccessToken = &accessToken
-	request.AdditionalConsentedProducts = []plaidsdk.Products{plaidsdk.ProductsInvestments}
 
 	return request
 }

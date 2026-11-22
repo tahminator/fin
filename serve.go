@@ -19,6 +19,7 @@ import (
 	"github.com/tahminator/fin/internal/handler"
 	"github.com/tahminator/fin/internal/identity"
 	"github.com/tahminator/fin/internal/metrics"
+	"github.com/tahminator/fin/internal/oauth"
 	"github.com/tahminator/fin/internal/provider/plaid"
 	"github.com/tahminator/fin/internal/repository/postgres"
 	"github.com/tahminator/fin/internal/server"
@@ -65,6 +66,12 @@ func serve() error {
 	summary := postgres.NewSummaryRepository(pool)
 	metricsRepo := postgres.NewMetricsRepository(pool)
 	rateLimits := postgres.NewRateLimitRepository(pool)
+	oauthRepos := service.OAuthRepositories{
+		Clients:        postgres.NewOAuthClientRepository(pool),
+		Authorizations: postgres.NewOAuthAuthorizationRepository(pool),
+		Grants:         postgres.NewOAuthGrantRepository(pool),
+		Tokens:         postgres.NewOAuthTokenRepository(pool),
+	}
 	pinger := postgres.NewPinger(pool)
 
 	recorder := metrics.Prometheus{}
@@ -96,6 +103,18 @@ func serve() error {
 		cfg.PlaidRedirectURI(),
 	)
 	notificationService := service.NewNotificationService(connections)
+	oauthService := service.NewOAuthService(
+		service.OAuthConfig{
+			Issuer:          cfg.OAuthIssuer(),
+			Resource:        cfg.MCPResource(),
+			AccessTokenTTL:  cfg.MCP.AccessTokenTTL,
+			RefreshTokenTTL: cfg.MCP.RefreshTokenTTL,
+			GrantMaxAge:     cfg.MCP.GrantMaxAge,
+		},
+		oauthRepos,
+		oauth.NewMetadataDocumentFetcher(oauth.PublicAddressesOnly),
+		recorder,
+	)
 	scheduler := service.NewSyncScheduler(cfg.SyncSchedule, connections, connectionService, recorder, logger)
 
 	mux := http.NewServeMux()
@@ -110,7 +129,12 @@ func serve() error {
 		Transactions:   handler.NewTransactionHandler(transactions),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),
+		OAuthConsent:   handler.NewOAuthConsentHandler(oauthService),
 		RequireSession: server.RequireSession(api, authService),
+	}
+
+	if cfg.MCP.Enabled {
+		handlers.OAuth = handler.NewOAuthHandler(oauthService, rateLimiter, handler.DefaultOAuthLimits())
 	}
 
 	if cfg.StaticDir != "" {

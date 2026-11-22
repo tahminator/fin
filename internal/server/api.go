@@ -26,6 +26,7 @@ func NewAPI(mux *http.ServeMux) huma.API {
 			In:   "cookie",
 			Name: handler.SessionCookie,
 		},
+		handler.MCPOAuthScheme: handler.MCPOAuthSecurityScheme(),
 	}
 
 	return humago.New(mux, config)

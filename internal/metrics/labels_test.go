@@ -12,8 +12,8 @@ func TestEnumLabels(t *testing.T) {
 		{
 			name:       "SyncTrigger",
 			labels:     labelValues(allSyncTriggers()),
-			declared:   int(SyncTriggerAccountSelection) + 1,
-			outOfRange: []string{SyncTrigger(-1).String(), (SyncTriggerAccountSelection + 1).String()},
+			declared:   int(SyncTriggerMCP) + 1,
+			outOfRange: []string{SyncTrigger(-1).String(), (SyncTriggerMCP + 1).String()},
 		},
 		{
 			name:       "SyncOutcome",
@@ -54,8 +54,44 @@ func TestEnumLabels(t *testing.T) {
 		{
 			name:       "RouteGroup",
 			labels:     labelValues(allRouteGroups()),
-			declared:   int(RouteGroupStatic) + 1,
-			outOfRange: []string{RouteGroup(-1).String(), (RouteGroupStatic + 1).String()},
+			declared:   int(RouteGroupOAuth) + 1,
+			outOfRange: []string{RouteGroup(-1).String(), (RouteGroupOAuth + 1).String()},
+		},
+		{
+			name:       "OAuthGrantType",
+			labels:     labelValues(allOAuthGrantTypes()),
+			declared:   int(OAuthGrantRefreshToken) + 1,
+			outOfRange: []string{OAuthGrantType(-1).String(), (OAuthGrantRefreshToken + 1).String()},
+		},
+		{
+			name:       "OAuthOutcome",
+			labels:     labelValues(allOAuthOutcomes()),
+			declared:   int(OAuthOutcomeError) + 1,
+			outOfRange: []string{OAuthOutcome(-1).String(), (OAuthOutcomeError + 1).String()},
+		},
+		{
+			name:       "ClientSource",
+			labels:     labelValues(allClientSources()),
+			declared:   int(ClientSourceRegistered) + 1,
+			outOfRange: []string{ClientSource(-1).String(), (ClientSourceRegistered + 1).String()},
+		},
+		{
+			name:       "ConsentDecision",
+			labels:     labelValues(allConsentDecisions()),
+			declared:   int(ConsentDenied) + 1,
+			outOfRange: []string{ConsentDecision(-1).String(), (ConsentDenied + 1).String()},
+		},
+		{
+			name:       "MCPTool",
+			labels:     labelValues(AllMCPTools()),
+			declared:   int(ToolRefreshData) + 1,
+			outOfRange: []string{MCPTool(-1).String(), (ToolRefreshData + 1).String()},
+		},
+		{
+			name:       "ToolOutcome",
+			labels:     labelValues(allToolOutcomes()),
+			declared:   int(ToolOutcomeError) + 1,
+			outOfRange: []string{ToolOutcome(-1).String(), (ToolOutcomeError + 1).String()},
 		},
 		{
 			name:       "Method",

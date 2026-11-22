@@ -37,6 +37,11 @@ func snapshotSeries() map[string]seriesSnapshot {
 		scheduledRunFailedConnections,
 		scheduledRunLastTimestamp,
 		scheduledRunLastSuccessTimestamp,
+		oauthTokenRequestsTotal,
+		oauthClientRegistrationsTotal,
+		oauthConsentsTotal,
+		mcpToolCallsTotal,
+		mcpToolDuration,
 	)
 
 	families, err := r.Gather()
@@ -66,13 +71,18 @@ var expectedSeries = []struct {
 	collector prometheus.Collector
 	count     int
 }{
-	{name: "fin_http_requests_total", collector: httpRequestsTotal, count: 120},
-	{name: "fin_http_request_duration_seconds", collector: httpRequestDuration, count: 24},
+	{name: "fin_http_requests_total", collector: httpRequestsTotal, count: 180},
+	{name: "fin_http_request_duration_seconds", collector: httpRequestDuration, count: 36},
 	{name: "fin_logins_total", collector: loginsTotal, count: 4},
 	{name: "fin_provider_requests_total", collector: providerRequestsTotal, count: 14},
 	{name: "fin_provider_request_duration_seconds", collector: providerRequestDuration, count: 14},
-	{name: "fin_syncs_total", collector: syncsTotal, count: 20},
-	{name: "fin_sync_duration_seconds", collector: syncDuration, count: 5},
+	{name: "fin_syncs_total", collector: syncsTotal, count: 24},
+	{name: "fin_sync_duration_seconds", collector: syncDuration, count: 6},
+	{name: "fin_oauth_token_requests_total", collector: oauthTokenRequestsTotal, count: 12},
+	{name: "fin_oauth_client_registrations_total", collector: oauthClientRegistrationsTotal, count: 12},
+	{name: "fin_oauth_consents_total", collector: oauthConsentsTotal, count: 2},
+	{name: "fin_mcp_tool_calls_total", collector: mcpToolCallsTotal, count: 40},
+	{name: "fin_mcp_tool_duration_seconds", collector: mcpToolDuration, count: 10},
 	{name: "fin_scheduled_sync_runs_total", collector: scheduledRunsTotal, count: 3},
 	{name: "fin_scheduled_sync_duration_seconds", collector: scheduledRunDuration, count: 1},
 	{name: "fin_scheduled_sync_last_run_failed_connections", collector: scheduledRunFailedConnections, count: 1},

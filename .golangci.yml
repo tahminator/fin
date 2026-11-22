@@ -43,6 +43,14 @@ linters:
         linters: [gosec]
         text: G703
 
+      - path: (internal/domain/rate_limit.go|internal/handler/oauth.go|internal/service/oauth_test.go)
+        linters: [gosec]
+        text: G101
+
+      - path: internal/handler/oauth.go
+        linters: [gosec]
+        text: G710
+
 formatters:
   enable:
     - gofumpt

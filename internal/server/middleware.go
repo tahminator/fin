@@ -74,6 +74,10 @@ func routeGroupOf(path string) metrics.RouteGroup {
 		return metrics.RouteGroupAPI
 	case strings.HasPrefix(path, "/auth/"):
 		return metrics.RouteGroupAuth
+	case path == "/mcp":
+		return metrics.RouteGroupMCP
+	case strings.HasPrefix(path, "/oauth/") || strings.HasPrefix(path, "/.well-known/"):
+		return metrics.RouteGroupOAuth
 	case strings.HasPrefix(path, "/openapi") || path == "/swagger" || strings.HasPrefix(path, "/swagger/"):
 		return metrics.RouteGroupDocs
 	}

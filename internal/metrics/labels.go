@@ -8,6 +8,7 @@ const (
 	SyncTriggerScheduled
 	SyncTriggerReauth
 	SyncTriggerAccountSelection
+	SyncTriggerMCP
 )
 
 func (t SyncTrigger) String() string {
@@ -22,13 +23,15 @@ func (t SyncTrigger) String() string {
 		return "reauth"
 	case SyncTriggerAccountSelection:
 		return "account_selection"
+	case SyncTriggerMCP:
+		return "mcp"
 	}
 
 	return "unknown"
 }
 
 func allSyncTriggers() []SyncTrigger {
-	return []SyncTrigger{SyncTriggerLink, SyncTriggerManual, SyncTriggerScheduled, SyncTriggerReauth, SyncTriggerAccountSelection}
+	return []SyncTrigger{SyncTriggerLink, SyncTriggerManual, SyncTriggerScheduled, SyncTriggerReauth, SyncTriggerAccountSelection, SyncTriggerMCP}
 }
 
 type SyncOutcome int
@@ -196,6 +199,8 @@ const (
 	RouteGroupAuth
 	RouteGroupDocs
 	RouteGroupStatic
+	RouteGroupMCP
+	RouteGroupOAuth
 )
 
 func (g RouteGroup) String() string {
@@ -208,13 +213,17 @@ func (g RouteGroup) String() string {
 		return "docs"
 	case RouteGroupStatic:
 		return "static"
+	case RouteGroupMCP:
+		return "mcp"
+	case RouteGroupOAuth:
+		return "oauth"
 	}
 
 	return "unknown"
 }
 
 func allRouteGroups() []RouteGroup {
-	return []RouteGroup{RouteGroupAPI, RouteGroupAuth, RouteGroupDocs, RouteGroupStatic}
+	return []RouteGroup{RouteGroupAPI, RouteGroupAuth, RouteGroupDocs, RouteGroupStatic, RouteGroupMCP, RouteGroupOAuth}
 }
 
 type Method int

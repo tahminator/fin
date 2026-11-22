@@ -30,7 +30,7 @@ const (
 	clientSecretPrefix      = "fin_cs_"
 )
 
-var ErrInvalidAccessToken = errors.New("invalid access token")
+var ErrInvalidAccessToken = domain.ErrInvalidToken
 
 type OAuthConfig struct {
 	Issuer          string

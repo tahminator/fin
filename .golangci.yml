@@ -6,6 +6,7 @@ linters:
   enable:
     - bodyclose
     - contextcheck
+    - depguard
     - errorlint
     - exhaustive
     - gocritic
@@ -17,6 +18,21 @@ linters:
     - unparam
 
   settings:
+    depguard:
+      rules:
+        mcpserver:
+          files:
+            - "**/internal/mcpserver/**"
+          deny:
+            - pkg: github.com/tahminator/fin/internal/provider
+              desc: the MCP server must never reach Plaid directly; it only gets the Sync interface
+            - pkg: github.com/tahminator/fin/internal/encryption
+              desc: the MCP server must never see bank access tokens
+            - pkg: github.com/tahminator/fin/internal/service
+              desc: depend on the narrow interfaces declared in mcpserver, not on services that can link or remove banks
+            - pkg: github.com/plaid/plaid-go
+              desc: the MCP server must never call Plaid
+
     staticcheck:
       checks:
         - all

@@ -1,5 +1,16 @@
-import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
+import type { ReactNode } from "react";
+
+import { ListRow, ListSection } from "@/components/list-section";
 import { Checkbox } from "@/components/ui/checkbox";
+
+function ScopeLabel({ title, subtitle }: { title: string; subtitle: ReactNode }) {
+  return (
+    <div className="min-w-0 flex-1 py-1">
+      <div className="type-body">{title}</div>
+      <div className="type-subheadline text-muted-foreground">{subtitle}</div>
+    </div>
+  );
+}
 
 interface ScopeListProps {
   syncRequested: boolean;
@@ -12,7 +23,7 @@ export function ScopeList({ syncRequested, allowSync, onAllowSyncChange }: Scope
     <ListSection header="This app will be able to">
       <ListRow>
         <Checkbox checked disabled aria-label="Read access is required" />
-        <ListRowLabel title="Read your accounts, balances and transactions" subtitle="Required" />
+        <ScopeLabel title="Read your accounts, balances and transactions" subtitle="Required" />
       </ListRow>
       {syncRequested ? (
         <ListRow>
@@ -24,7 +35,7 @@ export function ScopeList({ syncRequested, allowSync, onAllowSyncChange }: Scope
             }}
           />
           <label htmlFor="allow-sync" className="min-w-0 flex-1">
-            <ListRowLabel
+            <ScopeLabel
               title="Refresh data from your connected banks"
               subtitle="At most once per bank every few minutes"
             />

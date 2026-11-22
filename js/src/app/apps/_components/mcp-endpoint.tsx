@@ -22,7 +22,10 @@ export function McpEndpoint() {
       footer={
         <>
           In Claude, add a custom connector with this URL. In Claude Code, run{" "}
-          <code className="break-all">claude mcp add --transport http fin {endpoint}</code>.
+          <code className="[overflow-wrap:anywhere]">
+            claude mcp add --transport http fin {endpoint}
+          </code>
+          .
         </>
       }
     >

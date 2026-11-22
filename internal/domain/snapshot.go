@@ -16,4 +16,5 @@ type UserSnapshot struct {
 	Accounts              int                      `db:"accounts"`
 	Transactions          int                      `db:"transactions"`
 	OldestSyncAt          *time.Time               `db:"oldest_sync_at"`
+	NetWorthByCurrency    map[string]string        `db:"-"`
 }

@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +22,7 @@ var (
 	connectionsWithErrorsDesc = newDesc("fin_connections_with_errors", "Connections whose last sync failed, per user.", "user")
 	accountsDesc              = newDesc("fin_accounts", "Accounts per user.", "user")
 	transactionsDesc          = newDesc("fin_transactions", "Transactions per user.", "user")
+	netWorthDesc              = newDesc("fin_net_worth", "Net worth per user and currency.", "user", "currency")
 	oldestSyncDesc            = newDesc("fin_connection_oldest_sync_timestamp_seconds", "Unix time of the least recently synced connection per user.", "user")
 	poolAcquiredDesc          = newDesc("fin_db_pool_acquired_conns", "Database connections currently in use.")
 	poolIdleDesc              = newDesc("fin_db_pool_idle_conns", "Idle database connections.")
@@ -50,6 +52,7 @@ func (c databaseCollector) Describe(descs chan<- *prometheus.Desc) {
 		connectionsWithErrorsDesc,
 		accountsDesc,
 		transactionsDesc,
+		netWorthDesc,
 		oldestSyncDesc,
 		poolAcquiredDesc,
 		poolIdleDesc,
@@ -96,6 +99,13 @@ func collectUser(metrics chan<- prometheus.Metric, user domain.UserSnapshot) {
 	metrics <- gauge(connectionsWithErrorsDesc, float64(user.ConnectionsWithErrors), user.Email)
 	metrics <- gauge(accountsDesc, float64(user.Accounts), user.Email)
 	metrics <- gauge(transactionsDesc, float64(user.Transactions), user.Email)
+
+	for currency, net := range user.NetWorthByCurrency {
+		value, err := strconv.ParseFloat(net, 64)
+		if err == nil {
+			metrics <- gauge(netWorthDesc, value, user.Email, currency)
+		}
+	}
 
 	byStatus := make(map[ConnectionStatus]int)
 

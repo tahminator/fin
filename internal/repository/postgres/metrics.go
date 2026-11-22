@@ -75,6 +75,26 @@ JOIN users AS u ON u.id = c.user_id
 GROUP BY u.email, c.status;
 `
 
+const netWorthByUserAndCurrency = `
+WITH totals AS (
+    SELECT
+        u.email,
+        COALESCE(a.currency, 'XXX') AS currency,
+        COALESCE(SUM(a.current_balance) FILTER (WHERE a.type NOT IN ('credit', 'loan')), 0) AS assets,
+        COALESCE(SUM(a.current_balance) FILTER (WHERE a.type IN ('credit', 'loan')), 0)     AS liabilities
+    FROM users AS u
+    LEFT JOIN accounts AS a ON a.user_id = u.id
+    WHERE a.current_balance IS NOT NULL
+    GROUP BY u.email, COALESCE(a.currency, 'XXX')
+)
+SELECT
+    t.email,
+    t.currency,
+    (t.assets - t.liabilities)::text AS net
+FROM totals AS t
+ORDER BY t.email, t.currency;
+`
+
 type providerCount struct {
 	Provider domain.Provider `db:"provider"`
 	Users    int             `db:"users"`
@@ -84,6 +104,12 @@ type statusCount struct {
 	Email       string                  `db:"email"`
 	Status      domain.ConnectionStatus `db:"status"`
 	Connections int                     `db:"connections"`
+}
+
+type netWorthCount struct {
+	Email    string `db:"email"`
+	Currency string `db:"currency"`
+	Net      string `db:"net"`
 }
 
 func (r *MetricsRepository) Snapshot(ctx context.Context) (domain.MetricsSnapshot, error) {
@@ -107,6 +133,11 @@ func (r *MetricsRepository) Snapshot(ctx context.Context) (domain.MetricsSnapsho
 		return domain.MetricsSnapshot{}, err
 	}
 
+	netWorth, err := collect[netWorthCount](ctx, r.pool, netWorthByUserAndCurrency)
+	if err != nil {
+		return domain.MetricsSnapshot{}, err
+	}
+
 	snapshot := domain.MetricsSnapshot{
 		Users:                users,
 		UsersWithCredentials: make(map[domain.Provider]int, len(providers)),
@@ -118,6 +149,7 @@ func (r *MetricsRepository) Snapshot(ctx context.Context) (domain.MetricsSnapsho
 	}
 
 	attachStatuses(snapshot.PerUser, statuses)
+	attachNetWorth(snapshot.PerUser, netWorth)
 
 	return snapshot, nil
 }
@@ -135,6 +167,22 @@ func attachStatuses(perUser []domain.UserSnapshot, statuses []statusCount) {
 
 	for i := range perUser {
 		perUser[i].ConnectionsByStatus = byEmail[perUser[i].Email]
+	}
+}
+
+func attachNetWorth(perUser []domain.UserSnapshot, netWorth []netWorthCount) {
+	byEmail := make(map[string]map[string]string)
+
+	for _, value := range netWorth {
+		if byEmail[value.Email] == nil {
+			byEmail[value.Email] = make(map[string]string)
+		}
+
+		byEmail[value.Email][value.Currency] = value.Net
+	}
+
+	for i := range perUser {
+		perUser[i].NetWorthByCurrency = byEmail[perUser[i].Email]
 	}
 }
 

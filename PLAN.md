@@ -1697,7 +1697,7 @@ Copied from the references:
 | `promote-image`    | `--releaseTag`, `--sha` (both required)                                                                               | `DOCKER_HUB_PAT`                                                                                 | `promoteDockerImage({ originalTag: shortSha(sha), newGithubTags: [releaseTag, "latest"], repository: DOCKER_REPOSITORY })`.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `deploy`           | `--releaseTag` (required)                                                                                             | GitHub App vars                                                                                  | `updateK8sTagWithPR({ manifestRepo: [GITHUB_OWNER, K8S_MANIFESTS_REPOSITORY], originRepo: [GITHUB_OWNER, GITHUB_REPOSITORY], kustomizationFilePath: KUSTOMIZATION_FILE_PATH, imageName: \`${DOCKER_HUB_USERNAME}/${DOCKER_REPOSITORY}\`, newTag: releaseTag, environment: "production" })`. Production only, so there is no `--sha`or`--environment`.                                                                                                                                                                                                                               |
 
-Production migrations have no script. As in grpc, the `migrate` composite runs the Justfile recipe: `just migrate` (which already reads `DATABASE_URL`).
+Production migrations in CD have no script. As in grpc, the `migrate` composite runs the Justfile recipe: `just migrate` (which already reads `DATABASE_URL`). The `/try` slash command (§12.11) runs the same recipe from its script.
 
 ### 12.5 Composite actions
 
@@ -1749,7 +1749,7 @@ Repository-level Actions secrets only; no GitHub environments. `tahminator/omnis
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `DOCKER_HUB_PAT` (shared)                                                               | `DockerClient` as `tahminator`: build, push, promote.                        |
 | `_GITHUB_APP_APP_ID`, `_GITHUB_APP_INSTALLATION_ID`, `_GITHUB_APP_PEM_CONTENT` (shared) | `GitHubClient.createWithGithubAppToken`: PR comment, release tag, GitOps PR. |
-| `PRODUCTION_MIGRATION_DATABASE_URL` (fin-specific)                                      | `DATABASE_URL` for `just migrate` in CD; use TLS and a migration role.       |
+| `PRODUCTION_MIGRATION_DATABASE_URL` (fin-specific)                                      | `DATABASE_URL` for `just migrate` in CD and `/try`; TLS, migration role.     |
 
 `SONAR_TOKEN` is also shared, but unused because fin has no Sonar project.
 
@@ -1767,7 +1767,7 @@ Other prerequisites:
 ### 12.9 Deviations from the references
 
 - One `linux/amd64` image and Docker repository: no arch matrix and no `-arm` repository.
-- No Sonar or coverage upload, no staging deploy jobs, and no slash-command workflows.
+- No Sonar or coverage upload and no staging deploy jobs. The `/try` and `/revert` slash commands (§12.11) are fin-specific.
 - No same-repository `if` guard on `buildImage`; it runs on every PR.
 - Docker Hub username is a constant (`abclang` style); there is no `DOCKER_HUB_USERNAME` secret.
 - `build-image` passes `GO_VERSION`, `NODE_VERSION` and `PNPM_VERSION` build args, which `infra/Dockerfile` requires.
@@ -1789,3 +1789,10 @@ Other prerequisites:
    - CD promotes that image, migrates and merges the `k8s-personal` PR.
 
    Flux reconciliation and app health are checked separately.
+
+### 12.11 PR slash commands
+
+`slash.yaml` uses `tahminator/pipeline/actions/commands`, which checks that the commenter has write access and dispatches `try-command.yml` or `revert-command.yml` on the PR head ref. Both share the `deploy-production` concurrency group with CD and report through a PR comment and a status check on the PR head.
+
+- `/try` (`src/try`): waits for the PR's `staging-<short>` image, reads the production tag from `k8s-personal`, then applies pending migrations from the PR branch to production with `just migrate` (up only, never down), then deploys the staging image with the `deploy` mechanism. The workflow installs just and golang-migrate in setup (`INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`) and passes `DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}` to the script step. Migrations run only once the image exists, so a missing image never migrates production. The script reads `migrate version` before and after and reports, for example, `Migrated production from version 8 to version 13` or `No pending migrations (version 8)`. A dirty database or a failed migration fails `/try` without deploying; the PR comment and status check point to the run logs and never include raw migrate output.
+- `/revert` (`src/revert`): restores the image the PR's `/try` replaced, as long as production still runs the tried image. It does not roll back migrations, so the restored image runs against the migrated schema.

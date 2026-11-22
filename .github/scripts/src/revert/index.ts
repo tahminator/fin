@@ -85,7 +85,9 @@ async function main() {
 
     await deployToProduction(ghClient, state.revertTo);
 
-    const summary = `@${author} restored \`${DOCKER_IMAGE}:${state.revertTo}\` in production with \`/revert\`, replacing \`${current}\`. ([run](${runUrl}))`;
+    const summary = `@${author} restored \`${DOCKER_IMAGE}:${state.revertTo}\` in production with \`/revert\`, replacing \`${current}\`. ([run](${runUrl}))
+
+Database migrations applied by \`/try\` were not rolled back.`;
 
     await reportToPr(ghClient, prId, `### Production reverted\n\n${summary}`);
     await completeStatusCheck(ghClient, checkRunId, "success", {

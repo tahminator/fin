@@ -103,18 +103,30 @@ func closeAt(bars []marketdata.Bar, t time.Time) (*big.Rat, bool) {
 	return parseDecimal(bars[index-1].Close), true
 }
 
-func seriesTimes(start, now time.Time, bars map[string][]marketdata.Bar) []time.Time {
+func lastBarTime(bars map[string][]marketdata.Bar) time.Time {
+	var last time.Time
+
+	for _, symbolBars := range bars {
+		if len(symbolBars) > 0 && symbolBars[len(symbolBars)-1].Time.After(last) {
+			last = symbolBars[len(symbolBars)-1].Time
+		}
+	}
+
+	return last
+}
+
+func seriesTimes(start, end time.Time, bars map[string][]marketdata.Bar) []time.Time {
 	times := []time.Time{start}
 
 	for _, symbolBars := range bars {
 		for _, bar := range symbolBars {
-			if bar.Time.After(start) && bar.Time.Before(now) {
+			if bar.Time.After(start) && bar.Time.Before(end) {
 				times = append(times, bar.Time)
 			}
 		}
 	}
 
-	times = append(times, now)
+	times = append(times, end)
 
 	slices.SortFunc(times, func(a, b time.Time) int {
 		return a.Compare(b)

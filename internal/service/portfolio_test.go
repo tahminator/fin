@@ -280,8 +280,12 @@ func TestPerformanceDayRangeShowsLastSessionWhenMarketIsClosed(t *testing.T) {
 		t.Errorf("start = %v, want 24h before Friday's last bar", performance.Start)
 	}
 
-	if want := []string{"1050.00", "1100.00", "1150.00", "1150.00"}; !slices.Equal(pointValues(performance.Points), want) {
+	if want := []string{"1050.00", "1100.00", "1150.00"}; !slices.Equal(pointValues(performance.Points), want) {
 		t.Errorf("points = %v, want Friday's session %v", pointValues(performance.Points), want)
+	}
+
+	if last := performance.Points[len(performance.Points)-1].Time; !last.Equal(friday) {
+		t.Errorf("last point at %v, want Friday's last bar %v, not now", last, friday)
 	}
 
 	if performance.Change != "100.00" {
@@ -302,5 +306,29 @@ func TestPerformanceBuyingIsNotAGain(t *testing.T) {
 
 	if performance.Change != "0.00" {
 		t.Errorf("change = %s, want 0.00 when only shares were bought at an unchanged price", performance.Change)
+	}
+}
+
+func TestPerformanceEndsAtLatestTradeWhenMarketIsClosed(t *testing.T) {
+	f := newPortfolioFixture()
+	sunday := time.Date(2026, time.November, 22, 20, 0, 0, 0, time.UTC)
+	friday := time.Date(2026, time.November, 20, 20, 55, 0, 0, time.UTC)
+	afterHours := time.Date(2026, time.November, 21, 0, 30, 0, 0, time.UTC)
+	f.service.now = func() time.Time { return sunday }
+	f.transactions = nil
+	f.bars = map[string][]marketdata.Bar{"AAPL": {
+		{Time: friday.Add(-24 * time.Hour), Close: "100"},
+		{Time: friday, Close: "110"},
+	}}
+	f.trades = map[string]marketdata.Trade{"AAPL": {Time: afterHours, Price: "112"}}
+
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	if err != nil {
+		t.Fatalf("Performance: %v", err)
+	}
+
+	last := performance.Points[len(performance.Points)-1]
+	if !last.Time.Equal(afterHours) || last.Value != "1170.00" {
+		t.Errorf("last point = %+v, want the after-hours trade at %v valued 1170.00", last, afterHours)
 	}
 }

@@ -70,10 +70,11 @@ func (s *PortfolioService) Performance(ctx context.Context, userID uuid.UUID, po
 
 	prices := s.prices(ctx, userID, positions, window, now)
 	start := sessionStart(window, now, prices.bars)
-	times := seriesTimes(start, now, prices.bars)
+	end := endOf(now, prices)
+	times := seriesTimes(start, end.time, prices.bars)
 
 	for _, p := range positions {
-		p.values = valuesOf(p, times, prices, now)
+		p.values = valuesOf(p, times, prices, end)
 	}
 
 	positions = slices.DeleteFunc(positions, func(p *position) bool {
@@ -114,13 +115,7 @@ func sessionStart(window rangeWindow, now time.Time, bars map[string][]marketdat
 		return window.start
 	}
 
-	var lastBar time.Time
-
-	for _, symbolBars := range bars {
-		if len(symbolBars) > 0 && symbolBars[len(symbolBars)-1].Time.After(lastBar) {
-			lastBar = symbolBars[len(symbolBars)-1].Time
-		}
-	}
+	lastBar := lastBarTime(bars)
 
 	if lastBar.IsZero() || !lastBar.Before(window.start) {
 		return window.start
@@ -168,7 +163,37 @@ func (s *PortfolioService) prices(ctx context.Context, userID uuid.UUID, positio
 	return marketPrices{status: domain.MarketDataLive, bars: bars, latest: latest}
 }
 
-func valuesOf(p *position, times []time.Time, prices marketPrices, now time.Time) []*big.Rat {
+type seriesEnd struct {
+	time   time.Time
+	trades bool
+}
+
+func endOf(now time.Time, prices marketPrices) seriesEnd {
+	if prices.status != domain.MarketDataLive {
+		return seriesEnd{time: now}
+	}
+
+	lastBar := lastBarTime(prices.bars)
+
+	var lastTrade time.Time
+
+	for _, trade := range prices.latest {
+		if trade.Time.After(lastTrade) && !trade.Time.After(now) {
+			lastTrade = trade.Time
+		}
+	}
+
+	switch {
+	case lastTrade.After(lastBar):
+		return seriesEnd{time: lastTrade, trades: true}
+	case !lastBar.IsZero():
+		return seriesEnd{time: lastBar}
+	}
+
+	return seriesEnd{time: now}
+}
+
+func valuesOf(p *position, times []time.Time, prices marketPrices, end seriesEnd) []*big.Rat {
 	symbol := p.symbol()
 	bars := prices.bars[symbol]
 	values := make([]*big.Rat, len(times))
@@ -176,7 +201,7 @@ func valuesOf(p *position, times []time.Time, prices marketPrices, now time.Time
 	for i, t := range times {
 		price := p.price
 
-		if trade, ok := prices.latest[symbol]; ok && symbol != "" && t.Equal(now) {
+		if trade, ok := prices.latest[symbol]; ok && symbol != "" && end.trades && t.Equal(end.time) {
 			price = parseDecimal(trade.Price)
 		} else if closePrice, ok := closeAt(bars, t); ok {
 			price = closePrice

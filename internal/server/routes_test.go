@@ -278,3 +278,48 @@ func TestRoutesLoginSetsPendingCookie(t *testing.T) {
 		t.Errorf("cookie = %+v, want fin_oauth with state.nonce.verifier", cookie)
 	}
 }
+
+func TestRoutesLoginCarriesOnlyValidConsentRequests(t *testing.T) {
+	router := newRouter(t, fakeResolver{})
+	valid := strings.Repeat("a", 43)
+
+	tests := []struct {
+		query string
+		parts int
+	}{
+		{query: "?consent=" + valid, parts: 4},
+		{query: "?consent=https://evil.example.com", parts: 3},
+		{query: "?consent=" + strings.Repeat("a", 42), parts: 3},
+		{query: "?consent=" + strings.Repeat("$", 43), parts: 3},
+	}
+
+	for _, tt := range tests {
+		rec := serve(t, router, http.MethodGet, "/auth/google/login"+tt.query)
+
+		cookie, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
+		if err != nil {
+			t.Fatalf("parse Set-Cookie: %v", err)
+		}
+
+		parts := strings.Split(cookie.Value, ".")
+		if len(parts) != tt.parts {
+			t.Errorf("%s: cookie has %d parts, want %d", tt.query, len(parts), tt.parts)
+		}
+
+		if tt.parts == 4 && parts[3] != valid {
+			t.Errorf("%s: consent part = %q", tt.query, parts[3])
+		}
+	}
+}
+
+func TestRoutesMCPAndOAuthPathsNeverFallThroughToTheSPA(t *testing.T) {
+	router := newRouter(t, fakeResolver{})
+
+	for _, path := range []string{"/oauth/unknown", "/.well-known/unknown", "/oauth/token"} {
+		rec := serve(t, router, http.MethodGet, path)
+
+		if strings.Contains(rec.Body.String(), "<html") {
+			t.Errorf("%s served the SPA", path)
+		}
+	}
+}

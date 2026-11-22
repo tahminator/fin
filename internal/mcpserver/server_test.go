@@ -68,7 +68,7 @@ func (fakeAccounts) ListByUser(context.Context, uuid.UUID, repository.AccountFil
 
 type fakeBalances struct{}
 
-func (fakeBalances) Balances(context.Context, uuid.UUID, []uuid.UUID) ([]domain.CurrencyBalance, error) {
+func (fakeBalances) Balances(context.Context, uuid.UUID, []uuid.UUID, []domain.AccountType) ([]domain.CurrencyBalance, error) {
 	return nil, nil
 }
 

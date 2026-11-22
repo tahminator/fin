@@ -165,6 +165,7 @@ FROM accounts AS a
 JOIN connections AS c ON c.id = a.connection_id
 WHERE a.user_id = $1
   AND ($2::uuid IS NULL OR a.connection_id = $2)
+  AND a.type <> ALL($5::text[])
 ORDER BY c.institution_name, a.name, a.id
 LIMIT $3
 OFFSET $4;
@@ -174,7 +175,8 @@ const countAccountsByUser = `
 SELECT COUNT(*) AS count
 FROM accounts AS a
 WHERE a.user_id = $1
-  AND ($2::uuid IS NULL OR a.connection_id = $2);
+  AND ($2::uuid IS NULL OR a.connection_id = $2)
+  AND a.type <> ALL($3::text[]);
 `
 
 func (r *AccountRepository) ListByUser(
@@ -183,7 +185,7 @@ func (r *AccountRepository) ListByUser(
 	filter repository.AccountFilter,
 	limit, offset int,
 ) ([]domain.Account, int, error) {
-	rows, err := r.pool.Query(ctx, listAccountsByUser, userID, filter.ConnectionID, limit, offset)
+	rows, err := r.pool.Query(ctx, listAccountsByUser, userID, filter.ConnectionID, limit, offset, accountTypeStrings(filter.ExcludeTypes))
 	if err != nil {
 		return nil, 0, fmt.Errorf("query accounts: %w", err)
 	}
@@ -193,7 +195,7 @@ func (r *AccountRepository) ListByUser(
 		return nil, 0, fmt.Errorf("collect accounts: %w", err)
 	}
 
-	total, err := count(ctx, r.pool, countAccountsByUser, userID, filter.ConnectionID)
+	total, err := count(ctx, r.pool, countAccountsByUser, userID, filter.ConnectionID, accountTypeStrings(filter.ExcludeTypes))
 	if err != nil {
 		return nil, 0, err
 	}

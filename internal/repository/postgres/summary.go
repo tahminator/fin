@@ -28,7 +28,8 @@ WITH totals AS (
     FROM accounts AS a
     WHERE a.user_id = $1
       AND a.current_balance IS NOT NULL
-      AND a.id <> ALL($2::uuid[])
+      AND a.id <> ALL(COALESCE($2::uuid[], '{}'))
+      AND a.type <> ALL($3::text[])
     GROUP BY COALESCE(a.currency, 'XXX')
 )
 SELECT
@@ -40,8 +41,8 @@ FROM totals AS t
 ORDER BY t.currency;
 `
 
-func (r *SummaryRepository) Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID) ([]domain.CurrencyBalance, error) {
-	rows, err := r.pool.Query(ctx, summaryBalances, userID, excludeAccountIDs)
+func (r *SummaryRepository) Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.CurrencyBalance, error) {
+	rows, err := r.pool.Query(ctx, summaryBalances, userID, excludeAccountIDs, accountTypeStrings(excludeAccountTypes))
 	if err != nil {
 		return nil, fmt.Errorf("query balances: %w", err)
 	}
@@ -82,10 +83,12 @@ WITH flows AS (
         COALESCE(SUM(t.amount) FILTER (WHERE t.amount > 0), 0)  AS money_in,
         COALESCE(-SUM(t.amount) FILTER (WHERE t.amount < 0), 0) AS money_out
     FROM transactions AS t
+    JOIN accounts AS a ON a.id = t.account_id
     WHERE t.user_id = $1
       AND t.posted_on > current_date - $2::int
       AND t.posted_on <= current_date
-      AND t.account_id <> ALL($3::uuid[])
+      AND t.account_id <> ALL(COALESCE($3::uuid[], '{}'))
+      AND a.type <> ALL($4::text[])
       AND (t.category IS NULL OR t.category NOT IN ('TRANSFER_IN', 'TRANSFER_OUT', 'LOAN_PAYMENTS'))
     GROUP BY COALESCE(t.currency, 'XXX'), t.posted_on
 ),
@@ -103,8 +106,8 @@ LEFT JOIN flows AS f ON f.currency = c.currency AND f.day = d.day
 ORDER BY c.currency, d.day;
 `
 
-func (r *SummaryRepository) CashFlow(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID) ([]domain.DailyCashFlow, error) {
-	rows, err := r.pool.Query(ctx, summaryCashFlow, userID, days, excludeAccountIDs)
+func (r *SummaryRepository) CashFlow(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.DailyCashFlow, error) {
+	rows, err := r.pool.Query(ctx, summaryCashFlow, userID, days, excludeAccountIDs, accountTypeStrings(excludeAccountTypes))
 	if err != nil {
 		return nil, fmt.Errorf("query cash flow: %w", err)
 	}

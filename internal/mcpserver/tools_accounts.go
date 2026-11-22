@@ -161,7 +161,7 @@ func (t *toolset) getBalances(ctx context.Context, input GetBalancesInput) (GetB
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
-	balances, err := t.deps.Balances.Balances(ctx, t.userID(), exclude)
+	balances, err := t.deps.Balances.Balances(ctx, t.userID(), exclude, nil)
 	if err != nil {
 		return GetBalancesOutput{}, err
 	}

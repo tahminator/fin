@@ -221,19 +221,19 @@ func (f fakePinger) Ping(context.Context) error {
 
 type fakeSummary struct {
 	repository.SummaryRepository
-	balances func(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID) ([]domain.CurrencyBalance, error)
+	balances func(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.CurrencyBalance, error)
 	counts   func(ctx context.Context, userID uuid.UUID) (domain.SummaryCounts, error)
-	cashFlow func(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID) ([]domain.DailyCashFlow, error)
+	cashFlow func(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.DailyCashFlow, error)
 }
 
-func (f *fakeSummary) Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID) ([]domain.CurrencyBalance, error) {
-	return f.balances(ctx, userID, excludeAccountIDs)
+func (f *fakeSummary) Balances(ctx context.Context, userID uuid.UUID, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.CurrencyBalance, error) {
+	return f.balances(ctx, userID, excludeAccountIDs, excludeAccountTypes)
 }
 
 func (f *fakeSummary) Counts(ctx context.Context, userID uuid.UUID) (domain.SummaryCounts, error) {
 	return f.counts(ctx, userID)
 }
 
-func (f *fakeSummary) CashFlow(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID) ([]domain.DailyCashFlow, error) {
-	return f.cashFlow(ctx, userID, days, excludeAccountIDs)
+func (f *fakeSummary) CashFlow(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID, excludeAccountTypes []domain.AccountType) ([]domain.DailyCashFlow, error) {
+	return f.cashFlow(ctx, userID, days, excludeAccountIDs, excludeAccountTypes)
 }

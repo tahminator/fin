@@ -34,7 +34,8 @@ type Summary struct {
 }
 
 type SummaryInput struct {
-	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from balances"`
+	ExcludeAccountID   []string             `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from balances"`
+	ExcludeAccountType []domain.AccountType `query:"excludeAccountType,explode" enum:"depository,credit,loan,investment,other" doc:"Account types to exclude from balances"`
 }
 
 type SummaryOutput struct {
@@ -72,8 +73,9 @@ func newCashFlow(flows []domain.DailyCashFlow) CashFlow {
 }
 
 type CashFlowInput struct {
-	Days             int      `query:"days" minimum:"1" maximum:"365" default:"30" doc:"Number of days, ending today"`
-	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from cash flow"`
+	Days               int                  `query:"days" minimum:"1" maximum:"365" default:"30" doc:"Number of days, ending today"`
+	ExcludeAccountID   []string             `query:"excludeAccountId,explode" format:"uuid" doc:"Account IDs to exclude from cash flow"`
+	ExcludeAccountType []domain.AccountType `query:"excludeAccountType,explode" enum:"depository,credit,loan,investment,other" doc:"Account types to exclude from cash flow"`
 }
 
 func parseExcludeAccountIDs(raw []string) ([]uuid.UUID, error) {
@@ -131,7 +133,7 @@ func (h *SummaryHandler) get(ctx context.Context, input *SummaryInput) (*Summary
 		return nil, err
 	}
 
-	balances, err := h.summary.Balances(ctx, userID, excludeAccountIDs)
+	balances, err := h.summary.Balances(ctx, userID, excludeAccountIDs, input.ExcludeAccountType)
 	if err != nil {
 		return nil, problem(ctx, err)
 	}
@@ -154,7 +156,7 @@ func (h *SummaryHandler) cashFlow(ctx context.Context, input *CashFlowInput) (*C
 		return nil, err
 	}
 
-	flows, err := h.summary.CashFlow(ctx, UserFrom(ctx).ID, input.Days, excludeAccountIDs)
+	flows, err := h.summary.CashFlow(ctx, UserFrom(ctx).ID, input.Days, excludeAccountIDs, input.ExcludeAccountType)
 	if err != nil {
 		return nil, problem(ctx, err)
 	}

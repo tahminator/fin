@@ -39,6 +39,7 @@ JOIN accounts AS a ON a.id = t.account_id
 WHERE t.user_id = $1
   AND ($2::uuid IS NULL OR t.account_id = $2)
   AND ($5::uuid[] IS NULL OR t.account_id <> ALL($5::uuid[]))
+  AND a.type <> ALL($6::text[])
 ORDER BY t.posted_on DESC, t.id DESC
 LIMIT $3
 OFFSET $4;
@@ -47,9 +48,11 @@ OFFSET $4;
 const countTransactionsByUser = `
 SELECT COUNT(*) AS count
 FROM transactions AS t
+JOIN accounts AS a ON a.id = t.account_id
 WHERE t.user_id = $1
   AND ($2::uuid IS NULL OR t.account_id = $2)
-  AND ($3::uuid[] IS NULL OR t.account_id <> ALL($3::uuid[]));
+  AND ($3::uuid[] IS NULL OR t.account_id <> ALL($3::uuid[]))
+  AND a.type <> ALL($4::text[]);
 `
 
 func (r *TransactionRepository) ListByUser(
@@ -58,7 +61,7 @@ func (r *TransactionRepository) ListByUser(
 	filter repository.TransactionFilter,
 	limit, offset int,
 ) ([]domain.Transaction, int, error) {
-	rows, err := r.pool.Query(ctx, listTransactionsByUser, userID, filter.AccountID, limit, offset, filter.ExcludeAccountID)
+	rows, err := r.pool.Query(ctx, listTransactionsByUser, userID, filter.AccountID, limit, offset, filter.ExcludeAccountID, accountTypeStrings(filter.ExcludeAccountTypes))
 	if err != nil {
 		return nil, 0, fmt.Errorf("query transactions: %w", err)
 	}
@@ -68,7 +71,7 @@ func (r *TransactionRepository) ListByUser(
 		return nil, 0, fmt.Errorf("collect transactions: %w", err)
 	}
 
-	total, err := count(ctx, r.pool, countTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountID)
+	total, err := count(ctx, r.pool, countTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountID, accountTypeStrings(filter.ExcludeAccountTypes))
 	if err != nil {
 		return nil, 0, err
 	}

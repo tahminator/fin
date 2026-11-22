@@ -1,11 +1,13 @@
 import { $api } from "@/lib/api/client";
 import { flattenPages, nextPage, pageSize } from "@/lib/queries/pagination";
 
-export function useAccounts() {
+const excludeType: "investment"[] = ["investment"];
+
+export function useCashAccounts() {
   return $api.useInfiniteQuery(
     "get",
     "/api/accounts",
-    { params: { query: { pageSize } } },
+    { params: { query: { pageSize, excludeType } } },
     {
       pageParamName: "page",
       initialPageParam: 1,
@@ -29,11 +31,11 @@ export function useConnectionAccounts(connectionId: string) {
   );
 }
 
-export function useAllAccounts() {
+export function useAllCashAccounts() {
   return $api.useQuery(
     "get",
     "/api/accounts",
-    { params: { query: { pageSize: 100 } } },
+    { params: { query: { pageSize: 100, excludeType } } },
     { select: (data) => data.items },
   );
 }

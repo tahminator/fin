@@ -9,6 +9,7 @@ import (
 
 type AccountFilter struct {
 	ConnectionID *uuid.UUID
+	ExcludeTypes []domain.AccountType
 }
 
 type AccountRepository interface {

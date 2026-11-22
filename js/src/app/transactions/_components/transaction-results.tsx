@@ -2,7 +2,7 @@ import { TransactionList } from "@/app/transactions/_components/transaction-list
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
-import { useAllAccounts } from "@/lib/queries/accounts";
+import { useAllCashAccounts } from "@/lib/queries/accounts";
 import { useTransactions } from "@/lib/queries/transactions";
 
 export function TransactionResults({
@@ -13,7 +13,7 @@ export function TransactionResults({
   excludeAccountId: string[];
 }) {
   const transactions = useTransactions(accountId, excludeAccountId);
-  const accounts = useAllAccounts();
+  const accounts = useAllCashAccounts();
   const accountsById = new Map(accounts.data?.map((account) => [account.id, account] as const));
 
   if (transactions.isPending) {

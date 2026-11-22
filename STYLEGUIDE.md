@@ -1,6 +1,6 @@
 # fin Style Guide
 
-This guide collects the engineering conventions and technical constraints in [PLAN.md](PLAN.md). The plan remains the source for feature behavior, endpoint details, milestones, and deployment configuration. These conventions describe the intended design; they do not imply every part is already implemented.
+This guide collects the engineering conventions and technical constraints in the plans under [agents/plan](agents/plan) ([init.md](agents/plan/init.md) for the base app, [mcp.md](agents/plan/mcp.md) for the MCP server). The plans remain the source for feature behavior, endpoint details, milestones, and deployment configuration. These conventions describe the intended design; they do not imply every part is already implemented.
 
 ## General
 
@@ -49,7 +49,7 @@ This guide collects the engineering conventions and technical constraints in [PL
 - Run the Go AST no-comments checker through `just lint-go`; allow only Go directives.
 - Unit-test backend business logic in adjacent `*_test.go` files using standard `testing`, table-driven `t.Run`, `humatest`, and handwritten interface fakes. Embed interfaces or `metrics.Noop` when a fake only needs to override selected methods. Do not add mocking or assertion libraries.
 - Keep unit tests deterministic and isolated: no network, database, or sleeps. Inject time where needed and test scheduler work through `RunOnce`. Run `just test` (`go test -race ./...`).
-- The plan excludes config, raw Postgres repositories, the thin Google identity wrapper, dependency wiring, and seed flag parsing from unit tests. Verify complex cross-system flows manually as described in PLAN.md §5.13. There are no frontend tests yet.
+- The plan excludes config, raw Postgres repositories, the thin Google identity wrapper, dependency wiring, and seed flag parsing from unit tests. Verify complex cross-system flows manually as described in agents/plan/init.md §5.13. There are no frontend tests yet.
 
 ## Frontend
 
@@ -80,7 +80,7 @@ This guide collects the engineering conventions and technical constraints in [PL
 
 ## CI/CD scripts and infrastructure
 
-- CI/CD follows the reference repositories identified in PLAN.md §12; do not invent new mechanisms when the references specify one. Use the `@tahminator/pipeline` APIs for Docker, GitHub, versioning, and local Postgres.
+- CI/CD follows the reference repositories identified in agents/plan/init.md §12; do not invent new mechanisms when the references specify one. Use the `@tahminator/pipeline` APIs for Docker, GitHub, versioning, and local Postgres.
 - The frontend app uses pnpm; `.github/scripts` is a separate Bun-based tooling package. Callable scripts live in grouped directories with an `index.ts`, and reusable modules live in `src/lib/`.
 - Parse script arguments at module scope with strict yargs when arguments exist; omit yargs otherwise. Put work in `async function main()`, parse required environment variables with `parseCiEnv`, and exit explicitly on success or failure. Keep shared constants in `src/lib/consts.ts`.
 - Apply the no-comments and natural-blank-lines rules to `.github` too. Composite actions use named inputs and a named bash step; pin external actions as specified by the plan.

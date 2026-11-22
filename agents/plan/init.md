@@ -4,37 +4,38 @@ A personal finance tracker for a small allow-list of users. Go backend (`./`), V
 
 ## 0. Decisions & assumptions
 
-| Topic                 | Decision                                                                                                                                                                                                                                                                                          | Why                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| "Stripe key" per user | Read as **per-user aggregation-provider credentials** (Plaid `client_id` + `secret` + environment), stored in `user_provider_credentials` keyed by `(user_id, provider)`                                                                                                                          | Plaid is the account provider; the table is provider-agnostic, so a future Stripe Financial Connections provider adds rows, not schema |
-| Allow-list            | A row in `users` = allowed. Rows inserted manually (no admin UI)                                                                                                                                                                                                                                  | Requirement (o)                                                                                                                        |
-| Money                 | `numeric(19,4)` in Postgres, decimal **string** in Go and JSON. Outflows negative                                                                                                                                                                                                                 | No float math, currency-exponent agnostic, sums happen in SQL                                                                          |
-| IDs                   | `uuid DEFAULT uuidv7()` (Postgres 18+)                                                                                                                                                                                                                                                            | Time-ordered, non-enumerable                                                                                                           |
-| Enums                 | `text` columns, no `CHECK`; Go `type X string` + consts + `Valid()`; exposed to OpenAPI via huma `enum:"..."` tags                                                                                                                                                                                | Requirement (ad); openapi-typescript emits string unions                                                                               |
-| Pagination            | Offset: `page` (1-based) + `pageSize` (max 100); response `Page[T]{items,page,pageSize,total,hasNext}`                                                                                                                                                                                            | Readable SQL; huma names generic schemas `PageTransaction`, etc.                                                                       |
-| Migrations            | Explicit step only, via the golang-migrate **CLI** (`migrate -path db -database "$DATABASE_URL" up`, wrapped by `just migrate`). The app binary has no migrate code and the runtime image carries no migration files; production uses the `migrate/migrate` image against `./db` before deploying | Schema changes are deliberate; nothing migrates at runtime                                                                             |
-| Static assets         | Served from disk at `STATIC_DIR` (not `go:embed`)                                                                                                                                                                                                                                                 | No directive comments, dev build works without `js/dist`                                                                               |
-| Ops endpoints         | `/healthz`, `/readyz`, `/metrics` on the main `HTTP_ADDR` listener, outside request logging/metrics; the ingress blocks them publicly                                                                                                                                                             | Metrics carry per-user labels; one listener is simpler than a second port                                                              |
-| Metric labels         | Every label value is a typed Go enum (`iota` + `String()`), so the set of series is fixed at compile time. Sole exception: `user` (email) on the DB-snapshot gauges, whose values come only from the `users` allow-list                                                                           | Easy refactors, locked-down cardinality; per-user counts were requested                                                                |
-| Metrics access        | Instruments are unexported in `internal/metrics`; code records through the `metrics.Recorder` interface (`metrics.Prometheus{}` in prod, zero-sized `metrics.Noop{}` / embedding fakes in tests)                                                                                                  | No direct manipulation, trivially testable                                                                                             |
-| Sync trigger          | Manual refresh (all of a user's connections, or one), initial sync after linking, and a backend goroutine on a cron schedule from `SYNC_CRON` (default `0 */6 * * *`). Every failure is counted in Prometheus. No webhooks                                                                        | Keeps data fresh and detects re-auth without exposing a public webhook endpoint                                                        |
-| DB transactions       | None. Sync is idempotent (upserts) and saves the cursor last                                                                                                                                                                                                                                      | Requirement (i); a failed sync simply re-runs                                                                                          |
-| Comments              | Zero, enforced by lint on both codebases (Go AST tool + custom oxlint rule). Justfile uses `[doc()]` attributes instead of `#`. Only sanctioned comment: the `SECRET_KEY` hint in `.env.example` (explicitly requested)                                                                           | Requirement (d)                                                                                                                        |
-| Code layout           | Natural blank lines between logical blocks in **every** file we write: Go, TS/TSX, SQL, Justfile, Dockerfile, YAML, env files                                                                                                                                                                     | Non-negotiable readability rule                                                                                                        |
-| Lint/format (JS)      | **oxlint** + **oxfmt** only (no ESLint, no Prettier)                                                                                                                                                                                                                                              | One fast toolchain                                                                                                                     |
-| Config                | Handwritten `config.NewFromEnv()` over `os.LookupEnv`; no env library; no tests for the config package                                                                                                                                                                                            | Explicit requirement                                                                                                                   |
-| Token encryption      | Plaid access tokens encrypted at rest with AES-256-GCM keyed by `SECRET_KEY` (32 chars). No key versioning                                                                                                                                                                                        | Explicit requirement                                                                                                                   |
-| Re-auth               | Detected on every sync, stored as `connections.status = needs_reauth`, exposed via `GET /api/notifications`, shown as a banner + nav badge + per-connection **Reconnect** (Plaid update mode)                                                                                                     | You want to know when a bank needs sign-in again                                                                                       |
-| Tests                 | Backend business logic unit-tested (stdlib `testing`, `humatest`, interface fakes). No frontend tests yet. Complex flows verified manually (§5.13)                                                                                                                                                | Explicit requirement                                                                                                                   |
-| MCP server            | MCP server at `/mcp` on the same deployment and in the OpenAPI spec; fin is its own OAuth 2.1 authorization server on top of Google login; opaque hashed tokens; query tools plus a scoped refresh tool; linking, re-auth and removal are unreachable (§13)                                       | Agents can analyze finances; linking banks stays a human, in-app action                                                                |
+| Topic                 | Decision                                                                                                                                                                                                                                                                                                                                    | Why                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| "Stripe key" per user | Read as **per-user aggregation-provider credentials** (Plaid `client_id` + `secret` + environment), stored in `user_provider_credentials` keyed by `(user_id, provider)`                                                                                                                                                                    | Plaid is the account provider; the table is provider-agnostic, so a future Stripe Financial Connections provider adds rows, not schema |
+| Allow-list            | A row in `users` = allowed. Rows inserted manually (no admin UI)                                                                                                                                                                                                                                                                            | Requirement (o)                                                                                                                        |
+| Money                 | `numeric(19,4)` in Postgres, decimal **string** in Go and JSON. Outflows negative                                                                                                                                                                                                                                                           | No float math, currency-exponent agnostic, sums happen in SQL                                                                          |
+| IDs                   | `uuid DEFAULT uuidv7()` (Postgres 18+)                                                                                                                                                                                                                                                                                                      | Time-ordered, non-enumerable                                                                                                           |
+| Enums                 | `text` columns, no `CHECK`; Go `type X string` + consts + `Valid()`; exposed to OpenAPI via huma `enum:"..."` tags                                                                                                                                                                                                                          | Requirement (ad); openapi-typescript emits string unions                                                                               |
+| Pagination            | Offset: `page` (1-based) + `pageSize` (max 100); response `Page[T]{items,page,pageSize,total,hasNext}`                                                                                                                                                                                                                                      | Readable SQL; huma names generic schemas `PageTransaction`, etc.                                                                       |
+| Migrations            | Explicit step only, via the golang-migrate **CLI** (`migrate -path db -database "$DATABASE_URL" up`, wrapped by `just migrate`). The app binary has no migrate code and the runtime image carries no migration files; production uses the `migrate/migrate` image against `./db` before deploying                                           | Schema changes are deliberate; nothing migrates at runtime                                                                             |
+| Static assets         | Served from disk at `STATIC_DIR` (not `go:embed`)                                                                                                                                                                                                                                                                                           | No directive comments, dev build works without `js/dist`                                                                               |
+| Ops endpoints         | `/healthz`, `/readyz`, `/metrics` on the main `HTTP_ADDR` listener, outside request logging/metrics; the ingress blocks them publicly                                                                                                                                                                                                       | Metrics carry per-user labels; one listener is simpler than a second port                                                              |
+| Metric labels         | Every label value is a typed Go enum (`iota` + `String()`), so the set of series is fixed at compile time. Sole exception: `user` (email) on the DB-snapshot gauges, whose values come only from the `users` allow-list                                                                                                                     | Easy refactors, locked-down cardinality; per-user counts were requested                                                                |
+| Metrics access        | Instruments are unexported in `internal/metrics`; code records through the `metrics.Recorder` interface (`metrics.Prometheus{}` in prod, zero-sized `metrics.Noop{}` / embedding fakes in tests)                                                                                                                                            | No direct manipulation, trivially testable                                                                                             |
+| Sync trigger          | Manual refresh (all of a user's connections, or one), initial sync after linking, and a backend goroutine on a cron schedule from `SYNC_CRON` (default `0 */6 * * *`). On-demand syncs are rate-limited per connection by an in-memory cooldown (`SYNC_COOLDOWN`, default `10m`; §5.5). Every failure is counted in Prometheus. No webhooks | Keeps data fresh and detects re-auth without exposing a public webhook endpoint                                                        |
+| DB transactions       | None. Sync is idempotent (upserts) and saves the cursor last                                                                                                                                                                                                                                                                                | Requirement (i); a failed sync simply re-runs                                                                                          |
+| Comments              | Zero, enforced by lint on both codebases (Go AST tool + custom oxlint rule). Justfile uses `[doc()]` attributes instead of `#`. Only sanctioned comment: the `SECRET_KEY` hint in `.env.example` (explicitly requested)                                                                                                                     | Requirement (d)                                                                                                                        |
+| Code layout           | Natural blank lines between logical blocks in **every** file we write: Go, TS/TSX, SQL, Justfile, Dockerfile, YAML, env files                                                                                                                                                                                                               | Non-negotiable readability rule                                                                                                        |
+| Lint/format (JS)      | **oxlint** + **oxfmt** only (no ESLint, no Prettier)                                                                                                                                                                                                                                                                                        | One fast toolchain                                                                                                                     |
+| Config                | Handwritten `config.NewFromEnv()` over `os.LookupEnv`; no env library; no tests for the config package                                                                                                                                                                                                                                      | Explicit requirement                                                                                                                   |
+| Token encryption      | Plaid access tokens encrypted at rest with AES-256-GCM keyed by `SECRET_KEY` (32 chars). No key versioning                                                                                                                                                                                                                                  | Explicit requirement                                                                                                                   |
+| Re-auth               | Detected on every sync, stored as `connections.status = needs_reauth`, exposed via `GET /api/notifications`, shown as a banner + nav badge + per-connection **Reconnect** (Plaid update mode)                                                                                                                                               | You want to know when a bank needs sign-in again                                                                                       |
+| Tests                 | Backend business logic unit-tested (stdlib `testing`, `humatest`, interface fakes). No frontend tests yet. Complex flows verified manually (§5.13)                                                                                                                                                                                          | Explicit requirement                                                                                                                   |
 
-Out of scope: admin UI, Plaid webhooks, push notifications, `SECRET_KEY` rotation/versioning, and budgets/categorization rules. CI/CD is specified in phase 2 (§12). An MCP server for agents, with its own OAuth authorization server, is specified in phase 3 (§13); it can query data and refresh already-linked connections, but can never create, re-authenticate or remove bank connections.
+Out of scope: admin UI, Plaid webhooks, push notifications, `SECRET_KEY` rotation/versioning, and budgets/categorization rules. CI/CD is specified in phase 2 (§12).
 
 ## 1. Repository layout
 
 ```
 .
-├── PLAN.md
+├── AGENTS.md                     points agents at STYLEGUIDE.md and agents/plan/
+├── STYLEGUIDE.md
+├── agents/plan/                  init.md (this plan), mcp.md (MCP server)
 ├── README.md
 ├── Justfile
 ├── .env.example
@@ -224,6 +225,7 @@ type Config struct {
 	CookieSecure      bool
 	SessionTTL        time.Duration
 	SyncSchedule      cron.Schedule
+	SyncCooldown      time.Duration
 	GoogleClientID    string
 	GoogleSecret      string
 	SecretKey         []byte
@@ -244,6 +246,7 @@ func NewFromEnv() (Config, error) {
 		CookieSecure:      env.boolean("COOKIE_SECURE", true),
 		SessionTTL:        env.duration("SESSION_TTL", 30*24*time.Hour),
 		SyncSchedule:      env.schedule("SYNC_CRON", "0 */6 * * *"),
+		SyncCooldown:      env.duration("SYNC_COOLDOWN", 10*time.Minute),
 		GoogleClientID:    env.required("GOOGLE_CLIENT_ID"),
 		GoogleSecret:      env.required("GOOGLE_CLIENT_SECRET"),
 		SecretKey:         []byte(env.required("SECRET_KEY")),
@@ -269,6 +272,10 @@ func (c Config) validate() []error {
 
 	if len(c.SecretKey) != 32 {
 		errs = append(errs, errors.New("SECRET_KEY must be exactly 32 characters"))
+	}
+
+	if c.SyncCooldown < 0 {
+		errs = append(errs, errors.New("SYNC_COOLDOWN must not be negative"))
 	}
 
 	if c.AppEnv == Production && c.CookieDomain == "" {
@@ -406,12 +413,13 @@ GOOGLE_CLIENT_SECRET=
 SECRET_KEY=
 
 SYNC_CRON="0 */6 * * *"
+SYNC_COOLDOWN=10m
 PLAID_COUNTRY_CODES=US
 
 VERSION=
 ```
 
-Dev `PUBLIC_URL` points at the Vite dev server so OAuth redirects and cookies land on the same origin the SPA uses (Vite proxies `/api`, `/auth`, `/openapi.json`, `/swagger` to `:8080`). Empty `COOKIE_DOMAIN` → host-only cookie (browsers mishandle `Domain=localhost`). `SYNC_CRON=off` disables the scheduler; `CRON_TZ=America/New_York 0 6 * * *` pins a timezone (`main.go` blank-imports `time/tzdata` because the distroless image has no zoneinfo). The `env.go` import block gains `github.com/robfig/cron/v3`.
+Dev `PUBLIC_URL` points at the Vite dev server so OAuth redirects and cookies land on the same origin the SPA uses (Vite proxies `/api`, `/auth`, `/openapi.json`, `/swagger` to `:8080`). Empty `COOKIE_DOMAIN` → host-only cookie (browsers mishandle `Domain=localhost`). `SYNC_CRON=off` disables the scheduler; `SYNC_COOLDOWN` is a Go duration string (`10m`, `1h`, `30s`) and `0` disables the cooldown; `CRON_TZ=America/New_York 0 6 * * *` pins a timezone (`main.go` blank-imports `time/tzdata` because the distroless image has no zoneinfo). The `env.go` import block gains `github.com/robfig/cron/v3`.
 
 ## 4. Database
 
@@ -717,10 +725,30 @@ Plaid implementation notes:
 - `CreateLinkToken(userID)` → loads credential (missing = `ErrNotAllowed` with a clear message).
 - `Link(userID, publicToken)` → exchange → `cipher.Encrypt(accessToken)` → insert connection (`status=active`) → `Sync(trigger=SyncTriggerLink)`.
 - `Sync(userID, connectionID, trigger metrics.SyncTrigger)` → load connection + credential → `cipher.Decrypt` → `Accounts` → `AccountRepository.Upsert` → `CardArtMatcher.MatchConnection` → `SyncTransactions(cursor)` → map account external IDs → upsert added+modified → delete removed → `UpdateSyncState(cursor, last_synced_at=now, last_error=null)`. On `ErrReauthRequired`: `UpdateStatus(needs_reauth)`, cursor untouched. Other errors: `last_error` set, status unchanged. Always ends with `recorder.ConnectionSynced(trigger, outcome, elapsed)`.
-- `SyncAll(userID, trigger)` → every `active` connection of the user, sequentially → `SyncSummary{Synced, ReauthRequired, Failed}`. Backs the manual **Refresh** button.
+- `SyncAll(userID, trigger)` → every `active` connection of the user, sequentially → `SyncSummary{Synced, ReauthRequired, Failed, Throttled}`. Backs the manual **Refresh** button.
 - `CreateReauthLinkToken(userID, connectionID)` → `ErrConflict` unless `needs_reauth` → decrypt → `CreateUpdateLinkToken`.
 - `CompleteReauth(userID, connectionID)` → `UpdateStatus(active)`, clear `last_error` → `Sync(trigger=SyncTriggerReauth)`.
 - `Remove(userID, connectionID)` → decrypt → provider `Remove` → delete row (cascades accounts/transactions).
+
+**Sync cooldown** (`service/sync_cooldown.go`). On-demand syncs are rate-limited per connection, in memory, so repeated taps on Refresh (or any other on-demand caller) cannot hammer Plaid:
+
+```go
+type syncCooldown struct {
+	window time.Duration
+	mu     sync.Mutex
+	last   map[uuid.UUID]time.Time
+}
+
+func (c *syncCooldown) acquire(connectionID uuid.UUID, now time.Time, enforce bool) (time.Duration, bool)
+func (c *syncCooldown) release(connectionID uuid.UUID)
+```
+
+- `ConnectionService` owns one `syncCooldown` built from `cfg.SyncCooldown` (constructor argument, wired in `serve.go`). Every `Sync` calls `acquire` before touching the provider.
+- Enforced for on-demand triggers (`manual`; any later on-demand trigger opts in the same way). `link`, `reauth` and `scheduled` are never refused, but they still stamp the connection, so a Refresh right after a scheduled run or a fresh link is throttled.
+- Refused → `domain.ThrottledError{RetryAfter}` (matches `errors.Is(err, domain.ErrThrottled)`), no provider call, `ConnectionSynced(trigger, SyncOutcomeThrottled, 0)`.
+- The slot is stamped when a sync **starts**, which also stops two concurrent taps from running the same sync twice. A sync that fails with anything other than `ErrReauthRequired` calls `release`, so the user can retry immediately after a transient error.
+- `acquire` drops entries older than the window, so the map stays bounded by the number of connections synced in the last `SYNC_COOLDOWN`. `SYNC_COOLDOWN=0` makes `acquire` always succeed.
+- State is per process: with more than one replica each enforces its own cooldown, which is acceptable at fin's scale (§10).
 
 Manual and scheduled syncs of the same connection may overlap; that is harmless because every write is an idempotent upsert and the cursor is saved last.
 
@@ -866,8 +894,8 @@ func (h *TransactionHandler) Register(api huma.API) {
 | GET    | `/api/connections`                                  | `ConnectionHandler.list`            | `Page[Connection]`                                                                                                                                                          |
 | POST   | `/api/connections/link-token`                       | `ConnectionHandler.linkToken`       | `{linkToken}`                                                                                                                                                               |
 | POST   | `/api/connections`                                  | `ConnectionHandler.create`          | body `{publicToken}`; links + initial sync                                                                                                                                  |
-| POST   | `/api/connections/{connectionId}/sync`              | `ConnectionHandler.sync`            |                                                                                                                                                                             |
-| POST   | `/api/connections/sync`                             | `ConnectionHandler.syncAll`         | manual refresh of all the user's active connections → `SyncSummary`                                                                                                         |
+| POST   | `/api/connections/{connectionId}/sync`              | `ConnectionHandler.sync`            | 429 with `Retry-After` (seconds) while the connection is inside `SYNC_COOLDOWN`                                                                                             |
+| POST   | `/api/connections/sync`                             | `ConnectionHandler.syncAll`         | manual refresh of all the user's active connections → `SyncSummary`; throttled connections are counted in `throttled`, never a 429                                          |
 | DELETE | `/api/connections/{connectionId}`                   | `ConnectionHandler.remove`          | 204                                                                                                                                                                         |
 | POST   | `/api/connections/{connectionId}/reauth/link-token` | `ConnectionHandler.reauthLinkToken` | update-mode `{linkToken}`; 409 unless `needs_reauth`                                                                                                                        |
 | POST   | `/api/connections/{connectionId}/reauth/complete`   | `ConnectionHandler.completeReauth`  | marks `active`, syncs                                                                                                                                                       |
@@ -956,7 +984,7 @@ func allSyncTriggers() []SyncTrigger {
 | Enum                  | Values                                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------------------------ |
 | `SyncTrigger`         | `link`, `manual`, `scheduled`, `reauth`                                                                |
-| `SyncOutcome`         | `success`, `reauth_required`, `error`                                                                  |
+| `SyncOutcome`         | `success`, `reauth_required`, `error`, `throttled`                                                     |
 | `ScheduledRunOutcome` | `success`, `partial_failure`, `failure`                                                                |
 | `LoginOutcome`        | `success`, `not_allowed`, `invalid_state`, `error`                                                     |
 | `Provider`            | `plaid`                                                                                                |
@@ -1002,7 +1030,7 @@ Both implementations are zero-sized. `Prometheus{}` writes to the package-level 
 | `fin_http_request_duration_seconds`                                  | histogram           | `group`, `method`                  | 24 × buckets |
 | `fin_logins_total` (`AuthService`)                                   | counter             | `outcome`                          | 4            |
 | `fin_provider_requests_total` / `_duration_seconds` (Plaid provider) | counter / histogram | `provider`, `operation`, `outcome` | 12           |
-| `fin_syncs_total` (`ConnectionService.Sync`)                         | counter             | `trigger`, `outcome`               | 12           |
+| `fin_syncs_total` (`ConnectionService.Sync`)                         | counter             | `trigger`, `outcome`               | 16           |
 | `fin_sync_duration_seconds`                                          | histogram           | `trigger`                          | 4 × buckets  |
 | `fin_scheduled_sync_runs_total` (`SyncScheduler`)                    | counter             | `outcome`                          | 3            |
 | `fin_scheduled_sync_duration_seconds`                                | histogram           | —                                  | buckets      |
@@ -1143,17 +1171,17 @@ type Notification struct {
 
 Every piece of business logic ships with unit tests in the same milestone. Tests use stdlib `testing`, table-driven `t.Run` cases, the embedded-interface fakes from §5.3, recorder fakes that embed `metrics.Noop`, and `humatest` for handlers. No network, no database, no sleeps (`RunOnce` instead of waiting for a tick; `now func() time.Time` injected where time matters). `just test` runs `go test -race ./...`.
 
-| Package                                  | Covered behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/encryption`                    | round-trip; same plaintext encrypts to different ciphertexts; flipped byte fails; wrong key fails; invalid base64 fails; `New` rejects keys that are not 32 bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `internal/service` — auth                | unverified email rejected; unknown email → `ErrNotAllowed`; email match is case-insensitive; first login stores `google_sub`; mismatched `google_sub` rejected; stored `token_hash` is SHA-256 of the cookie token, never the token; expired session → unauthorized; logout deletes the session                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `internal/service` — connection          | missing credentials → `ErrNotAllowed`; `Link` stores ciphertext that decrypts to the provider token; provider always receives the decrypted token; accounts upserted before transactions; removed transactions deleted; cursor saved only after all writes (fake records call order); `ErrReauthRequired` → `needs_reauth` and cursor unchanged; other errors → `last_error`, status unchanged; every outcome calls `ConnectionSynced` with the right trigger/outcome; `SyncAll` covers only the user's active connections and its summary counts match; another user's connection → `ErrNotFound`; reauth link token → `ErrConflict` unless `needs_reauth`; `CompleteReauth` → `active` + sync; `Remove` calls provider then deletes |
-| `internal/service` — notification        | only `needs_reauth` connections produce notifications; `since` = `status_changed_at`; ordering and paging                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `internal/service` — scheduler           | `RunOnce` syncs every active connection with `SyncTriggerScheduled`; one failure does not stop the rest; failures → `partial_failure` with the right `FailedConnections`; list error → `failure`; all good → `success`; nil schedule → `Run` returns immediately                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `internal/provider/plaid` (mapping only) | sign flip and decimal formatting without exponents; `ITEM_LOGIN_REQUIRED` → `ErrReauthRequired`; other Plaid errors wrapped with their code; unknown account type → `other`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `internal/handler`                       | 401 without session; sentinel error → 404/403/409; `pageSize=101` → 422; tenancy (user B gets 404 for user A's IDs); `NewPage` (`hasNext`, offset, non-nil `items`); readiness 200/503 with a fake `Pinger`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `internal/server`                        | SPA: existing asset served with immutable cache header; unknown path → `index.html`; `/api/unknown` → 404                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `internal/metrics`                       | every enum's `String()` is unique and never `unknown` for declared constants; all label combinations pre-initialized to 0; `Prometheus{}.ConnectionSynced(scheduled, error)` increments exactly `fin_syncs_total{trigger="scheduled",outcome="error"}` (`testutil.ToFloat64` delta); `ScheduledRunFinished` sets the timestamp gauges, and the success timestamp only on `success`; status code → `StatusClass` boundaries; unknown `domain.ConnectionStatus` → `other`                                                                                                                                                                                                                                                               |
+| Package                                  | Covered behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/encryption`                    | round-trip; same plaintext encrypts to different ciphertexts; flipped byte fails; wrong key fails; invalid base64 fails; `New` rejects keys that are not 32 bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `internal/service` — auth                | unverified email rejected; unknown email → `ErrNotAllowed`; email match is case-insensitive; first login stores `google_sub`; mismatched `google_sub` rejected; stored `token_hash` is SHA-256 of the cookie token, never the token; expired session → unauthorized; logout deletes the session                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `internal/service` — connection          | missing credentials → `ErrNotAllowed`; `Link` stores ciphertext that decrypts to the provider token; provider always receives the decrypted token; accounts upserted before transactions; removed transactions deleted; cursor saved only after all writes (fake records call order); `ErrReauthRequired` → `needs_reauth` and cursor unchanged; other errors → `last_error`, status unchanged; every outcome calls `ConnectionSynced` with the right trigger/outcome; `SyncAll` covers only the user's active connections and its summary counts match; cooldown: a second manual sync inside the window → `ErrThrottled` with the right `RetryAfter` and no provider call, `SyncAll` counts it as `throttled`, scheduled/link/reauth syncs are never refused but do start the window, a failed sync releases the slot, `ErrReauthRequired` does not, a zero window never throttles, and the window reopens once `now` passes it (injected clock); another user's connection → `ErrNotFound`; reauth link token → `ErrConflict` unless `needs_reauth`; `CompleteReauth` → `active` + sync; `Remove` calls provider then deletes |
+| `internal/service` — notification        | only `needs_reauth` connections produce notifications; `since` = `status_changed_at`; ordering and paging                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `internal/service` — scheduler           | `RunOnce` syncs every active connection with `SyncTriggerScheduled`; one failure does not stop the rest; failures → `partial_failure` with the right `FailedConnections`; list error → `failure`; all good → `success`; nil schedule → `Run` returns immediately                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `internal/provider/plaid` (mapping only) | sign flip and decimal formatting without exponents; `ITEM_LOGIN_REQUIRED` → `ErrReauthRequired`; other Plaid errors wrapped with their code; unknown account type → `other`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `internal/handler`                       | single-connection sync → 429 with `Retry-After` on `ErrThrottled`; 401 without session; sentinel error → 404/403/409; `pageSize=101` → 422; tenancy (user B gets 404 for user A's IDs); `NewPage` (`hasNext`, offset, non-nil `items`); readiness 200/503 with a fake `Pinger`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `internal/server`                        | SPA: existing asset served with immutable cache header; unknown path → `index.html`; `/api/unknown` → 404                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `internal/metrics`                       | every enum's `String()` is unique and never `unknown` for declared constants; all label combinations pre-initialized to 0; `Prometheus{}.ConnectionSynced(scheduled, error)` increments exactly `fin_syncs_total{trigger="scheduled",outcome="error"}` (`testutil.ToFloat64` delta); `ScheduledRunFinished` sets the timestamp gauges, and the success timestamp only on `success`; status code → `StatusClass` boundaries; unknown `domain.ConnectionStatus` → `other`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Not unit-tested: `internal/config` (by request), `repository/postgres` (raw SQL, exercised by the manual checks below), `identity/google.go` (thin go-oidc wrapper), wiring in `serve.go`, `cmd/seed` (flag parsing over two repository calls). No frontend tests at this time.
 
@@ -1184,18 +1212,19 @@ Manual verification (complex, cross-system flows):
 1. Google login inside the installed PWA on iOS and Android; a non-allow-listed email lands on `/login?error=not_allowed`.
 2. Plaid sandbox link (`user_good` / `pass_good`) → accounts and transactions appear; `access_token_ciphertext` in the DB does not start with `access-sandbox-`.
 3. Sandbox OAuth institution ("Platypus OAuth Bank") through `/connections/oauth` on a phone.
-4. Re-auth: `just sandbox-reset-login <id>` → tap Refresh (or set `SYNC_CRON="* * * * *"` and wait a minute) → `GET /api/notifications` lists it, banner + nav badge appear, `fin_syncs_total{outcome="reauth_required"}` increments → Reconnect → banner clears and sync succeeds.
+4. Re-auth (with `SYNC_COOLDOWN=0` so Refresh is not throttled): `just sandbox-reset-login <id>` → tap Refresh (or set `SYNC_CRON="* * * * *"` and wait a minute) → `GET /api/notifications` lists it, banner + nav badge appear, `fin_syncs_total{outcome="reauth_required"}` increments → Reconnect → banner clears and sync succeeds.
 5. Install gate on every platform in §6.5.
 6. `/readyz` flips to 503 with Postgres stopped and back to 200 after restart.
 7. Docker image serves the PWA, API, `/swagger`.
-8. Scheduler failure: with `SYNC_CRON="* * * * *"`, break the seeded credential (`UPDATE user_provider_credentials SET secret = 'invalid'`) → within a minute `fin_syncs_total{trigger="scheduled",outcome="error"}`, `fin_scheduled_sync_runs_total{outcome="partial_failure"}` and `fin_scheduled_sync_last_run_failed_connections` rise on `:8080/metrics`; re-running `just seed` with the real values restores the credential.
+8. Cooldown: tap Refresh twice within `SYNC_COOLDOWN` → the second toast says the connections were refreshed recently, `fin_syncs_total{trigger="manual",outcome="throttled"}` increments; per-connection Sync returns 429.
+9. Scheduler failure: with `SYNC_CRON="* * * * *"`, break the seeded credential (`UPDATE user_provider_credentials SET secret = 'invalid'`) → within a minute `fin_syncs_total{trigger="scheduled",outcome="error"}`, `fin_scheduled_sync_runs_total{outcome="partial_failure"}` and `fin_scheduled_sync_last_run_failed_connections` rise on `:8080/metrics`; re-running `just seed` with the real values restores the credential.
 
 ## 6. Frontend
 
 ### 6.1 Build setup
 
 - `pnpm create vite@latest js --template react-ts`, then shadcn init (Tailwind v4, `@/` alias, `src/components/ui`).
-- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/version`, `/healthz`, `/readyz`, `/metrics`, `/auth`, `/openapi.json`, `/swagger`, `/mcp`, `/oauth`, `/.well-known` → `http://localhost:8080`.
+- `vite.config.ts` uses `react()`, `tailwindcss()` and `VitePWA(...)`. `resolve.alias["@"] = src`. `server.proxy` for `/api`, `/version`, `/healthz`, `/readyz`, `/metrics`, `/auth`, `/openapi.json`, `/swagger` → `http://localhost:8080`.
 - `tsconfig.app.json`: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `erasableSyntaxOnly` (no TS `enum`s), `paths: { "@/*": ["./src/*"] }`, `types: ["vite/client", "vite-plugin-pwa/client"]` (no triple-slash directive file needed).
 - `package.json` scripts:
 
@@ -1232,7 +1261,7 @@ src/app/
     └── _components/
 ```
 
-The root layout gates access on PWA installation (except `/consent`, which MCP clients open in a normal browser tab; §13.11). An authenticated layout uses React Query to resolve the session and redirects unauthenticated visitors to `/login`.
+The root layout gates access on PWA installation. An authenticated layout uses React Query to resolve the session and redirects unauthenticated visitors to `/login`.
 
 ### 6.3 Data layer (`src/lib`)
 
@@ -1243,6 +1272,7 @@ The root layout gates access on PWA installation (except `/consent`, which MCP c
 - `lib/types/api.ts`: `export type Transaction = components["schemas"]["Transaction"];` etc. — components never index the generated schema directly.
 - Link token: `useLinkToken` is a query over `POST /api/connections/link-token` (`staleTime` 30 min) so the Connect button opens Plaid in one tap. The token is mirrored to `localStorage` by `lib/plaid/link-token-store.ts` purely so `connections/oauth.tsx` can resume Link after a bank OAuth redirect.
 - Card art: credit account rows on the Connections page show **Wrong card?** (or **Pick card** when nothing matched), opening a dialog with the current art, a catalog search prefilled with the account's official name, and a **Use the default icon instead** action.
+- Refresh: `showSyncSummary` in `app/_components/refresh-button.tsx` adds `throttled` to its toast ("2 refreshed recently, try again in a few minutes"); a toast whose only result is `throttled` uses `toast.info`. The per-connection Sync button shows the 429's `Retry-After` as "Try again in N min".
 
 ### 6.4 Component contract (requirement w)
 
@@ -1507,13 +1537,13 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 
 - Provider interface + Plaid impl (mapping tests, provider-call metrics), `ConnectionService` with token encryption and `SyncAll` (tests), connection endpoints (handler tests).
 - UI: connections page (each row lists the connection's accounts via `useConnectionAccounts(connectionId)`), Plaid Link launcher, OAuth return page, per-connection Sync/Remove, header Refresh.
-- Accept: manual checks 2 and 3 using the seeded sandbox user; Refresh syncs every connection and is idempotent (row counts unchanged on re-run); Remove deletes everything; tenancy covered by handler tests.
+- Accept: manual checks 2, 3 and 8 using the seeded sandbox user; Refresh syncs every connection and is idempotent (row counts unchanged on re-run, after `SYNC_COOLDOWN`); Remove deletes everything; tenancy covered by handler tests.
 
 **M4 — Re-auth**
 
 - Update-mode link token + complete endpoints, `NotificationService`, `GET /api/notifications`, cron `SyncScheduler` goroutine, `cmd/sandbox-reset-login`; tests for all three services.
 - UI: banner, nav badge, Reconnect.
-- Accept: manual checks 4 and 8.
+- Accept: manual checks 4 and 9.
 
 **M5 — Accounts, transactions, summary**
 
@@ -1525,8 +1555,6 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 - SPA serving from `STATIC_DIR` (tests), cache headers, Dockerfile.
 - Accept: manual checks 6 and 7; `just docker-build`; migrate with the `migrate/migrate` image, then run the container; Lighthouse PWA installability passes; metrics show per-user connection/account/transaction counts and `needs_reauth`.
 
-**M7 — OAuth authorization server** and **M8 — MCP tools**: §13.13.
-
 ## 10. Risks
 
 - **iOS standalone + OAuth (Google and bank OAuth via Plaid)**: out-of-scope navigations open in an in-app browser sheet; confirm on a device that the callback returns into the installed app and that `localStorage` survives the Plaid OAuth round-trip.
@@ -1535,60 +1563,57 @@ Each milestone ends with `just lint && just test` green, and any business logic 
 - **`SECRET_KEY` loss or change**: no versioning, so every connection must be re-linked. Keep the key in a password manager.
 - **Re-auth latency**: without webhooks, detection waits for the next sync (≤ one `SYNC_CRON` period); Plaid's webhook-only `PENDING_EXPIRATION` warnings are not surfaced.
 - **`robfig/cron/v3` is feature-frozen**: only its parser is used, behind `config`'s `schedule` helper and `cron.Schedule`; swapping parsers touches two files.
+- **Sync cooldown is per process**: with several replicas a user could get one on-demand sync per replica per window; acceptable at this scale, move the state to Postgres (`connections.last_sync_started_at`) if it scales out.
 - **Plaid secrets plaintext in DB**: accepted for two hand-inserted users; access tokens are encrypted.
-- **MCP / public OAuth server**: see §13.14.
 
 ## 11. Requirement traceability
 
-| Req                                                                  | Where                                                                                                     |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| oxlint + oxfmt                                                       | §6.1 scripts, §6.6, §8 `lint-js` / `fix` / `fmt`                                                          |
-| `config.NewFromEnv()` handwritten, untested                          | §3, §5.13 exclusions                                                                                      |
-| Backend business logic unit-tested, no frontend tests                | §5.13, §9                                                                                                 |
-| Re-auth endpoint + indicator                                         | §5.5, §5.6 routes, §5.12, §6.7                                                                            |
-| `SECRET_KEY` token encryption + `.env.example` hint                  | §3, §5.11                                                                                                 |
-| Natural newlines everywhere                                          | §0, §5.10, every snippet                                                                                  |
-| Manual refresh + cron goroutine (env-configurable)                   | §3 `SYNC_CRON`, §5.5 `SyncAll` + `SyncScheduler`, §5.6 `POST /api/connections/sync`, §6.2 Refresh button  |
-| Sync failures visible in Prometheus                                  | §5.8 `fin_syncs_total`, `fin_scheduled_sync_*`, alerts                                                    |
-| `iota` enum labels, cardinality locked                               | §5.8 labels table + max-series column                                                                     |
-| Metrics only via high-level functions; zero-sized recorder for tests | §5.8 `Recorder`, `Prometheus{}`, `Noop{}`                                                                 |
-| Gitignored `.env` for local creds; seed CLI for email + Plaid creds  | §1, §4 onboarding, §5.1 `cmd/seed`, §8 `seed`                                                             |
-| a, e, m                                                              | §5.1 (Go, `net/http`, wiring in `serve.go`)                                                               |
-| b, c, h (grouping)                                                   | §1 layout, §5.6 handler-per-resource `Register`, §5.10 file-size rule                                     |
-| d                                                                    | §5.10 `tools/nocomments`, §6.6 `fin/no-comments`, Justfile `[doc()]`                                      |
-| f                                                                    | §5.6 `server/routes.go`                                                                                   |
-| g (huma spec), ah                                                    | §5.1 `fin openapi`, §5.6 huma config, gitignored `openapi.json`                                           |
-| h (config)                                                           | §3                                                                                                        |
-| g (DI)                                                               | §5.1, §5.2                                                                                                |
-| i                                                                    | §4, §5.3 (pgx, raw formatted SQL, no transactions)                                                        |
-| j                                                                    | §5.3 interfaces + embedded-interface fakes                                                                |
-| k                                                                    | §5.4                                                                                                      |
-| l                                                                    | §5.5, §5.7                                                                                                |
-| n                                                                    | §5.8, ops routes in §5.6                                                                                  |
-| o                                                                    | §4 manual onboarding                                                                                      |
-| p                                                                    | §1, §4, §5.1 (migrate CLI)                                                                                |
-| q, r                                                                 | §6.1, §6.2                                                                                                |
-| s, aa5, t                                                            | §6.4 rules + §6.6 `no-effects-outside-hooks`, `max-one-use-state`                                         |
-| u, v, z                                                              | §6.3 (`$api` only in `src/lib`, `lib/queries` hooks, lint-enforced)                                       |
-| w                                                                    | §6.4                                                                                                      |
-| x                                                                    | §6.1 `gen`, gitignored `schema.gen.ts`                                                                    |
-| y                                                                    | §2, §7 (pnpm only, `devEngines`)                                                                          |
-| aa                                                                   | §6.2 `_components/`/`_hooks/`, §6.6 `route-private-imports`                                               |
-| aa2                                                                  | §2                                                                                                        |
-| aa3                                                                  | §6.6                                                                                                      |
-| aa4                                                                  | §6.6 `alias-imports`                                                                                      |
-| ab                                                                   | §1, §6.3                                                                                                  |
-| ab2, ab3                                                             | §6.4 (shadcn, KISS)                                                                                       |
-| ab4                                                                  | §6.5                                                                                                      |
-| ac                                                                   | §5.6 `Page[T]`, §6.3 infinite queries                                                                     |
-| ad                                                                   | §0, §4 (`text` + Go enums)                                                                                |
-| ae                                                                   | §8                                                                                                        |
-| af                                                                   | §5.9                                                                                                      |
-| ag                                                                   | §7                                                                                                        |
-| Public MCP server at `/mcp`, same deployment, in OpenAPI             | §13.1, §13.3 (OpenAPI), §13.7                                                                             |
-| Flexible querying and aggregation for agents                         | §13.6 (`search_transactions`, `aggregate_transactions`, `cash_flow`, `list_facets`, `find_recurring`)     |
-| MCP cannot add bank connections; may refresh existing ones           | §13.1 Plaid isolation + scopes, §13.6 `refresh_data` and not-exposed list, §13.7 `depguard`, §13.12 tests |
-| MCP OAuth                                                            | §13.4, §13.5, §13.9                                                                                       |
+| Req                                                                  | Where                                                                                                    |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| oxlint + oxfmt                                                       | §6.1 scripts, §6.6, §8 `lint-js` / `fix` / `fmt`                                                         |
+| `config.NewFromEnv()` handwritten, untested                          | §3, §5.13 exclusions                                                                                     |
+| Backend business logic unit-tested, no frontend tests                | §5.13, §9                                                                                                |
+| Re-auth endpoint + indicator                                         | §5.5, §5.6 routes, §5.12, §6.7                                                                           |
+| `SECRET_KEY` token encryption + `.env.example` hint                  | §3, §5.11                                                                                                |
+| Natural newlines everywhere                                          | §0, §5.10, every snippet                                                                                 |
+| Manual refresh + cron goroutine (env-configurable)                   | §3 `SYNC_CRON`, §5.5 `SyncAll` + `SyncScheduler`, §5.6 `POST /api/connections/sync`, §6.2 Refresh button |
+| On-demand sync cooldown, in memory, `SYNC_COOLDOWN` (default `10m`)  | §3, §5.5 sync cooldown, §5.6 429, §5.8 `throttled`, §6.3 Refresh toast                                   |
+| Sync failures visible in Prometheus                                  | §5.8 `fin_syncs_total`, `fin_scheduled_sync_*`, alerts                                                   |
+| `iota` enum labels, cardinality locked                               | §5.8 labels table + max-series column                                                                    |
+| Metrics only via high-level functions; zero-sized recorder for tests | §5.8 `Recorder`, `Prometheus{}`, `Noop{}`                                                                |
+| Gitignored `.env` for local creds; seed CLI for email + Plaid creds  | §1, §4 onboarding, §5.1 `cmd/seed`, §8 `seed`                                                            |
+| a, e, m                                                              | §5.1 (Go, `net/http`, wiring in `serve.go`)                                                              |
+| b, c, h (grouping)                                                   | §1 layout, §5.6 handler-per-resource `Register`, §5.10 file-size rule                                    |
+| d                                                                    | §5.10 `tools/nocomments`, §6.6 `fin/no-comments`, Justfile `[doc()]`                                     |
+| f                                                                    | §5.6 `server/routes.go`                                                                                  |
+| g (huma spec), ah                                                    | §5.1 `fin openapi`, §5.6 huma config, gitignored `openapi.json`                                          |
+| h (config)                                                           | §3                                                                                                       |
+| g (DI)                                                               | §5.1, §5.2                                                                                               |
+| i                                                                    | §4, §5.3 (pgx, raw formatted SQL, no transactions)                                                       |
+| j                                                                    | §5.3 interfaces + embedded-interface fakes                                                               |
+| k                                                                    | §5.4                                                                                                     |
+| l                                                                    | §5.5, §5.7                                                                                               |
+| n                                                                    | §5.8, ops routes in §5.6                                                                                 |
+| o                                                                    | §4 manual onboarding                                                                                     |
+| p                                                                    | §1, §4, §5.1 (migrate CLI)                                                                               |
+| q, r                                                                 | §6.1, §6.2                                                                                               |
+| s, aa5, t                                                            | §6.4 rules + §6.6 `no-effects-outside-hooks`, `max-one-use-state`                                        |
+| u, v, z                                                              | §6.3 (`$api` only in `src/lib`, `lib/queries` hooks, lint-enforced)                                      |
+| w                                                                    | §6.4                                                                                                     |
+| x                                                                    | §6.1 `gen`, gitignored `schema.gen.ts`                                                                   |
+| y                                                                    | §2, §7 (pnpm only, `devEngines`)                                                                         |
+| aa                                                                   | §6.2 `_components/`/`_hooks/`, §6.6 `route-private-imports`                                              |
+| aa2                                                                  | §2                                                                                                       |
+| aa3                                                                  | §6.6                                                                                                     |
+| aa4                                                                  | §6.6 `alias-imports`                                                                                     |
+| ab                                                                   | §1, §6.3                                                                                                 |
+| ab2, ab3                                                             | §6.4 (shadcn, KISS)                                                                                      |
+| ab4                                                                  | §6.5                                                                                                     |
+| ac                                                                   | §5.6 `Page[T]`, §6.3 infinite queries                                                                    |
+| ad                                                                   | §0, §4 (`text` + Go enums)                                                                               |
+| ae                                                                   | §8                                                                                                       |
+| af                                                                   | §5.9                                                                                                     |
+| ag                                                                   | §7                                                                                                       |
 
 ## 12. Phase 2 — CI/CD
 
@@ -1804,432 +1829,3 @@ Other prerequisites:
 
 - `/try` (`src/try`): waits for the PR's `staging-<short>` image, reads the production tag from `k8s-personal`, then applies pending migrations from the PR branch to production with `just migrate` (up only, never down), then deploys the staging image with the `deploy` mechanism. The workflow installs just and golang-migrate in setup (`INSTALL_JUST: true`, `INSTALL_MIGRATE: "true"`) and passes `DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DATABASE_URL }}` to the script step. Migrations run only once the image exists, so a missing image never migrates production. The script reads `migrate version` before and after and reports, for example, `Migrated production from version 8 to version 13` or `No pending migrations (version 8)`. A dirty database or a failed migration fails `/try` without deploying; the PR comment and status check point to the run logs and never include raw migrate output.
 - `/revert` (`src/revert`): restores the image the PR's `/try` replaced, as long as production still runs the tried image. It does not roll back migrations, so the restored image runs against the migrated schema.
-
-## 13. Phase 3 — MCP server
-
-A public [Model Context Protocol](https://modelcontextprotocol.io) server at `PUBLIC_URL/mcp`, served by the same `fin serve` process and deployment. Any MCP client (Claude, Claude Code, Cursor, the MCP Inspector, custom agents) connects with OAuth on behalf of an allow-listed user and can query, filter and aggregate that user's connections, accounts, balances and transactions. With the user's permission it can also **refresh** the user's already-linked connections when the data is stale (§13.6 `refresh_data`). Nothing reachable through MCP can create, re-authenticate or remove a bank connection: linking and fixing banks through Plaid Link stays a human-only, in-app flow.
-
-### 13.1 Decisions
-
-| Topic                | Decision                                                                                                                                                                                                                                                                                                                                                                                              | Why                                                                                                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec                 | Target the newest MCP revision the official Go SDK supports at scaffold time. Written against the **2025-11-25** authorization rules: protected resource metadata (RFC 9728), resource indicators (RFC 8707), PKCE S256, Client ID Metadata Documents preferred, DCR as fallback                                                                                                                      | These are the rules every current client implements                                                                                                                     |
-| SDK                  | `github.com/modelcontextprotocol/go-sdk` (`mcp`, `auth`, `oauthex`), `@latest`                                                                                                                                                                                                                                                                                                                        | Official SDK; typed tool handlers infer JSON Schema from Go structs                                                                                                     |
-| Transport            | Streamable HTTP, **stateless** (`StreamableHTTPOptions{Stateless: true, JSONResponse: true}`), one endpoint `/mcp`; `GET` and `DELETE` → 405                                                                                                                                                                                                                                                          | Tools need no server push or session; any replica can answer any request                                                                                                |
-| Deployment           | Same binary, same listener, same image. `/mcp`, `/oauth/*` and `/.well-known/oauth-*` are plain `net/http` routes in `server/routes.go`, **documented in the OpenAPI spec** like every other route (§13.3)                                                                                                                                                                                            | Requested; no second service to deploy, configure or monitor, and `/swagger` stays the complete picture of the HTTP surface                                             |
-| Authorization server | fin **is** the authorization server, with Google login as the upstream identity (the existing `AuthService`). Hand-written, no OAuth framework                                                                                                                                                                                                                                                        | Google tokens cannot carry an audience of `PUBLIC_URL/mcp`, and the MCP spec forbids passing upstream tokens through. One client type (public, PKCE) keeps the AS small |
-| Tokens               | **Opaque** random tokens (`fin_at_…`, `fin_rt_…`, 32 bytes `crypto/rand`, base64url), SHA-256 stored, same pattern as `sessions.token_hash`. No JWTs                                                                                                                                                                                                                                                  | AS and RS share a database, so lookups are free, revocation is instant and there is no signing key to manage or rotate                                                  |
-| Scopes               | Two scopes: `fin:read` (every query tool) and `fin:sync` (only `refresh_data`). Clients request both by default; the consent page lets the user untick refreshing. No other write scopes exist                                                                                                                                                                                                        | Refreshing is the only action agents need; a separate scope lets a user grant pure read access                                                                          |
-| Plaid isolation      | `internal/mcpserver` gets read-only repository interfaces plus one narrow `connectionSyncer` interface (`Sync(ctx, userID, connectionID, trigger) error`, the same shape `SyncScheduler` already uses), declared inside `mcpserver` and satisfied by `ConnectionService`. `depguard` forbids `mcpserver` from importing `internal/provider`, `internal/encryption`, `internal/service` and `plaid-go` | Link, exchange, re-auth and remove are not in any interface `mcpserver` holds, so "cannot add a bank" is enforced by the compiler and lint, not by a missing `if`       |
-| No raw SQL tool      | Agents get a typed aggregation tool instead (§13.6)                                                                                                                                                                                                                                                                                                                                                   | A SQL tool would bypass `WHERE user_id = $n` tenancy and expose `access_token_ciphertext`, cursors and Plaid secrets                                                    |
-| Consent UI           | A SPA page (`/consent`) behind the existing session, not a server-rendered page                                                                                                                                                                                                                                                                                                                       | `fin_session` is `SameSite=Strict`, so it is not sent on the cross-site navigation into `/oauth/authorize`; a same-origin `fetch` from the SPA does carry it            |
-
-### 13.2 Layout additions
-
-```
-internal/
-├── domain/oauth.go               OAuthClient, Authorization, Grant, Token; ClientSource, TokenKind, Scope enums
-├── oauth/                        pure protocol helpers, no I/O except the CIMD fetcher
-│   ├── pkce.go                   S256 verification (constant-time compare)
-│   ├── redirect.go               redirect URI validation + exact matching
-│   ├── scope.go                  parse/format, subset checks
-│   ├── metadata_document.go      Client ID Metadata Document fetcher (SSRF-guarded)
-│   └── errors.go                 RFC 6749 error codes as a Go enum + JSON writer
-├── repository/
-│   ├── oauth_client.go
-│   ├── oauth_authorization.go
-│   ├── oauth_grant.go
-│   ├── oauth_token.go
-│   └── transaction_query.go      Search + Aggregate + Facets for MCP (typed specs, no SQL in callers)
-├── service/oauth.go              OAuthService: authorize, consent, exchange, refresh, revoke, verify
-├── handler/
-│   ├── oauth.go                  net/http: metadata docs, authorize, token, register, revoke
-│   ├── oauth_openapi.go          Document(api): documentation-only OpenAPI operations for the routes above
-│   └── oauth_consent.go          huma (/api): pending request, approve, deny, grants list/revoke
-└── mcpserver/
-    ├── server.go                 New(deps) → *mcp.Server; registers every tool
-    ├── auth.go                   bearer middleware (auth.RequireBearerToken + our TokenVerifier), Origin check
-    ├── types.go                  tool input/output DTOs (json + jsonschema tags)
-    ├── tools_accounts.go         list_connections, list_accounts, get_balances
-    ├── tools_transactions.go     search_transactions, get_transaction, list_facets
-    ├── tools_aggregate.go        aggregate_transactions, cash_flow
-    ├── tools_recurring.go        find_recurring
-    ├── tools_refresh.go          refresh_data
-    └── openapi.go                Document(api): documentation-only OpenAPI operation for /mcp + x-mcp-tools
-js/src/app/
-├── consent.Page.tsx              approve/deny an MCP client
-└── apps/apps.Page.tsx            connected apps: list + revoke grants
-```
-
-### 13.3 Endpoints
-
-| Method | Path                                        | Handler                          | Auth            | Notes                                                                                               |
-| ------ | ------------------------------------------- | -------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
-| POST   | `/mcp`                                      | `mcpserver` streamable handler   | Bearer          | JSON-RPC; `GET`/`DELETE` → 405                                                                      |
-| GET    | `/.well-known/oauth-protected-resource/mcp` | `OAuthHandler.resourceMetadata`  | public, CORS \* | RFC 9728; also served at `/.well-known/oauth-protected-resource`                                    |
-| GET    | `/.well-known/oauth-authorization-server`   | `OAuthHandler.serverMetadata`    | public, CORS \* | RFC 8414; also at `/.well-known/openid-configuration` for clients that only try OIDC discovery      |
-| GET    | `/oauth/authorize`                          | `OAuthHandler.authorize`         | public          | validates, stores a pending authorization, 303 → `/consent?request=<id>`                            |
-| POST   | `/oauth/token`                              | `OAuthHandler.token`             | client, CORS \* | `application/x-www-form-urlencoded`; `authorization_code`, `refresh_token`                          |
-| POST   | `/oauth/register`                           | `OAuthHandler.register`          | public, CORS \* | RFC 7591 dynamic registration (fallback for clients without CIMD), rate-limited                     |
-| POST   | `/oauth/revoke`                             | `OAuthHandler.revoke`            | client, CORS \* | RFC 7009; always 200                                                                                |
-| GET    | `/api/oauth/requests/{requestId}`           | `OAuthConsentHandler.get`        | session         | client name, client id host, verified flag, redirect host, scopes, expiry; 404 when expired or used |
-| POST   | `/api/oauth/requests/{requestId}/approve`   | `OAuthConsentHandler.approve`    | session         | → `{redirectTo}` with `code`, `state`, `iss`                                                        |
-| POST   | `/api/oauth/requests/{requestId}/deny`      | `OAuthConsentHandler.deny`       | session         | → `{redirectTo}` with `error=access_denied`, `state`, `iss`                                         |
-| GET    | `/api/oauth/grants`                         | `OAuthConsentHandler.listGrants` | session         | `Page[OAuthGrant]`: client name, scopes, created, last used                                         |
-| DELETE | `/api/oauth/grants/{grantId}`               | `OAuthConsentHandler.revoke`     | session         | 204; revokes the grant and every token issued under it                                              |
-
-`routes.go` additions (the one routing table stays the one routing table):
-
-```go
-mux.Handle("POST /mcp", h.MCP)
-mux.Handle("/mcp", http.HandlerFunc(methodNotAllowed))
-
-mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", h.OAuth.ResourceMetadata)
-mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.OAuth.ResourceMetadata)
-mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.OAuth.ServerMetadata)
-mux.HandleFunc("GET /.well-known/openid-configuration", h.OAuth.ServerMetadata)
-
-mux.HandleFunc("GET /oauth/authorize", h.OAuth.Authorize)
-mux.HandleFunc("POST /oauth/token", h.OAuth.Token)
-mux.HandleFunc("POST /oauth/register", h.OAuth.Register)
-mux.HandleFunc("POST /oauth/revoke", h.OAuth.Revoke)
-mux.Handle("/oauth/", http.NotFoundHandler())
-mux.Handle("/.well-known/", http.NotFoundHandler())
-
-h.OAuthConsent.Register(authed)
-
-h.OAuth.Document(api)
-mcpserver.Document(api)
-```
-
-`/mcp`, `/oauth/` and `/.well-known/` never fall through to the SPA (`spa_test.go` gains those cases). The OAuth endpoints are served by `net/http`, not huma: their bodies are form-encoded and their errors must be RFC 6749 JSON (`{"error":"invalid_grant","error_description":"…"}`), which huma's problem+json does not produce. `/mcp` is served by the SDK's handler for the same reason. CORS `*` without credentials is set only on the metadata, token, register and revoke endpoints so browser-based MCP clients can complete discovery; it is safe because none of them read cookies.
-
-**OpenAPI.** Serving these routes with `net/http` does not hide them from the spec. `RegisterRoutes` calls `h.OAuth.Document(api)` and `mcpserver.Document(api)`, which add **documentation-only** operations with `api.OpenAPI().AddOperation(…)` (huma records them in the spec but does not route them, so the mux above stays in charge). Both functions read types only, so `fin openapi` documents them with zero-value dependencies, the same as every huma handler (§5.1).
-
-- Security scheme `mcpOAuth`: `type: oauth2`, `authorizationCode` flow with `authorizationUrl` `/oauth/authorize`, `tokenUrl` and `refreshUrl` `/oauth/token`, scopes `fin:read` and `fin:sync`. `cookieAuth` stays the scheme for `/api`.
-- `POST /mcp` (tag `mcp`, security `mcpOAuth: [fin:read]`): JSON-RPC 2.0 request and response schemas, `401`/`403` responses documenting the `WWW-Authenticate` header, `429`. `GET /mcp` and `DELETE /mcp` are listed as `405`. The operation carries an `x-mcp-tools` extension: for each tool its name, description, required scope, annotations and input/output JSON Schema, generated from the **same** Go types the SDK registers, so the spec cannot drift from `tools/list` (a test compares them).
-- `/oauth/*` (tag `oauth`): form-encoded request bodies (`application/x-www-form-urlencoded`) for token and revoke, JSON for register, the RFC 6749 error schema, `302`/`303` responses for authorize. `/.well-known/*` (tag `oauth`): the two metadata document schemas.
-- The SPA's generated `schema.gen.ts` gains these paths; nothing in `src/lib/queries` calls them.
-
-### 13.4 OAuth flow
-
-```mermaid
-sequenceDiagram
-  participant C as MCP client
-  participant F as fin (/mcp + AS)
-  participant B as User's browser
-  participant G as Google
-
-  C->>F: POST /mcp (no token)
-  F-->>C: 401 WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp", scope="fin:read fin:sync"
-  C->>F: GET protected resource metadata → authorization_servers=[PUBLIC_URL]
-  C->>F: GET /.well-known/oauth-authorization-server
-  Note over C,F: client_id = HTTPS URL of its metadata document (CIMD),<br/>or POST /oauth/register if it has none
-  C->>B: open /oauth/authorize?client_id&redirect_uri&code_challenge(S256)&state&scope&resource=PUBLIC_URL/mcp
-  B->>F: GET /oauth/authorize
-  F-->>B: 303 /consent?request=<id>
-  B->>F: SPA: GET /api/oauth/requests/<id> (no session → /login?returnTo=/consent?request=<id>)
-  B->>G: Google login (existing flow), callback 303 → returnTo
-  B->>F: POST /api/oauth/requests/<id>/approve
-  F-->>B: {redirectTo: redirect_uri?code&state&iss}
-  B->>C: redirect with code
-  C->>F: POST /oauth/token (code, code_verifier, redirect_uri, client_id, resource)
-  F-->>C: access_token (1h) + refresh_token (rotating)
-  C->>F: POST /mcp Authorization: Bearer fin_at_…
-```
-
-**Discovery.** Unauthenticated `/mcp` requests get `401` with `WWW-Authenticate: Bearer resource_metadata="<PUBLIC_URL>/.well-known/oauth-protected-resource/mcp", scope="fin:read fin:sync"`. Protected resource metadata: `{resource: "<PUBLIC_URL>/mcp", authorization_servers: ["<PUBLIC_URL>"], scopes_supported: ["fin:read", "fin:sync"], bearer_methods_supported: ["header"], resource_name: "fin"}`. Authorization server metadata: `issuer = PUBLIC_URL`, the four endpoints, `response_types_supported: ["code"]`, `grant_types_supported: ["authorization_code", "refresh_token"]`, `code_challenge_methods_supported: ["S256"]`, `token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"]`, `scopes_supported: ["fin:read", "fin:sync"]`, `client_id_metadata_document_supported: true`, `authorization_response_iss_parameter_supported: true`.
-
-**Client registration — how fin learns which app is asking.** Before an app like Claude or Cursor can ask you for access, fin needs two facts about it: a name to show on the consent page, and the exact URL(s) it is allowed to send you back to after you approve (so a stolen authorization code can't be delivered to someone else). Plaid-style manual setup per app is not needed; MCP defines two self-service ways, and fin supports both:
-
-1. **The app publishes a small JSON file about itself (preferred; "Client ID Metadata Document").** The app's ID _is_ an HTTPS URL on its own domain, e.g. `client_id=https://claude.ai/oauth/mcp-client.json`. When fin sees an ID like that, it downloads that file, which lists the app's name and redirect URLs. Because only the owner of `claude.ai` can put a file there, fin knows the request really comes from `claude.ai`, and the consent page shows that domain with a **verified** badge.
-   - Fetch rules: HTTPS only, no redirects, 5s timeout, 64 KiB cap, and the connection refuses loopback, private, link-local, CGNAT and multicast addresses after DNS resolution, so the download cannot be aimed at fin's own network (SSRF guard; the resolver is injected for tests).
-   - The file must be JSON whose `client_id` equals its own URL, with a non-empty `client_name` and `redirect_uris`, and `token_endpoint_auth_method: none`.
-   - Cached in `oauth_clients` (`source = metadata_document`) for its `Cache-Control` max-age, capped at 24h.
-2. **The app registers itself by API (fallback; "Dynamic Client Registration").** Older apps instead `POST /oauth/register` with their name and redirect URLs, and fin replies with a freshly generated ID (`fin_client_` + 16 random bytes). Anyone on the internet can do this and claim any name, so the consent page marks these apps **unverified** and shows the redirect host prominently.
-   - Accepts RFC 7591 JSON with `authorization_code` + `refresh_token` grants and `code` responses only.
-   - `token_endpoint_auth_method` `none` (default) or `client_secret_basic`/`client_secret_post`; a secret is returned once and only its SHA-256 is stored.
-   - Rate-limited per IP (§13.9); registrations that never led to an approval are deleted after 7 days.
-
-Neither path grants anything. Registering only makes the app _able to ask_; access exists only after an allow-listed user signs in and clicks **Approve**.
-
-**Redirect URIs.** Exact string match against the registered list, except that loopback `http://127.0.0.1`, `http://[::1]` and `http://localhost` match on any port (RFC 8252 §7.3). Allowed: `https://` URIs, loopback `http://`, and private-use schemes (`cursor://…`, `vscode://…`) for native apps. Refused: any other `http://`, `javascript:`, `data:`, `file:`, fragments, and userinfo. Invalid `client_id` or `redirect_uri` renders an error at fin and **never** redirects (open-redirect guard); every other error redirects back with `error`, `state` and `iss`.
-
-**Authorize** (`GET /oauth/authorize`). Requires `response_type=code`, `client_id`, `redirect_uri`, `code_challenge` with `code_challenge_method=S256` (plain is refused), `state` (passed through untouched), `resource` equal to `PUBLIC_URL/mcp` after normalization (RFC 8707: tokens for any other audience are never minted; a missing `resource` defaults to it for older clients), and `scope` ⊆ `{fin:read, fin:sync}` (empty → both). Stores an `oauth_authorizations` row (10-minute TTL, `user_id` null) and 303s to `/consent?request=<id>`. The `request` value is a random 32-byte base64url token (43 characters) whose SHA-256 is stored, not the row's time-ordered UUIDv7, so it cannot be guessed.
-
-**Consent** (`/consent`, SPA). Rendered inside the authenticated layout but **exempt from the PWA install gate** (§6.5), because MCP clients open it in a normal browser tab. An unauthenticated visitor is sent to `/login?returnTo=/consent?request=<id>`; `GET /auth/google/login?returnTo=…` stores `returnTo` in the `fin_oauth` cookie and the callback 303s to it. `returnTo` must match `^/consent\?request=[A-Za-z0-9_-]{43}$`, so the login flow gains no open redirect. A non-allow-listed Google account still lands on `/login?error=not_allowed`. The page shows: client name and logo (CIMD only; DCR logos are not shown), verified/unverified badge, the client id host, where it redirects, the requested access in plain words ("Read your accounts, balances and transactions." and, when `fin:sync` was requested, a checkbox ticked by default: "Refresh data from your already-connected banks." followed by "It cannot connect, reconnect or remove banks."), and **Approve** / **Deny**. Approve sends `{scopes}` (the requested scopes minus anything unticked; `fin:read` cannot be unticked), binds `user_id`, mints an authorization code (32 bytes, SHA-256 stored, 60-second TTL) and returns `{redirectTo}`; the SPA calls `window.location.assign(redirectTo)`. CSRF on approve/deny is covered the same way as every other `/api` mutation: `SameSite=Strict` session + JSON body. Approving a client the user already granted reuses the existing `oauth_grants` row (scopes unioned).
-
-**Token** (`POST /oauth/token`).
-
-- Client authentication: public clients send `client_id` only; confidential DCR clients authenticate with Basic or post (constant-time hash compare). `invalid_client` → 401.
-- `authorization_code`: atomically consume the code with one statement (`UPDATE oauth_authorizations SET consumed_at = now() WHERE code_hash = $1 AND consumed_at IS NULL AND code_expires_at > now() RETURNING …`), then require same `client_id`, same `redirect_uri`, same `resource`, and `S256(code_verifier) == code_challenge`. A code presented twice revokes the grant it produced (RFC 6749 §4.1.2). Issues an access token (`MCP_ACCESS_TOKEN_TTL`, default 1h) and a refresh token (`MCP_REFRESH_TOKEN_TTL`, default 30d).
-- `refresh_token`: refresh tokens **rotate**. Consume with `UPDATE oauth_tokens SET used_at = now() WHERE token_hash = $1 AND kind = 'refresh' AND used_at IS NULL AND expires_at > now() RETURNING …`; if that matches nothing but the token exists with `used_at` set, it is a replay → revoke the whole grant and count `reuse_detected`. A refresh may narrow but never widen scope, and `resource` must still match. A grant also has an absolute lifetime (`MCP_GRANT_MAX_AGE`, default 90d) after which the user must approve again.
-- Every response: `Cache-Control: no-store`, `token_type: Bearer`, `expires_in`, `scope`.
-- No DB transactions (§0): each step is a single atomic statement, and a crash between consuming a code/refresh token and inserting new tokens only forces the client to authorize again.
-
-**Revoke.** `POST /oauth/revoke` (RFC 7009) revokes the presented token; revoking a refresh token revokes its grant. Users revoke from **Settings → Connected apps** (`/apps`), which deletes the grant (cascading its tokens). Deleting a user row cascades everything, so removing someone from the allow-list cuts every agent off immediately.
-
-**Resource server** (`mcpserver/auth.go`). `auth.RequireBearerToken` from the SDK with our `TokenVerifier`:
-
-- Only the `Authorization: Bearer` header is accepted; tokens in query strings are rejected.
-- One indexed query joins `oauth_tokens` → `oauth_grants` → `users`: token kind `access`, not expired, grant not revoked and within max age, `resource = PUBLIC_URL/mcp`, scope contains `fin:read`. `refresh_data` additionally requires `fin:sync`. The user is stored in the request context the same way `RequireSession` does, and every tool passes that `user.ID` to every repository call.
-- `last_used_at` on the grant is updated at most every 5 minutes (conditional `UPDATE … WHERE last_used_at < now() - interval '5 minutes'`), so reads don't write on every call.
-- Failures: missing/invalid/expired → 401 with the `WWW-Authenticate` header above plus `error="invalid_token"`; missing scope → 403 `error="insufficient_scope", scope="fin:read fin:sync"`, which tells the client to send the user back through consent to add the scope (step-up authorization). Clients granted only `fin:read` do not see `refresh_data` in `tools/list` at all.
-- The `fin_session` cookie is **never** accepted on `/mcp`, so a logged-in browser cannot be driven into it cross-site.
-- DNS-rebinding guard required by the transport spec: a request carrying an `Origin` header is rejected with 403 unless the origin is in `MCP_ALLOWED_ORIGINS` (default empty; hosted agents call server-to-server and send none).
-
-### 13.5 Database
-
-Four migrations, one table each, following §4's conventions (`text` enums without `CHECK`, `uuidv7()` ids, every user-data table carries `user_id` with `ON DELETE CASCADE`).
-
-```sql
-CREATE TABLE oauth_clients (
-    id                          text        PRIMARY KEY,
-    source                      text        NOT NULL,
-    client_name                 text        NOT NULL,
-    client_uri                  text,
-    logo_uri                    text,
-    redirect_uris               text[]      NOT NULL,
-    token_endpoint_auth_method  text        NOT NULL,
-    client_secret_hash          bytea,
-    metadata_fetched_at         timestamptz,
-    metadata_expires_at         timestamptz,
-    created_at                  timestamptz NOT NULL DEFAULT now(),
-    last_used_at                timestamptz
-);
-```
-
-```sql
-CREATE TABLE oauth_authorizations (
-    id                     uuid        PRIMARY KEY DEFAULT uuidv7(),
-    request_token_hash     bytea       NOT NULL UNIQUE,
-    client_id              text        NOT NULL REFERENCES oauth_clients (id) ON DELETE CASCADE,
-    user_id                uuid        REFERENCES users (id) ON DELETE CASCADE,
-    redirect_uri           text        NOT NULL,
-    scope                  text        NOT NULL,
-    resource               text        NOT NULL,
-    state                  text,
-    code_challenge         text        NOT NULL,
-    code_hash              bytea       UNIQUE,
-    code_expires_at        timestamptz,
-    consumed_at            timestamptz,
-    grant_id               uuid,
-    created_at             timestamptz NOT NULL DEFAULT now(),
-    expires_at             timestamptz NOT NULL
-);
-```
-
-```sql
-CREATE TABLE oauth_grants (
-    id            uuid        PRIMARY KEY DEFAULT uuidv7(),
-    user_id       uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    client_id     text        NOT NULL REFERENCES oauth_clients (id) ON DELETE CASCADE,
-    scope         text        NOT NULL,
-    resource      text        NOT NULL,
-    created_at    timestamptz NOT NULL DEFAULT now(),
-    expires_at    timestamptz NOT NULL,
-    last_used_at  timestamptz,
-    revoked_at    timestamptz,
-    UNIQUE (user_id, client_id)
-);
-
-CREATE INDEX oauth_grants_user_id_idx ON oauth_grants (user_id);
-```
-
-```sql
-CREATE TABLE oauth_tokens (
-    id          uuid        PRIMARY KEY DEFAULT uuidv7(),
-    grant_id    uuid        NOT NULL REFERENCES oauth_grants (id) ON DELETE CASCADE,
-    user_id     uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    kind        text        NOT NULL,
-    token_hash  bytea       NOT NULL UNIQUE,
-    scope       text        NOT NULL,
-    expires_at  timestamptz NOT NULL,
-    used_at     timestamptz,
-    created_at  timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX oauth_tokens_grant_id_idx ON oauth_tokens (grant_id);
-```
-
-Expired authorizations and tokens are deleted opportunistically by `OAuthService` on each token issuance (`DeleteExpired`, the same pattern as sessions). Nothing secret is stored in plaintext: codes, request tokens, access/refresh tokens and client secrets are SHA-256 hashes (high-entropy random values, so a plain hash is sufficient; no `SECRET_KEY` involvement).
-
-### 13.6 Tools
-
-Every tool except `refresh_data` is annotated `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`. All tools declare an `outputSchema`, and return `structuredContent` plus the same JSON as a text block for clients that ignore structured output. Conventions shared by every tool:
-
-- Money is a decimal **string**, outflows negative (§0). Every amount travels with its `currency`; nothing ever sums across currencies (aggregations always group by currency implicitly).
-- Dates are `YYYY-MM-DD` (`posted_on`), timestamps RFC 3339.
-- IDs are fin UUIDs. Plaid `external_id`s, access tokens, cursors, `last_error` text and credentials never appear in any DTO; DTOs live in `mcpserver/types.go` and are mapped from domain types, like the API DTOs (§5.6).
-- Shared transaction filter (`TransactionQuery`), accepted by every transaction tool:
-
-| Field                                | Meaning                                                                                     |
-| ------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `from`, `to`                         | inclusive `posted_on` range; default last 90 days; max span 5 years                         |
-| `account_ids`, `exclude_account_ids` | include / exclude lists                                                                     |
-| `connection_ids`                     | restrict to institutions                                                                    |
-| `account_types`                      | `depository`, `credit`, `loan`, `investment`, `other`                                       |
-| `categories`, `exclude_categories`   | exact Plaid category values (discover with `list_facets`)                                   |
-| `exclude_transfers`                  | drops `TRANSFER_IN`, `TRANSFER_OUT`, `LOAN_PAYMENTS` (same set as `/api/summary/cash-flow`) |
-| `merchant`                           | case-insensitive substring over `merchant_name` and `name` (`ILIKE`, wildcards escaped)     |
-| `direction`                          | `inflow` (amount > 0), `outflow` (amount < 0), `any`                                        |
-| `min_amount`, `max_amount`           | bounds on the **absolute** amount, decimal strings                                          |
-| `currency`                           | ISO code                                                                                    |
-| `pending`                            | `true`, `false`, or omitted for both                                                        |
-
-| Tool                     | Input                                                                                                                                                                                                                                                                                                                                           | Output                                                                                                                                                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_connections`       | —                                                                                                                                                                                                                                                                                                                                               | institution, status (`active`/`needs_reauth`), `last_synced_at`, `has_error`, account count. Lets the agent judge freshness, decide whether to call `refresh_data`, and caveat data ("Chase needs sign-in in the app") |
-| `list_accounts`          | `connection_ids`, `account_types`                                                                                                                                                                                                                                                                                                               | id, institution, name, official name, mask, type, subtype, current/available balance, currency                                                                                                                         |
-| `get_balances`           | `exclude_account_ids`                                                                                                                                                                                                                                                                                                                           | per currency: assets, liabilities, net worth; plus per-account-type subtotals                                                                                                                                          |
-| `search_transactions`    | `TransactionQuery` + `sort` (`date_desc`, `date_asc`, `amount_asc`, `amount_desc`), `page`, `page_size` (≤ 500)                                                                                                                                                                                                                                 | transactions with account/institution names inlined, `total`, `has_next`                                                                                                                                               |
-| `get_transaction`        | `transaction_id`                                                                                                                                                                                                                                                                                                                                | one transaction incl. `authorized_on`                                                                                                                                                                                  |
-| `list_facets`            | `TransactionQuery`, `facet` (`category`, `merchant`, `account`, `currency`), `limit` (≤ 500)                                                                                                                                                                                                                                                    | distinct values with count and sum, so agents learn valid filter values before filtering                                                                                                                               |
-| `aggregate_transactions` | `TransactionQuery` + `group_by` (0–3 of `day`, `week`, `month`, `quarter`, `year`, `weekday`, `category`, `merchant`, `account`, `connection`, `account_type`, `direction`, `pending`) + `metrics` (1+ of `sum`, `inflow`, `outflow`, `count`, `avg`, `min`, `max`, `median`) + `order_by` (a metric or dimension, asc/desc) + `limit` (≤ 1000) | rows of `{dimensions…, currency, metrics…}`, `truncated` flag. Covers "spend by category per month", "top 10 merchants this year", "average weekday spend", "income by account"                                        |
-| `cash_flow`              | `TransactionQuery` + `interval` (`day`, `week`, `month`, `quarter`, `year`); `exclude_transfers` defaults to `true` here                                                                                                                                                                                                                        | per period and currency: inflow, outflow (positive), net, savings rate                                                                                                                                                 |
-| `find_recurring`         | `from`/`to` (default 13 months), `min_occurrences` (default 3)                                                                                                                                                                                                                                                                                  | candidate subscriptions/bills: merchant, typical amount, cadence (`weekly`, `biweekly`, `monthly`, `quarterly`, `yearly`), last and next expected date, occurrences                                                    |
-| `refresh_data`           | `connection_ids` (default: all of the user's connections), `stale_after_minutes` (default 60, minimum 15)                                                                                                                                                                                                                                       | per connection: `synced`, `skipped_fresh`, `skipped_needs_reauth` ("sign in again in the fin app"), or `failed`, with the new `last_synced_at`; plus counts. Requires `fin:sync`                                       |
-
-`aggregate_transactions` is the flexible-analysis core. It never sees SQL from the caller: `group_by`, `metrics` and `order_by` are Go enums mapped to fixed SQL expressions in `repository/postgres/transaction_query.go` (e.g. `month` → `date_trunc('month', t.posted_on)::date`, `merchant` → `coalesce(t.merchant_name, t.name)`, `median` → `percentile_cont(0.5) WITHIN GROUP (ORDER BY t.amount)`, `outflow` → `-sum(t.amount) FILTER (WHERE t.amount < 0)`); every value is a bind parameter, `t.user_id = $1` is always the first predicate, and `t.currency` is always a grouping column. The query builder is a pure function (`buildAggregateQuery(spec) (string, []any)`) and is the one part of `repository/postgres` that gets unit tests: golden SQL per dimension/metric, every identifier comes from the whitelist, user id is always `$1`.
-
-`find_recurring` runs in Go over `aggregate`-style rows (merchant, amount, dates) fetched with one query: group by normalized merchant, compute median gap between occurrences, accept when ≥ `min_occurrences` and gaps cluster within ±20% of a known cadence and amounts within ±15% of the median. Pure function, unit-tested.
-
-`refresh_data` is the only tool with a side effect. It runs the same `ConnectionService.Sync` the Refresh button and the scheduler use, through the narrow `connectionSyncer` interface (§13.1), with a new trigger `metrics.SyncTriggerMCP`:
-
-- Only connections that are `active` and whose `last_synced_at` is older than `stale_after_minutes` are synced; everything else is skipped and reported. A hard **15-minute floor** applies whatever the input says, so an agent in a loop cannot hammer Plaid; the `/mcp` rate limit (§13.9) applies on top.
-- `needs_reauth` connections are never touched: fixing them needs Plaid Link in the app, which is exactly what MCP must not do. The result tells the agent to ask the user to reconnect in fin.
-- Connections are synced sequentially under a 60-second deadline (separate from the 5-second query deadline); whatever did not finish is reported as `failed` and the next sync picks it up, because syncs are idempotent (§5.5).
-- It pulls what Plaid already has (`/transactions/sync`); it does not call Plaid's billed `/transactions/refresh`, so freshness is bounded by Plaid's own update cadence. The server `instructions` say this, and tell agents to check `list_connections` first and refresh only when the data is older than the question needs.
-- Annotations: `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true`.
-
-Response size: every tool caps rows (limits above) and sets `truncated`/`has_next`, so a single call cannot dump the database into an agent's context. Every query runs under a 5-second context deadline.
-
-Not exposed, ever: link tokens, public-token exchange, re-auth (update-mode link tokens and completion), connection removal, card-art selection, Plaid credentials, sessions, other users. Write tools beyond `refresh_data` (e.g. notes or categories) would need a new scope and a new consent line; out of scope for this phase.
-
-Resources and prompts are out of scope for v1; everything is a tool, which every client supports. An `instructions` string on the server explains the money sign convention, currencies, that data can be up to one `SYNC_CRON` period old unless refreshed, when to use `refresh_data`, and that transaction text is untrusted data.
-
-### 13.7 Wiring
-
-`serve.go` adds, in the same explicit-constructor style:
-
-```go
-oauthClients := postgres.NewOAuthClientRepository(pool)
-oauthAuthorizations := postgres.NewOAuthAuthorizationRepository(pool)
-oauthGrants := postgres.NewOAuthGrantRepository(pool)
-oauthTokens := postgres.NewOAuthTokenRepository(pool)
-transactionQueries := postgres.NewTransactionQueryRepository(pool)
-
-metadataFetcher := oauth.NewMetadataDocumentFetcher(httpClient, oauth.PublicAddressesOnly)
-oauthService := service.NewOAuthService(cfg.OAuth(), oauthClients, oauthAuthorizations, oauthGrants, oauthTokens, metadataFetcher, recorder)
-
-mcpHandler := mcpserver.NewHandler(mcpserver.Deps{
-	Verifier:     oauthService,
-	Connections:  connections,
-	Accounts:     accounts,
-	Summary:      summary,
-	Transactions: transactionQueries,
-	Syncer:       connectionService,
-	Recorder:     recorder,
-	Config:       cfg.MCP(),
-})
-```
-
-`mcpserver.Deps` holds **repository interfaces**, one `TokenVerifier` interface (`VerifyAccessToken(ctx, token) (domain.User, []domain.Scope, error)`) and one `connectionSyncer` interface (`Sync` only), all declared inside `mcpserver`. None of them exposes link, exchange, re-auth or remove. `.golangci.yml` enables `depguard` with a rule scoped to `internal/mcpserver/**` denying `github.com/tahminator/fin/internal/provider`, `.../encryption`, `.../service` and `github.com/plaid/plaid-go`; `serve.go` is where `ConnectionService` is handed over as the interface. `ConnectionRepository` is passed as a read-only interface (`ListByUser` only), so the repository methods that mutate connections are out of reach too.
-
-### 13.8 Configuration
-
-| Variable                | Default | Notes                                                                                   |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------- |
-| `MCP_ENABLED`           | `true`  | `false` unregisters `/mcp`, `/oauth/*` and the metadata endpoints (all 404)             |
-| `MCP_ACCESS_TOKEN_TTL`  | `1h`    |                                                                                         |
-| `MCP_REFRESH_TOKEN_TTL` | `720h`  | rotating; each refresh issues a new one                                                 |
-| `MCP_GRANT_MAX_AGE`     | `2160h` | re-consent after 90 days regardless of use                                              |
-| `MCP_ALLOWED_ORIGINS`   | empty   | comma list for browser-based clients; empty rejects any request with an `Origin` header |
-
-Derived, not configured: `cfg.OAuthIssuer() = PUBLIC_URL`, `cfg.MCPResource() = PUBLIC_URL + "/mcp"`. Validation additions: in production `PUBLIC_URL` must be `https://` with no path, query or trailing slash (the issuer and resource identifiers are compared as exact strings); `MCP_ACCESS_TOKEN_TTL` ≤ 24h. Dev: Vite's `server.proxy` gains `/mcp`, `/oauth`, `/.well-known`, and `PUBLIC_URL=http://localhost:5173` keeps issuer, resource and consent page on one origin.
-
-### 13.9 Abuse protection and privacy
-
-- Rate limits (in-process `golang.org/x/time/rate`, keyed per client IP from the ingress `X-Forwarded-For` hop, per replica): `/oauth/register` 10/hour, `/oauth/token` 60/minute, `/oauth/authorize` 60/minute, `/mcp` 120/minute per **grant**. Excess → 429 with `Retry-After`. Request bodies capped at 64 KiB (`http.MaxBytesReader`).
-- Logging: the request logger never logs query strings for `/oauth/*` (codes, state) or any `Authorization` header. MCP calls log tool name, user id, grant id, outcome, rows returned and duration; tool arguments are not logged (merchant searches are personal data).
-- Prompt injection: merchant and transaction names are third-party text and reach the agent verbatim. The server is scoped to one user and its only side effect is `refresh_data`, which is idempotent, rate-floored and touches nothing but already-linked connections, so an injected instruction can at most make the agent read more or refresh early; it cannot move money, link or remove banks, or touch another user. The server `instructions` remind clients that transaction text is untrusted data.
-- Ingress: `/mcp`, `/oauth/*` and `/.well-known/oauth-*` are public (TLS terminated at the ingress); `/metrics`, `/healthz`, `/readyz` stay blocked as today.
-
-### 13.10 Observability
-
-New `iota` label enums in `metrics/labels.go`: `RouteGroup` gains `mcp` and `oauth` (`routeGroupOf` maps `/mcp`, `/oauth/`, `/.well-known/`); `MCPTool` (one value per tool in §13.6); `SyncTrigger` gains `mcp` (so `fin_syncs_total` and `fin_sync_duration_seconds` split MCP refreshes from manual and scheduled ones; 15 and 5 × buckets series); `ToolOutcome` (`success`, `invalid_params`, `not_found`, `error`); `OAuthGrantType` (`authorization_code`, `refresh_token`); `OAuthOutcome` (`success`, `invalid_request`, `invalid_client`, `invalid_grant`, `reuse_detected`, `error`); `ClientSource` (`metadata_document`, `registered`); `ConsentDecision` (`approved`, `denied`).
-
-| Metric                                            | Type      | Labels                  | Max series      |
-| ------------------------------------------------- | --------- | ----------------------- | --------------- |
-| `fin_mcp_tool_calls_total` (`mcpserver`)          | counter   | `tool`, `outcome`       | 10 × 4          |
-| `fin_mcp_tool_duration_seconds`                   | histogram | `tool`                  | 10 × buckets    |
-| `fin_oauth_token_requests_total` (`OAuthService`) | counter   | `grant_type`, `outcome` | 12              |
-| `fin_oauth_client_registrations_total`            | counter   | `source`, `outcome`     | 4               |
-| `fin_oauth_consents_total`                        | counter   | `decision`              | 2               |
-| `fin_oauth_active_grants` (DB snapshot)           | gauge     | `user`                  | allow-list size |
-| `fin_oauth_clients` (DB snapshot)                 | gauge     | `source`                | 2               |
-
-`Recorder` gains `MCPToolCalled(tool, outcome, elapsed)`, `OAuthTokenRequested(grantType, outcome)`, `OAuthClientRegistered(source, outcome)` and `OAuthConsentDecided(decision)`. Client names and ids are **not** labels (unbounded). Alerts:
-
-```
-increase(fin_oauth_token_requests_total{outcome="reuse_detected"}[1d]) > 0
-increase(fin_oauth_client_registrations_total[1h]) > 20
-increase(fin_mcp_tool_calls_total{outcome="error"}[1h]) > 0
-increase(fin_syncs_total{trigger="mcp", outcome!="success"}[1d]) > 0
-```
-
-### 13.11 Frontend
-
-- Routes: `/consent` (authenticated layout, install gate skipped, no AppShell nav) and `/apps` (authenticated, linked from the account menu as **Connected apps**).
-- `lib/queries/oauth.ts`: `useAuthorizationRequest(requestId)`, `useApproveAuthorization`, `useDenyAuthorization`, `useGrants` (infinite), `useRevokeGrant` (invalidates `/api/oauth/grants`).
-- Login: the authed layout's redirect and `login.Page.tsx` carry a zod-validated `returnTo` search param through to `/auth/google/login?returnTo=…` (only `/consent?request=…` values pass, mirroring the server check).
-- `/consent` follows the component contract (§6.4): loading, 404 ("This request expired, start again from your app"), and the view with Approve/Deny. `/apps` lists grants with client name, verified badge, granted scopes ("Read" / "Read + refresh"), connected date, last used, and a **Revoke** confirm dialog.
-- The MCP endpoint URL (`PUBLIC_URL/mcp`) is shown on `/apps` with a copy button, plus one-line setup hints (Claude: add a custom connector with that URL; Claude Code: `claude mcp add --transport http fin <url>`).
-
-### 13.12 Tests
-
-Same rules as §5.13 (stdlib, fakes, no network/DB/sleeps; `now` injected).
-
-| Package                                     | Covered behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/oauth`                            | S256 known-answer vectors from RFC 7636; plain method rejected; redirect URI rules (https ok, http non-loopback rejected, loopback any port matches, custom scheme ok, `javascript:`/fragment/userinfo rejected, exact match otherwise); scope parse/subset; CIMD fetcher refuses private/loopback/link-local resolutions, redirects, oversize bodies, mismatched `client_id`, missing `redirect_uris`                                                                                                                                                                                                                                                                                                                                                                                         |
-| `internal/service` — oauth                  | unknown client / bad redirect → error without redirect; missing PKCE → `invalid_request`; wrong `resource` → `invalid_target`; code exchanges once, second use → `invalid_grant` + grant revoked; expired code; verifier mismatch; redirect_uri mismatch; client mismatch; refresh rotates and the old token then triggers `reuse_detected` + grant revoked; refresh cannot widen scope; grant past max age refused; revoked grant → verify fails; stored hashes are SHA-256 of the issued tokens, never the tokens; confidential DCR client wrong secret → `invalid_client`; recorder called with the right enums                                                                                                                                                                             |
-| `internal/handler` — oauth                  | metadata documents (exact fields, issuer/resource strings, CORS header); the OpenAPI spec contains every `/oauth/*`, `/.well-known/*` and `/mcp` operation with the `mcpOAuth` scheme; consent approve honours unticked `fin:sync` and refuses dropping `fin:read`; 401 `WWW-Authenticate` format; token endpoint returns RFC 6749 JSON errors with `no-store`; register validates and never echoes a stored hash; consent endpoints: 401 without session, 404 for expired/consumed/other user's request, approve returns `code`+`state`+`iss`, deny returns `access_denied`; grants tenancy (user B cannot list or revoke A's grants)                                                                                                                                                         |
-| `internal/handler` — auth                   | `returnTo` accepted only for `/consent?request=<43 chars>`; anything else (absolute URL, `//evil`, other paths) falls back to `/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `internal/mcpserver`                        | via the SDK's in-memory transport: every tool lists with an output schema and every tool but `refresh_data` with `readOnlyHint`; `refresh_data` hidden and 403 `insufficient_scope` without `fin:sync`; `refresh_data` syncs only stale `active` connections with `SyncTriggerMCP`, never `needs_reauth` ones, honours the 15-minute floor, reports per-connection results, stops at the deadline; `x-mcp-tools` in the generated spec equals `tools/list` (names, schemas, scopes); bearer middleware (no header, query-string token, expired, wrong scope, `Origin` not allowed, session cookie ignored); every repository call receives the token's user id (tenancy); filter mapping (defaults, 5-year cap, page size caps, invalid enum → `invalid_params`); DTOs contain no external ids |
-| `internal/repository/postgres` (query only) | `buildAggregateQuery` golden SQL for each dimension and metric; `$1` is always the user id; identifiers only from the whitelist; currency always grouped; `merchant` wildcards escaped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `internal/mcpserver` — recurring            | monthly/biweekly/yearly cadences detected; jittered dates within tolerance accepted; amount drift beyond 15% rejected; fewer than `min_occurrences` ignored                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `internal/metrics`                          | new enums unique and complete; series pre-initialized; `routeGroupOf` maps `/mcp`, `/oauth/…`, `/.well-known/…`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-
-Manual verification:
-
-1. `npx @modelcontextprotocol/inspector` against `http://localhost:5173/mcp`: discovery, DCR, consent, token, `tools/list`, every tool returns structured content.
-2. Claude (custom connector) and Claude Code (`claude mcp add --transport http fin https://<host>/mcp`) against staging: CIMD client shows **verified**, consent → tools usable; ask "what did I spend on dining per month this year?" and compare with the transactions page.
-3. A non-allow-listed Google account at consent → `/login?error=not_allowed`, no code issued.
-4. Revoke from `/apps` → the next tool call returns 401 and the client restarts authorization.
-5. Replay a used refresh token with `curl` → `invalid_grant`, grant revoked, `fin_oauth_token_requests_total{outcome="reuse_detected"}` increments.
-6. Consent page opens in Safari on iOS (not the installed PWA) without the install gate.
-7. `curl -X POST /mcp -H 'Origin: https://evil.example'` with a valid token → 403.
-8. Ask the agent to "refresh my data, then show today's transactions": `refresh_data` syncs stale connections, a second call within 15 minutes reports `skipped_fresh`, `fin_syncs_total{trigger="mcp"}` increments; with a sandbox connection in `needs_reauth` it is reported, not synced. Re-approve with refreshing unticked → `refresh_data` disappears from the tool list.
-9. `/swagger` shows the `mcp` and `oauth` tags and the `mcpOAuth` scheme.
-
-### 13.13 Milestones
-
-**M7 — OAuth authorization server**
-
-- Migrations 000009–000012, `internal/oauth`, `OAuthService`, OAuth + consent handlers (with their OpenAPI documentation), `returnTo` on login, metadata endpoints, `/consent` and `/apps` pages, rate limits, metrics; tests per §13.12.
-- Accept: manual checks 3–6 using the Inspector's auth debugger; `just lint && just test` green.
-
-**M8 — MCP tools**
-
-- `internal/mcpserver` with the bearer middleware, every tool in §13.6 including `refresh_data` and `SyncTriggerMCP`, the `/mcp` OpenAPI operation with `x-mcp-tools`, `transaction_query` repository + builder tests, `depguard` rule, Vite proxy entries, ingress paths.
-- Accept: manual checks 1, 2, 7, 8 and 9; `depguard` fails a deliberate `internal/provider` import from `mcpserver`.
-
-### 13.14 Risks
-
-- **Public authorization server**: DCR lets anyone create clients. Mitigated by rate limits, unverified labelling, exact redirect matching, unused-client cleanup, and the allow-list — a client is useless until an allow-listed user approves it.
-- **Spec churn**: MCP auth has changed across revisions (DCR-first → CIMD-first). Discovery is served at both RFC 8414 and OIDC paths and both client-identification methods are supported; recheck against the newest revision and the SDK at scaffold time.
-- **Phishing via consent**: a malicious client can mimic a known name. CIMD clients show their verified domain; DCR clients show **unverified** and the redirect host; the consent copy states exactly what is allowed and that banks cannot be connected, reconnected or removed.
-- **Sensitive data leaves fin**: approved agents send transactions to their model provider. This is the point of the feature, but the consent screen says so in plain words, and grants expire after `MCP_GRANT_MAX_AGE`.
-- **Agent-triggered refreshes**: more Plaid calls than the cron alone. Bounded by the 15-minute floor per connection, the `/mcp` rate limit and the `fin:sync` opt-out; `/transactions/sync` is not billed per call.
-- **In-memory rate limits are per replica**: acceptable at one or two replicas; move to Postgres-backed counters if the deployment scales out.

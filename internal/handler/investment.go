@@ -38,7 +38,7 @@ type InvestmentTransaction struct {
 	TransactionDatetime *string   `json:"transactionDatetime" format:"date-time"`
 	Name                string    `json:"name"`
 	Quantity            *string   `json:"quantity"`
-	Amount              string    `json:"amount" doc:"Decimal string; positive is cash outflow from the account"`
+	Amount              string    `json:"amount" doc:"Decimal string; negative is cash leaving the account"`
 	Price               *string   `json:"price"`
 	Fees                *string   `json:"fees"`
 	Type                string    `json:"type"`
@@ -47,12 +47,14 @@ type InvestmentTransaction struct {
 }
 
 type ListInvestmentHoldingsInput struct {
-	AccountID string `query:"accountId" format:"uuid" doc:"Only holdings of this account"`
+	AccountID        string   `query:"accountId" format:"uuid" doc:"Only holdings of this account"`
+	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude holdings of these accounts"`
 }
 
 type ListInvestmentTransactionsInput struct {
 	PageParams
-	AccountID string `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	AccountID        string   `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude transactions of these accounts"`
 }
 
 type InvestmentHandler struct {
@@ -88,7 +90,7 @@ func (h *InvestmentHandler) Register(api huma.API) {
 }
 
 func (h *InvestmentHandler) listHoldings(ctx context.Context, input *ListInvestmentHoldingsInput) (*InvestmentHoldingsOutput, error) {
-	filter, err := investmentFilter(input.AccountID)
+	filter, err := investmentFilter(input.AccountID, input.ExcludeAccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +104,7 @@ func (h *InvestmentHandler) listHoldings(ctx context.Context, input *ListInvestm
 }
 
 func (h *InvestmentHandler) listTransactions(ctx context.Context, input *ListInvestmentTransactionsInput) (*PageOutput[InvestmentTransaction], error) {
-	filter, err := investmentFilter(input.AccountID)
+	filter, err := investmentFilter(input.AccountID, input.ExcludeAccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,17 +117,29 @@ func (h *InvestmentHandler) listTransactions(ctx context.Context, input *ListInv
 	return &PageOutput[InvestmentTransaction]{Body: NewPage(mapInvestmentTransactions(transactions), input.PageParams, total)}, nil
 }
 
-func investmentFilter(accountID string) (repository.InvestmentFilter, error) {
-	if accountID == "" {
-		return repository.InvestmentFilter{}, nil
+func investmentFilter(accountID string, excludeAccountIDs []string) (repository.InvestmentFilter, error) {
+	var filter repository.InvestmentFilter
+
+	if accountID != "" {
+		id, err := uuid.Parse(accountID)
+		if err != nil {
+			return repository.InvestmentFilter{}, huma.Error422UnprocessableEntity("accountId must be a UUID")
+		}
+
+		filter.AccountID = &id
 	}
 
-	id, err := uuid.Parse(accountID)
-	if err != nil {
-		return repository.InvestmentFilter{}, huma.Error422UnprocessableEntity("accountId must be a UUID")
+	filter.ExcludeAccountIDs = make([]uuid.UUID, len(excludeAccountIDs))
+	for i, raw := range excludeAccountIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return repository.InvestmentFilter{}, huma.Error422UnprocessableEntity("excludeAccountId must be a list of UUIDs")
+		}
+
+		filter.ExcludeAccountIDs[i] = id
 	}
 
-	return repository.InvestmentFilter{AccountID: &id}, nil
+	return filter, nil
 }
 
 func mapInvestmentHoldings(holdings []domain.InvestmentHolding) []InvestmentHolding {

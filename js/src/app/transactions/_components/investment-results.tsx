@@ -6,9 +6,15 @@ import { LoadingState } from "@/components/loading-state";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useInvestmentHoldings, useInvestmentTransactions } from "@/lib/queries/investments";
 
-export function InvestmentResults({ accountId }: { accountId: string | undefined }) {
-  const holdings = useInvestmentHoldings(accountId);
-  const transactions = useInvestmentTransactions(accountId);
+export function InvestmentResults({
+  accountId,
+  excludeAccountId,
+}: {
+  accountId: string | undefined;
+  excludeAccountId: string[];
+}) {
+  const holdings = useInvestmentHoldings(accountId, excludeAccountId);
+  const transactions = useInvestmentTransactions(accountId, excludeAccountId);
 
   if (holdings.isPending || transactions.isPending) {
     return <LoadingState />;
@@ -54,9 +60,9 @@ export function InvestmentResults({ accountId }: { accountId: string | undefined
               <InstitutionLogo url={null} />
               <ListRowLabel
                 title={
-                  transaction.ticker === ""
-                    ? transaction.name
-                    : `${transaction.ticker} · ${transaction.name}`
+                  transaction.ticker !== null && transaction.ticker !== ""
+                    ? `${transaction.ticker} · ${transaction.name}`
+                    : transaction.name
                 }
                 subtitle={`${formatDate(transaction.postedOn)} · ${transaction.accountName}`}
               />

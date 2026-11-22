@@ -6,6 +6,7 @@ const linkFlowSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("connect") }),
   z.object({ kind: z.literal("reauth"), connectionId: z.string() }),
   z.object({ kind: z.literal("account-selection"), connectionId: z.string() }),
+  z.object({ kind: z.literal("investments-consent"), connectionId: z.string() }),
 ]);
 
 const linkSessionSchema = z.object({

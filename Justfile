@@ -42,6 +42,10 @@ seed email client_id secret env="sandbox":
 seed-dev email:
     psql "$DATABASE_URL" -v email={{quote(email)}} -f db/seed/local.sql
 
+[doc("Add fictional investment accounts, holdings and value history to the local database")]
+seed-dev-investments email:
+    psql "$DATABASE_URL" -v email={{quote(email)}} -f db/seed/investments.sql
+
 [doc("Generate openapi.json and TypeScript API types")]
 gen:
     go run . openapi > openapi.json

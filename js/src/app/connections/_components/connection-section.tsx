@@ -4,6 +4,7 @@ import {
   ReconnectButton,
   SyncButton,
 } from "@/app/connections/_components/connection-actions";
+import { InvestmentsStatusRow } from "@/app/connections/_components/investments-status-row";
 import { RemoveConnectionButton } from "@/app/connections/_components/remove-connection-button";
 import { InstitutionLogo } from "@/components/institution-logo";
 import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
@@ -48,6 +49,7 @@ export function ConnectionSection({ connection }: { connection: Connection }) {
         ) : null}
       </ListRow>
       <ConnectionAccounts connectionId={connection.id} />
+      <InvestmentsStatusRow connection={connection} />
       <ListRow className="gap-2 not-first:before:left-4">
         {connection.status === "needs_reauth" ? (
           <ReconnectButton connectionId={connection.id} />

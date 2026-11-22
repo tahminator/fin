@@ -16,7 +16,7 @@ async function main() {
   await $.env({
     ...process.env,
     DATABASE_URL: databaseUrl.toString(),
-  })`just migrate && just migrate && just migrate-down 1 && just migrate && just migrate-down -all && just migrate`;
+  })`just migrate && just migrate && just migrate-down 1 && just migrate && just migrate-down -all && just migrate && just test-db`;
 }
 
 main()

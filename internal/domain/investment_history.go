@@ -38,18 +38,6 @@ func (r InvestmentRange) Valid() bool {
 	return false
 }
 
-func InvestmentRanges() []InvestmentRange {
-	return []InvestmentRange{
-		InvestmentRangeDay,
-		InvestmentRangeThreeDays,
-		InvestmentRangeWeek,
-		InvestmentRangeMonth,
-		InvestmentRangeThreeMonths,
-		InvestmentRangeYear,
-		InvestmentRangeAll,
-	}
-}
-
 func (r InvestmentRange) Start(now time.Time) *time.Time {
 	var start time.Time
 

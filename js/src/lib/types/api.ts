@@ -14,6 +14,8 @@ export type Connection = Schemas["Connection"];
 
 export type ConnectionStatus = Connection["status"];
 
+export type InvestmentsStatus = NonNullable<Connection["investmentsStatus"]>;
+
 export type SyncSummary = Schemas["SyncSummary"];
 
 export type Account = Schemas["Account"];
@@ -23,6 +25,14 @@ export type Transaction = Schemas["Transaction"];
 export type InvestmentHolding = Schemas["InvestmentHolding"];
 
 export type InvestmentTransaction = Schemas["InvestmentTransaction"];
+
+export type InvestmentSecurity = Schemas["InvestmentSecurity"];
+
+export type InvestmentHistory = Schemas["InvestmentHistory"];
+
+export type InvestmentSeries = Schemas["InvestmentSeries"];
+
+export type InvestmentRange = InvestmentHistory["range"];
 
 export type Notification = Schemas["Notification"];
 

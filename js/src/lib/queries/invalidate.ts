@@ -6,6 +6,10 @@ const financeQueryPaths = [
   "/api/connections",
   "/api/accounts",
   "/api/transactions",
+  "/api/investments/holdings",
+  "/api/investments/transactions",
+  "/api/investments/securities",
+  "/api/investments/history",
   "/api/notifications",
 ] as const;
 

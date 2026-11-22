@@ -84,10 +84,15 @@ jobs:
         with:
           SECRETS: ${{ toJSON(secrets) }}
           LINT_CI: true
+          INSTALL_GO: true
+          GO_VERSION_FILE: go.mod
+          GO_CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-go-race-${{ hashFiles('go.mod', 'go.sum') }}
+          GO_CACHE_RESTORE_KEYS: |
+            ${{ runner.os }}-${{ runner.arch }}-go-race-
           INSTALL_JUST: true
           INSTALL_MIGRATE: "true"
 
-      - name: Test database migrations
+      - name: Test database migrations and repositories
         run: bun run .github/scripts/src/test/migrations
 
   buildImage:

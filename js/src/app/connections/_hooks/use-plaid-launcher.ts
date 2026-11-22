@@ -4,7 +4,11 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { clearLinkSession, saveLinkSession } from "@/lib/plaid/link-token-store";
 import type { LinkFlow } from "@/lib/plaid/link-token-store";
-import { useCompleteAccountSelection, useLinkConnection } from "@/lib/queries/connections";
+import {
+  useCompleteAccountSelection,
+  useCompleteInvestmentsConsent,
+  useLinkConnection,
+} from "@/lib/queries/connections";
 import { useCompleteReauth } from "@/lib/queries/notifications";
 
 interface PlaidLauncherOptions {
@@ -19,6 +23,7 @@ const successMessages: Record<LinkFlow["kind"], string> = {
   connect: "Bank connected",
   reauth: "Bank reconnected",
   "account-selection": "Accounts updated",
+  "investments-consent": "Investments shared",
 };
 
 export function usePlaidLauncher({
@@ -31,6 +36,7 @@ export function usePlaidLauncher({
   const linkConnection = useLinkConnection();
   const completeReauth = useCompleteReauth();
   const completeAccountSelection = useCompleteAccountSelection();
+  const completeInvestmentsConsent = useCompleteInvestmentsConsent();
 
   const complete = async (publicToken: string | null) => {
     switch (flow.kind) {
@@ -50,6 +56,13 @@ export function usePlaidLauncher({
       }
       case "account-selection": {
         await completeAccountSelection.mutateAsync({
+          params: { path: { connectionId: flow.connectionId } },
+        });
+
+        return;
+      }
+      case "investments-consent": {
+        await completeInvestmentsConsent.mutateAsync({
           params: { path: { connectionId: flow.connectionId } },
         });
       }
@@ -90,7 +103,10 @@ export function usePlaidLauncher({
   return {
     ready: plaid.ready,
     busy:
-      linkConnection.isPending || completeReauth.isPending || completeAccountSelection.isPending,
+      linkConnection.isPending ||
+      completeReauth.isPending ||
+      completeAccountSelection.isPending ||
+      completeInvestmentsConsent.isPending,
     launch,
   };
 }

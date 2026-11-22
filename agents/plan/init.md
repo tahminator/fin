@@ -528,9 +528,7 @@ CREATE INDEX rate_limits_expires_at_idx ON rate_limits (expires_at);
 
 The table has no foreign keys because keys are not always rows (later scopes key by IP address); a removed connection's row simply expires.
 
-Migrations `000014_create_investment_securities`, `000015_create_investment_holdings` and `000016_create_investment_transactions` add investment data. Securities identify tradeable assets by Plaid security ID. Holdings are a per-account snapshot of quantity, value, cost basis and vested assets. Investment transactions keep the two-year Plaid history with account, security, date, quantity, amount, price, fees and transaction type/subtype. All investment rows are user-tenanted through account ownership; holdings are replaced on sync and transactions are upserted idempotently.
-
-When an Item has investment accounts, Plaid's holdings and investment-transactions endpoints run after account and regular-transaction sync. Brokerage holdings and activity are exposed through `/api/investments/holdings` and `/api/investments/transactions`. The Transactions page shows holdings and investment activity before regular transactions.
+Investment tables (migrations `000014` to `000019`) are specified in [investments.md](investments.md).
 
 ```sql
 CREATE TABLE transactions (

@@ -73,6 +73,8 @@ function AccountRow({ account, hidden, onToggle }: AccountRowProps) {
 }
 
 interface AccountListProps {
+  header: string;
+  footer: string;
   accounts: Account[];
   hiddenAccountIds: string[];
   onToggleAccount: (accountId: string) => void;
@@ -82,6 +84,8 @@ interface AccountListProps {
 }
 
 export function AccountList({
+  header,
+  footer,
   accounts,
   hiddenAccountIds,
   onToggleAccount,
@@ -90,7 +94,7 @@ export function AccountList({
   onLoadMore,
 }: AccountListProps) {
   return (
-    <ListSection header="Accounts" footer="Hidden accounts are left out of the totals above.">
+    <ListSection header={header} footer={footer}>
       {accounts.map((account) => (
         <AccountRow
           key={account.id}

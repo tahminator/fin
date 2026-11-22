@@ -75,3 +75,15 @@ export function useCompleteAccountSelection() {
     onSuccess: () => invalidateFinanceData(queryClient),
   });
 }
+
+export function useCreateInvestmentsConsentLinkToken() {
+  return $api.useMutation("post", "/api/connections/{connectionId}/investments/link-token");
+}
+
+export function useCompleteInvestmentsConsent() {
+  const queryClient = useQueryClient();
+
+  return $api.useMutation("post", "/api/connections/{connectionId}/investments/complete", {
+    onSuccess: () => invalidateFinanceData(queryClient),
+  });
+}

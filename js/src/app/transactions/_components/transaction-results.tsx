@@ -1,18 +1,16 @@
 import { TransactionList } from "@/app/transactions/_components/transaction-list";
-import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { useAllAccounts } from "@/lib/queries/accounts";
-import { useTransactions } from "@/lib/queries/transactions";
+import type { useTransactions } from "@/lib/queries/transactions";
 
 export function TransactionResults({
-  accountId,
-  excludeAccountId,
+  transactions,
+  showHeading,
 }: {
-  accountId: string | undefined;
-  excludeAccountId: string[];
+  transactions: ReturnType<typeof useTransactions>;
+  showHeading: boolean;
 }) {
-  const transactions = useTransactions(accountId, excludeAccountId);
   const accounts = useAllAccounts();
   const accountsById = new Map(accounts.data?.map((account) => [account.id, account] as const));
 
@@ -25,16 +23,27 @@ export function TransactionResults({
   }
 
   if (transactions.data.length === 0) {
-    return <EmptyState title="No transactions yet" />;
+    return showHeading ? (
+      <p className="px-4 type-footnote text-muted-foreground">
+        No bank or card transactions in this view.
+      </p>
+    ) : null;
   }
 
   return (
-    <TransactionList
-      transactions={transactions.data}
-      accountsById={accountsById}
-      hasMore={transactions.hasNextPage}
-      loadingMore={transactions.isFetchingNextPage}
-      onLoadMore={transactions.fetchNextPage}
-    />
+    <section className="flex flex-col gap-3">
+      {showHeading ? (
+        <h2 className="px-4 type-footnote text-muted-foreground uppercase">
+          Bank and card transactions
+        </h2>
+      ) : null}
+      <TransactionList
+        transactions={transactions.data}
+        accountsById={accountsById}
+        hasMore={transactions.hasNextPage}
+        loadingMore={transactions.isFetchingNextPage}
+        onLoadMore={transactions.fetchNextPage}
+      />
+    </section>
   );
 }

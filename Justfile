@@ -97,6 +97,10 @@ fmt:
 test:
     go test -race ./...
 
+[doc("Run Postgres integration tests against DATABASE_URL after just migrate")]
+test-db:
+    go test -race -count=1 -tags integration ./internal/repository/postgres/...
+
 [doc("Run Go unit tests with a coverage report")]
 cover:
     go test -race -coverprofile=coverage.out ./...

@@ -53,23 +53,56 @@ func toDomainTransactions(transactions []provider.Transaction, accountIDs map[st
 	return mapped
 }
 
-func toDomainInvestmentHoldings(result provider.InvestmentHoldingsResult) ([]domain.InvestmentSecurity, []domain.InvestmentHolding) {
-	securities := make([]domain.InvestmentSecurity, 0, len(result.Securities))
-	for _, security := range result.Securities {
-		securities = append(securities, domain.InvestmentSecurity{
+func toDomainSecurities(securities []provider.InvestmentSecurity) []domain.InvestmentSecurity {
+	byExternalID := make(map[string]domain.InvestmentSecurity, len(securities))
+	order := make([]string, 0, len(securities))
+
+	for _, security := range securities {
+		existing, seen := byExternalID[security.ExternalID]
+		if !seen {
+			order = append(order, security.ExternalID)
+		}
+
+		byExternalID[security.ExternalID] = domain.InvestmentSecurity{
 			ExternalID: security.ExternalID,
-			Name:       security.Name,
-			Ticker:     security.Ticker,
-			Type:       security.Type,
-			Subtype:    security.Subtype,
-			Currency:   security.Currency,
-		})
+			Name:       firstPresent(security.Name, existing.Name),
+			Ticker:     firstPresent(security.Ticker, existing.Ticker),
+			Type:       firstPresent(security.Type, existing.Type),
+			Subtype:    firstPresent(security.Subtype, existing.Subtype),
+			Currency:   firstPresent(security.Currency, existing.Currency),
+		}
 	}
 
-	holdings := make([]domain.InvestmentHolding, 0, len(result.Holdings))
-	for _, holding := range result.Holdings {
-		holdings = append(holdings, domain.InvestmentHolding{
-			AccountExternalID:    holding.AccountExternalID,
+	mapped := make([]domain.InvestmentSecurity, 0, len(order))
+
+	for _, externalID := range order {
+		mapped = append(mapped, byExternalID[externalID])
+	}
+
+	return mapped
+}
+
+func firstPresent(values ...*string) *string {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+
+	return nil
+}
+
+func toDomainHoldings(holdings []provider.InvestmentHolding, accountIDs map[string]uuid.UUID) []domain.InvestmentHolding {
+	mapped := make([]domain.InvestmentHolding, 0, len(holdings))
+
+	for _, holding := range holdings {
+		accountID, ok := accountIDs[holding.AccountExternalID]
+		if !ok {
+			continue
+		}
+
+		mapped = append(mapped, domain.InvestmentHolding{
+			AccountID:            accountID,
 			SecurityExternalID:   holding.SecurityExternalID,
 			InstitutionPrice:     holding.InstitutionPrice,
 			InstitutionPriceAsOf: holding.InstitutionPriceAsOf,
@@ -82,34 +115,28 @@ func toDomainInvestmentHoldings(result provider.InvestmentHoldingsResult) ([]dom
 		})
 	}
 
-	return securities, holdings
+	return mapped
 }
 
-func toDomainInvestmentTransactions(transactions []provider.InvestmentTransaction) ([]domain.InvestmentSecurity, []domain.InvestmentTransaction) {
-	securities := make([]domain.InvestmentSecurity, 0)
-	seen := make(map[string]bool)
-
+func toDomainInvestmentTransactions(transactions []provider.InvestmentTransaction, accountIDs map[string]uuid.UUID) []domain.InvestmentTransaction {
 	mapped := make([]domain.InvestmentTransaction, 0, len(transactions))
+
 	for _, transaction := range transactions {
-		if transaction.SecurityExternalID != nil {
-			externalID := *transaction.SecurityExternalID
-			if !seen[externalID] {
-				seen[externalID] = true
-				securities = append(securities, domain.InvestmentSecurity{ExternalID: externalID})
-			}
+		accountID, ok := accountIDs[transaction.AccountExternalID]
+		if !ok {
+			continue
 		}
 
 		mapped = append(mapped, domain.InvestmentTransaction{
-			AccountExternalID:   transaction.AccountExternalID,
+			AccountID:           accountID,
 			SecurityExternalID:  transaction.SecurityExternalID,
 			ExternalID:          transaction.ExternalID,
-			CancelExternalID:    transaction.CancelExternalID,
 			PostedOn:            transaction.PostedOn,
-			TransactionDatetime: transaction.TransactionDateTime,
+			TransactionDatetime: transaction.TransactionDatetime,
 			Name:                transaction.Name,
-			Quantity:            &transaction.Quantity,
+			Quantity:            transaction.Quantity,
 			Amount:              transaction.Amount,
-			Price:               &transaction.Price,
+			Price:               transaction.Price,
 			Fees:                transaction.Fees,
 			Type:                transaction.Type,
 			Subtype:             transaction.Subtype,
@@ -117,5 +144,18 @@ func toDomainInvestmentTransactions(transactions []provider.InvestmentTransactio
 		})
 	}
 
-	return securities, mapped
+	return mapped
+}
+
+func investmentAccountIDs(accounts []provider.Account, accountIDs map[string]uuid.UUID) map[string]uuid.UUID {
+	investmentIDs := make(map[string]uuid.UUID)
+
+	for _, account := range accounts {
+		accountID, ok := accountIDs[account.ExternalID]
+		if ok && account.Type == domain.AccountTypeInvestment {
+			investmentIDs[account.ExternalID] = accountID
+		}
+	}
+
+	return investmentIDs
 }

@@ -42,26 +42,6 @@ func (p *Provider) SyncTransactions(ctx context.Context, creds domain.Credential
 	return result, err
 }
 
-func (p *Provider) InvestmentHoldings(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error) {
-	started := time.Now()
-
-	result, err := p.investmentHoldings(ctx, creds, accessToken)
-
-	p.observe(metrics.OperationAccounts, started, err)
-
-	return result, err
-}
-
-func (p *Provider) InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.InvestmentTransaction, error) {
-	started := time.Now()
-
-	result, err := p.investmentTransactions(ctx, creds, accessToken)
-
-	p.observe(metrics.OperationSyncTransactions, started, err)
-
-	return result, err
-}
-
 func (p *Provider) accounts(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.Account, error) {
 	c, err := p.client(creds)
 	if err != nil {
@@ -100,70 +80,6 @@ func (p *Provider) syncTransactions(ctx context.Context, creds domain.Credential
 			return provider.SyncResult{}, err
 		}
 	}
-}
-
-func (p *Provider) investmentHoldings(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error) {
-	c, err := p.client(creds)
-	if err != nil {
-		return provider.InvestmentHoldingsResult{}, err
-	}
-
-	response, err := c.Investments.GetHoldings(ctx, &plaidsdk.InvestmentsHoldingsGetRequest{
-		AccessToken: accessToken,
-	})
-	if err != nil {
-		return provider.InvestmentHoldingsResult{}, mapError(err)
-	}
-
-	result := provider.InvestmentHoldingsResult{
-		Securities: make([]provider.InvestmentSecurity, 0, len(response.Securities)),
-		Holdings:   make([]provider.InvestmentHolding, 0, len(response.Holdings)),
-	}
-
-	for _, security := range response.Securities {
-		if security != nil {
-			result.Securities = append(result.Securities, mapInvestmentSecurity(security))
-		}
-	}
-
-	for _, holding := range response.Holdings {
-		if holding != nil {
-			result.Holdings = append(result.Holdings, mapInvestmentHolding(holding))
-		}
-	}
-
-	return result, nil
-}
-
-func (p *Provider) investmentTransactions(ctx context.Context, creds domain.Credential, accessToken string) ([]provider.InvestmentTransaction, error) {
-	c, err := p.client(creds)
-	if err != nil {
-		return nil, err
-	}
-
-	end := time.Now().UTC()
-	start := end.AddDate(-2, 0, 0)
-	page, err := c.Investments.GetTransactions(ctx, &plaidsdk.InvestmentsTransactionsGetRequest{
-		AccessToken: accessToken,
-		StartDate:   start,
-		EndDate:     end,
-	})
-	if err != nil {
-		return nil, mapError(err)
-	}
-
-	result := make([]provider.InvestmentTransaction, 0)
-	iterator := page.Iterator()
-
-	for iterator.Next(ctx) {
-		result = append(result, mapInvestmentTransaction(iterator.Current()))
-	}
-
-	if err := iterator.Err(); err != nil {
-		return nil, mapError(err)
-	}
-
-	return result, nil
 }
 
 func syncWithRestarts(ctx context.Context, c *client.Client, accessToken, cursor string) (provider.SyncResult, error) {

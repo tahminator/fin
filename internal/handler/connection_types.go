@@ -9,14 +9,15 @@ import (
 )
 
 type Connection struct {
-	ID                 uuid.UUID               `json:"id"`
-	InstitutionName    *string                 `json:"institutionName"`
-	InstitutionLogoURL *string                 `json:"institutionLogoUrl"`
-	Status             domain.ConnectionStatus `json:"status" enum:"active,needs_reauth"`
-	StatusChangedAt    time.Time               `json:"statusChangedAt"`
-	LastSyncedAt       *time.Time              `json:"lastSyncedAt"`
-	LastError          *string                 `json:"lastError"`
-	CreatedAt          time.Time               `json:"createdAt"`
+	ID                 uuid.UUID                 `json:"id"`
+	InstitutionName    *string                   `json:"institutionName"`
+	InstitutionLogoURL *string                   `json:"institutionLogoUrl"`
+	Status             domain.ConnectionStatus   `json:"status" enum:"active,needs_reauth"`
+	StatusChangedAt    time.Time                 `json:"statusChangedAt"`
+	LastSyncedAt       *time.Time                `json:"lastSyncedAt"`
+	LastError          *string                   `json:"lastError"`
+	InvestmentsStatus  *domain.InvestmentsStatus `json:"investmentsStatus" enum:"ready,pending,consent_required,not_enabled,unsupported" doc:"Null when the connection has no investment accounts"`
+	CreatedAt          time.Time                 `json:"createdAt"`
 }
 
 func newConnection(connection domain.Connection) Connection {
@@ -28,6 +29,7 @@ func newConnection(connection domain.Connection) Connection {
 		StatusChangedAt:    connection.StatusChangedAt,
 		LastSyncedAt:       connection.LastSyncedAt,
 		LastError:          connection.LastError,
+		InvestmentsStatus:  connection.InvestmentsStatus,
 		CreatedAt:          connection.CreatedAt,
 	}
 }

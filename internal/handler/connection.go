@@ -106,6 +106,24 @@ func (h *ConnectionHandler) Register(api huma.API) {
 	}, h.completeAccountSelection)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "create-investments-consent-link-token",
+		Method:      http.MethodPost,
+		Path:        "/connections/{connectionId}/investments/link-token",
+		Summary:     "Create an update-mode Plaid Link token that asks the user to share investment data",
+		Tags:        tags,
+		Security:    cookieAuth,
+	}, h.investmentsConsentLinkToken)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "complete-investments-consent",
+		Method:      http.MethodPost,
+		Path:        "/connections/{connectionId}/investments/complete",
+		Summary:     "Sync a connection after the user shared investment data",
+		Tags:        tags,
+		Security:    cookieAuth,
+	}, h.completeInvestmentsConsent)
+
+	huma.Register(api, huma.Operation{
 		OperationID:   "delete-connection",
 		Method:        http.MethodDelete,
 		Path:          "/connections/{connectionId}",
@@ -215,6 +233,34 @@ func (h *ConnectionHandler) completeAccountSelection(ctx context.Context, input 
 	}
 
 	connection, err := h.service.CompleteAccountSelection(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &ConnectionOutput{Body: newConnection(connection)}, nil
+}
+
+func (h *ConnectionHandler) investmentsConsentLinkToken(ctx context.Context, input *ConnectionPathInput) (*LinkTokenOutput, error) {
+	id, err := parseID(input.ConnectionID)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := h.service.CreateInvestmentsConsentLinkToken(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &LinkTokenOutput{Body: LinkToken{LinkToken: token}}, nil
+}
+
+func (h *ConnectionHandler) completeInvestmentsConsent(ctx context.Context, input *ConnectionPathInput) (*ConnectionOutput, error) {
+	id, err := parseID(input.ConnectionID)
+	if err != nil {
+		return nil, err
+	}
+
+	connection, err := h.service.CompleteInvestmentsConsent(ctx, UserFrom(ctx).ID, id)
 	if err != nil {
 		return nil, problem(ctx, err)
 	}

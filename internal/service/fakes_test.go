@@ -94,7 +94,12 @@ type fakeConnections struct {
 	updateLastError      func(ctx context.Context, userID, id uuid.UUID, lastError string) error
 	updateStatus         func(ctx context.Context, userID, id uuid.UUID, status domain.ConnectionStatus, lastError *string) error
 	updateInstitutionURL func(ctx context.Context, userID, id uuid.UUID, url string) error
+	updateInvestments    func(ctx context.Context, userID, id uuid.UUID, status *domain.InvestmentsStatus) error
 	delete               func(ctx context.Context, userID, id uuid.UUID) error
+}
+
+func (f *fakeConnections) UpdateInvestmentsStatus(ctx context.Context, userID, id uuid.UUID, status *domain.InvestmentsStatus) error {
+	return f.updateInvestments(ctx, userID, id, status)
 }
 
 func (f *fakeConnections) Create(ctx context.Context, connection domain.Connection) (domain.Connection, error) {
@@ -189,6 +194,40 @@ func (f *fakeTransactions) DeleteByExternalIDs(ctx context.Context, userID uuid.
 	return f.deleteByExternalIDs(ctx, userID, externalIDs)
 }
 
+type fakeInvestments struct {
+	repository.InvestmentRepository
+	upsertSecurities    func(ctx context.Context, userID uuid.UUID, securities []domain.InvestmentSecurity) error
+	replaceHoldings     func(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, holdings []domain.InvestmentHolding) error
+	replaceTransactions func(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, since time.Time, transactions []domain.InvestmentTransaction) error
+	captureSnapshot     func(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, capturedAt time.Time) error
+	historyBounds       func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) (domain.InvestmentHistoryBounds, error)
+	history             func(ctx context.Context, userID uuid.UUID, query repository.InvestmentHistoryQuery) ([]domain.InvestmentHistoryRow, error)
+}
+
+func (f *fakeInvestments) UpsertSecurities(ctx context.Context, userID uuid.UUID, securities []domain.InvestmentSecurity) error {
+	return f.upsertSecurities(ctx, userID, securities)
+}
+
+func (f *fakeInvestments) ReplaceHoldings(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, holdings []domain.InvestmentHolding) error {
+	return f.replaceHoldings(ctx, userID, accountIDs, holdings)
+}
+
+func (f *fakeInvestments) ReplaceTransactions(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, since time.Time, transactions []domain.InvestmentTransaction) error {
+	return f.replaceTransactions(ctx, userID, accountIDs, since, transactions)
+}
+
+func (f *fakeInvestments) CaptureSnapshot(ctx context.Context, userID uuid.UUID, accountIDs []uuid.UUID, capturedAt time.Time) error {
+	return f.captureSnapshot(ctx, userID, accountIDs, capturedAt)
+}
+
+func (f *fakeInvestments) HistoryBounds(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) (domain.InvestmentHistoryBounds, error) {
+	return f.historyBounds(ctx, userID, filter)
+}
+
+func (f *fakeInvestments) History(ctx context.Context, userID uuid.UUID, query repository.InvestmentHistoryQuery) ([]domain.InvestmentHistoryRow, error) {
+	return f.history(ctx, userID, query)
+}
+
 type fakeProvider struct {
 	provider.Provider
 	createLinkToken                 func(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error)
@@ -199,6 +238,21 @@ type fakeProvider struct {
 	syncTransactions                func(ctx context.Context, creds domain.Credential, accessToken, cursor string) (provider.SyncResult, error)
 	remove                          func(ctx context.Context, creds domain.Credential, accessToken string) error
 	institution                     func(ctx context.Context, creds domain.Credential, institutionID string) (provider.InstitutionInfo, error)
+	investmentHoldings              func(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error)
+	investmentTransactions          func(ctx context.Context, creds domain.Credential, accessToken string, start, end time.Time) (provider.InvestmentTransactionsResult, error)
+	createInvestmentsLinkToken      func(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error)
+}
+
+func (f *fakeProvider) InvestmentHoldings(ctx context.Context, creds domain.Credential, accessToken string) (provider.InvestmentHoldingsResult, error) {
+	return f.investmentHoldings(ctx, creds, accessToken)
+}
+
+func (f *fakeProvider) InvestmentTransactions(ctx context.Context, creds domain.Credential, accessToken string, start, end time.Time) (provider.InvestmentTransactionsResult, error) {
+	return f.investmentTransactions(ctx, creds, accessToken, start, end)
+}
+
+func (f *fakeProvider) CreateInvestmentsConsentLinkToken(ctx context.Context, creds domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+	return f.createInvestmentsLinkToken(ctx, creds, userID, accessToken, redirectURI)
 }
 
 func (f *fakeProvider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {

@@ -46,6 +46,7 @@ RETURNING
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at;
 `
@@ -90,6 +91,7 @@ SELECT
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at
 FROM connections AS c
@@ -116,6 +118,7 @@ SELECT
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at
 FROM connections AS c
@@ -141,6 +144,7 @@ SELECT
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at
 FROM connections AS c
@@ -185,6 +189,7 @@ SELECT
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at
 FROM connections AS c
@@ -211,6 +216,7 @@ SELECT
     c.sync_cursor,
     c.last_synced_at,
     c.last_error,
+    c.investments_status,
     c.created_at,
     c.updated_at
 FROM connections AS c
@@ -302,6 +308,18 @@ WHERE user_id = $1
 
 func (r *ConnectionRepository) UpdateInstitutionURL(ctx context.Context, userID, id uuid.UUID, url string) error {
 	return r.update(ctx, updateConnectionInstitutionURL, userID, id, url)
+}
+
+const updateConnectionInvestmentsStatus = `
+UPDATE connections
+SET investments_status = $3,
+    updated_at         = now()
+WHERE user_id = $1
+  AND id = $2;
+`
+
+func (r *ConnectionRepository) UpdateInvestmentsStatus(ctx context.Context, userID, id uuid.UUID, status *domain.InvestmentsStatus) error {
+	return r.update(ctx, updateConnectionInvestmentsStatus, userID, id, status)
 }
 
 const deleteConnection = `

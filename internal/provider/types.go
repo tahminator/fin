@@ -78,11 +78,10 @@ type InvestmentHoldingsResult struct {
 
 type InvestmentTransaction struct {
 	ExternalID          string
-	CancelExternalID    *string
 	AccountExternalID   string
 	SecurityExternalID  *string
 	PostedOn            time.Time
-	TransactionDateTime *time.Time
+	TransactionDatetime *time.Time
 	Name                string
 	Quantity            string
 	Amount              string
@@ -91,4 +90,9 @@ type InvestmentTransaction struct {
 	Type                string
 	Subtype             string
 	Currency            *string
+}
+
+type InvestmentTransactionsResult struct {
+	Securities   []InvestmentSecurity
+	Transactions []InvestmentTransaction
 }

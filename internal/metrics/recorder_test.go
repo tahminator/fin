@@ -38,8 +38,8 @@ func TestConnectionSyncedIncrementsOnlyItsSeries(t *testing.T) {
 
 	assertDeltas(t, target, sameTrigger, sameOutcome)
 
-	if got := testutil.CollectAndCount(syncsTotal); got != 24 {
-		t.Fatalf("got %d sync series, want 24", got)
+	if got := testutil.CollectAndCount(syncsTotal); got != 28 {
+		t.Fatalf("got %d sync series, want 28", got)
 	}
 }
 

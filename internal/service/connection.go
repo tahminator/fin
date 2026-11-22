@@ -208,6 +208,28 @@ func (s *ConnectionService) CreateAccountSelectionLinkToken(ctx context.Context,
 	return s.provider.CreateAccountSelectionLinkToken(ctx, credential, userID.String(), accessToken, s.redirectURI)
 }
 
+func (s *ConnectionService) CreateInvestmentsConsentLinkToken(ctx context.Context, userID, connectionID uuid.UUID) (string, error) {
+	connection, err := s.connections.Get(ctx, userID, connectionID)
+	if err != nil {
+		return "", err
+	}
+
+	if connection.Status != domain.ConnectionStatusActive {
+		return "", fmt.Errorf("%w: reconnect this bank before enabling investments", domain.ErrConflict)
+	}
+
+	credential, accessToken, err := s.credentialAndAccessToken(ctx, connection)
+	if err != nil {
+		return "", err
+	}
+
+	return s.provider.CreateInvestmentsConsentLinkToken(ctx, credential, userID.String(), accessToken, s.redirectURI)
+}
+
+func (s *ConnectionService) CompleteInvestmentsConsent(ctx context.Context, userID, connectionID uuid.UUID) (domain.Connection, error) {
+	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerInvestmentsConsent, false)
+}
+
 func (s *ConnectionService) CompleteAccountSelection(ctx context.Context, userID, connectionID uuid.UUID) (domain.Connection, error) {
 	return s.syncAndReload(ctx, userID, connectionID, metrics.SyncTriggerAccountSelection, true)
 }
@@ -359,32 +381,8 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 		return fmt.Errorf("delete removed transactions: %w", err)
 	}
 
-	for _, account := range accounts {
-		if account.Type != domain.AccountTypeInvestment {
-			continue
-		}
-
-		holdings, err := s.provider.InvestmentHoldings(ctx, credential, accessToken)
-		if err != nil {
-			return fmt.Errorf("fetch investment holdings: %w", err)
-		}
-
-		securities, holdingsData := toDomainInvestmentHoldings(holdings)
-		if err := s.investments.ReplaceHoldings(ctx, connection.UserID, accountIDs, securities, holdingsData); err != nil {
-			return fmt.Errorf("save investment holdings: %w", err)
-		}
-
-		investmentTransactions, err := s.provider.InvestmentTransactions(ctx, credential, accessToken)
-		if err != nil {
-			return fmt.Errorf("fetch investment transactions: %w", err)
-		}
-
-		securities, investmentData := toDomainInvestmentTransactions(investmentTransactions)
-		if err := s.investments.UpsertTransactions(ctx, connection.UserID, accountIDs, securities, investmentData); err != nil {
-			return fmt.Errorf("save investment transactions: %w", err)
-		}
-
-		break
+	if err := s.syncInvestments(ctx, connection, credential, accessToken, accounts, accountIDs); err != nil {
+		return err
 	}
 
 	if err := s.connections.UpdateSyncState(ctx, connection.UserID, connection.ID, result.NextCursor, s.now()); err != nil {

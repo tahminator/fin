@@ -130,7 +130,7 @@ func serve() error {
 		Accounts:       handler.NewAccountHandler(accounts),
 		CardArt:        handler.NewCardArtHandler(cardArtService),
 		Transactions:   handler.NewTransactionHandler(transactions),
-		Investments:    handler.NewInvestmentHandler(investments),
+		Investments:    handler.NewInvestmentHandler(investments, service.NewInvestmentHistoryService(investments)),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),
 		OAuthConsent:   handler.NewOAuthConsentHandler(oauthService),

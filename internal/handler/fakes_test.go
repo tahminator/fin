@@ -231,3 +231,38 @@ func (f *fakeSummary) Counts(ctx context.Context, userID uuid.UUID) (domain.Summ
 func (f *fakeSummary) CashFlow(ctx context.Context, userID uuid.UUID, days int, excludeAccountIDs []uuid.UUID) ([]domain.DailyCashFlow, error) {
 	return f.cashFlow(ctx, userID, days, excludeAccountIDs)
 }
+
+type fakeInvestments struct {
+	repository.InvestmentRepository
+	listHoldings     func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentHolding, error)
+	listTransactions func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter, limit, offset int) ([]domain.InvestmentTransaction, int, error)
+	listSecurities   func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentSecuritySummary, error)
+	historyBounds    func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) (domain.InvestmentHistoryBounds, error)
+	history          func(ctx context.Context, userID uuid.UUID, query repository.InvestmentHistoryQuery) ([]domain.InvestmentHistoryRow, error)
+}
+
+func (f *fakeInvestments) ListHoldings(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentHolding, error) {
+	return f.listHoldings(ctx, userID, filter)
+}
+
+func (f *fakeInvestments) ListTransactions(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter, limit, offset int) ([]domain.InvestmentTransaction, int, error) {
+	return f.listTransactions(ctx, userID, filter, limit, offset)
+}
+
+func (f *fakeInvestments) ListSecurities(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentSecuritySummary, error) {
+	return f.listSecurities(ctx, userID, filter)
+}
+
+func (f *fakeInvestments) HistoryBounds(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) (domain.InvestmentHistoryBounds, error) {
+	return f.historyBounds(ctx, userID, filter)
+}
+
+func (f *fakeInvestments) History(ctx context.Context, userID uuid.UUID, query repository.InvestmentHistoryQuery) ([]domain.InvestmentHistoryRow, error) {
+	return f.history(ctx, userID, query)
+}
+
+func newInvestmentAPI(t *testing.T, user domain.User, investments *fakeInvestments) humatest.TestAPI {
+	t.Helper()
+
+	return newAPI(t, user, handler.NewInvestmentHandler(investments, service.NewInvestmentHistoryService(investments)))
+}

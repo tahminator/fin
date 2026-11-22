@@ -1104,11 +1104,12 @@ Both implementations are zero-sized. `Prometheus{}` writes to the package-level 
 | `fin_connections_with_errors`                                 | `user`                 |
 | `fin_accounts`                                                | `user`                 |
 | `fin_transactions`                                            | `user`                 |
+| `fin_net_worth`                                               | `user`, `currency`     |
 | `fin_connection_oldest_sync_timestamp_seconds`                | `user`                 |
 | `fin_db_pool_acquired_conns` / `_idle_conns` / `_total_conns` | — (from `pool.Stat()`) |
 | `fin_metrics_snapshot_up`                                     | —                      |
 
-`user` is the one data-derived label: its values are emails from the `users` table only, so cardinality is the size of the allow-list (2) times the enum it is paired with.
+`user` is a data-derived label: its values are emails from the `users` table only. `currency` is derived from account currencies; unknown currencies use `XXX`. Cardinality remains bounded by the allow-list and the currencies present in account data.
 
 **Alerts this enables:**
 

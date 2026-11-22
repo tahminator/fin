@@ -15,6 +15,10 @@ type Recorder interface {
 	ProviderCalled(provider Provider, operation ProviderOperation, outcome CallOutcome, elapsed time.Duration)
 	ConnectionSynced(trigger SyncTrigger, outcome SyncOutcome, elapsed time.Duration)
 	ScheduledRunFinished(run ScheduledRun)
+	OAuthTokenRequested(grantType OAuthGrantType, outcome OAuthOutcome)
+	OAuthClientRegistered(source ClientSource, outcome OAuthOutcome)
+	OAuthConsentDecided(decision ConsentDecision)
+	MCPToolCalled(tool MCPTool, outcome ToolOutcome, elapsed time.Duration)
 }
 
 type Prometheus struct{}
@@ -49,6 +53,23 @@ func (Prometheus) ScheduledRunFinished(run ScheduledRun) {
 	}
 }
 
+func (Prometheus) OAuthTokenRequested(grantType OAuthGrantType, outcome OAuthOutcome) {
+	oauthTokenRequestsTotal.WithLabelValues(grantType.String(), outcome.String()).Inc()
+}
+
+func (Prometheus) OAuthClientRegistered(source ClientSource, outcome OAuthOutcome) {
+	oauthClientRegistrationsTotal.WithLabelValues(source.String(), outcome.String()).Inc()
+}
+
+func (Prometheus) OAuthConsentDecided(decision ConsentDecision) {
+	oauthConsentsTotal.WithLabelValues(decision.String()).Inc()
+}
+
+func (Prometheus) MCPToolCalled(tool MCPTool, outcome ToolOutcome, elapsed time.Duration) {
+	mcpToolCallsTotal.WithLabelValues(tool.String(), outcome.String()).Inc()
+	mcpToolDuration.WithLabelValues(tool.String()).Observe(elapsed.Seconds())
+}
+
 type Noop struct{}
 
 func (Noop) HTTPRequestServed(RouteGroup, Method, int, time.Duration) {}
@@ -60,6 +81,14 @@ func (Noop) ProviderCalled(Provider, ProviderOperation, CallOutcome, time.Durati
 func (Noop) ConnectionSynced(SyncTrigger, SyncOutcome, time.Duration) {}
 
 func (Noop) ScheduledRunFinished(ScheduledRun) {}
+
+func (Noop) OAuthTokenRequested(OAuthGrantType, OAuthOutcome) {}
+
+func (Noop) OAuthClientRegistered(ClientSource, OAuthOutcome) {}
+
+func (Noop) OAuthConsentDecided(ConsentDecision) {}
+
+func (Noop) MCPToolCalled(MCPTool, ToolOutcome, time.Duration) {}
 
 func unixSeconds(t time.Time) float64 {
 	return float64(t.UnixNano()) / float64(time.Second)

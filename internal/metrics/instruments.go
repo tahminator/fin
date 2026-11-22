@@ -89,6 +89,44 @@ var (
 		"Unix time the last scheduled sync run finished.",
 	)
 
+	oauthTokenRequestsTotal = newCounterVec(
+		"fin_oauth_token_requests_total",
+		"OAuth token endpoint requests, by grant type and outcome.",
+		[]string{"grant_type", "outcome"},
+		labelValues(allOAuthGrantTypes()),
+		labelValues(allOAuthOutcomes()),
+	)
+
+	oauthClientRegistrationsTotal = newCounterVec(
+		"fin_oauth_client_registrations_total",
+		"OAuth client registrations and metadata document fetches, by source and outcome.",
+		[]string{"source", "outcome"},
+		labelValues(allClientSources()),
+		labelValues(allOAuthOutcomes()),
+	)
+
+	oauthConsentsTotal = newCounterVec(
+		"fin_oauth_consents_total",
+		"OAuth consent decisions.",
+		[]string{"decision"},
+		labelValues(allConsentDecisions()),
+	)
+
+	mcpToolCallsTotal = newCounterVec(
+		"fin_mcp_tool_calls_total",
+		"MCP tool calls, by tool and outcome.",
+		[]string{"tool", "outcome"},
+		labelValues(AllMCPTools()),
+		labelValues(allToolOutcomes()),
+	)
+
+	mcpToolDuration = newHistogramVec(
+		"fin_mcp_tool_duration_seconds",
+		"MCP tool call latency, by tool.",
+		[]string{"tool"},
+		labelValues(AllMCPTools()),
+	)
+
 	scheduledRunLastSuccessTimestamp = newGauge(
 		"fin_scheduled_sync_last_success_timestamp_seconds",
 		"Unix time the last fully successful scheduled sync run finished.",

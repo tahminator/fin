@@ -29,6 +29,10 @@ func TestRouteGroupOf(t *testing.T) {
 		{path: "/swagger/index.html", group: metrics.RouteGroupDocs},
 		{path: "/swaggerish", group: metrics.RouteGroupStatic},
 		{path: "/", group: metrics.RouteGroupStatic},
+		{path: "/mcp", group: metrics.RouteGroupMCP},
+		{path: "/mcpx", group: metrics.RouteGroupStatic},
+		{path: "/oauth/token", group: metrics.RouteGroupOAuth},
+		{path: "/.well-known/oauth-authorization-server", group: metrics.RouteGroupOAuth},
 		{path: "/assets/x", group: metrics.RouteGroupStatic},
 		{path: "/transactions", group: metrics.RouteGroupStatic},
 	}

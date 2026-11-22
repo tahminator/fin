@@ -20,6 +20,8 @@ const (
 	oauthCookiePath    = "/auth/google/callback"
 	oauthCookieMaxAge  = 600
 	oauthCookieDivider = "."
+
+	consentRequestLength = 43
 )
 
 type CookieConfig struct {
@@ -59,8 +61,15 @@ func (h *AuthHandler) Register(api huma.API) {
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	start := h.auth.BeginLogin()
+	consent := consentRequestFrom(r.URL.Query().Get("consent"))
 
-	pending := strings.Join([]string{start.Pending.State, start.Pending.Nonce, start.Pending.Verifier}, oauthCookieDivider)
+	parts := []string{start.Pending.State, start.Pending.Nonce, start.Pending.Verifier}
+
+	if consent != "" {
+		parts = append(parts, consent)
+	}
+
+	pending := strings.Join(parts, oauthCookieDivider)
 
 	http.SetCookie(w, h.oauthCookie(pending, oauthCookieMaxAge))
 	http.Redirect(w, r, start.URL, http.StatusFound)
@@ -70,20 +79,21 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, h.oauthCookie("", -1))
 
 	query := r.URL.Query()
+	pending, consent := pendingLoginFrom(r)
 
 	token, err := h.auth.CompleteLogin(r.Context(), service.LoginCallback{
 		Code:    query.Get("code"),
 		State:   query.Get("state"),
-		Pending: pendingLoginFrom(r),
+		Pending: pending,
 	})
 	if err != nil {
-		h.redirectLoginError(w, r, err)
+		h.redirectLoginError(w, r, err, consent)
 
 		return
 	}
 
 	http.SetCookie(w, h.sessionCookie(token, int(h.auth.SessionTTL()/time.Second)))
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, afterLogin(consent, ""), http.StatusSeeOther)
 }
 
 type MeOutput struct {
@@ -106,7 +116,7 @@ func (h *AuthHandler) logout(ctx context.Context, _ *struct{}) (*LogoutOutput, e
 	return &LogoutOutput{SetCookie: *h.sessionCookie("", -1)}, nil
 }
 
-func (h *AuthHandler) redirectLoginError(w http.ResponseWriter, r *http.Request, err error) {
+func (h *AuthHandler) redirectLoginError(w http.ResponseWriter, r *http.Request, err error, consent string) {
 	reason := "failed"
 
 	if errors.Is(err, domain.ErrNotAllowed) {
@@ -115,7 +125,42 @@ func (h *AuthHandler) redirectLoginError(w http.ResponseWriter, r *http.Request,
 
 	slog.WarnContext(r.Context(), "login failed", "reason", reason, "err", err)
 
+	if consent != "" {
+		http.Redirect(w, r, afterLogin(consent, reason), http.StatusSeeOther)
+
+		return
+	}
+
 	http.Redirect(w, r, "/login?"+url.Values{"error": {reason}}.Encode(), http.StatusSeeOther)
+}
+
+func afterLogin(consent, loginError string) string {
+	if consent == "" {
+		return "/"
+	}
+
+	values := url.Values{"request": {consent}}
+
+	if loginError != "" {
+		values.Set("error", loginError)
+	}
+
+	return "/consent?" + values.Encode()
+}
+
+func consentRequestFrom(raw string) string {
+	if len(raw) != consentRequestLength {
+		return ""
+	}
+
+	for _, r := range raw {
+		valid := r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_'
+		if !valid {
+			return ""
+		}
+	}
+
+	return raw
 }
 
 func (h *AuthHandler) sessionCookie(value string, maxAge int) *http.Cookie {
@@ -143,17 +188,23 @@ func (h *AuthHandler) oauthCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
-func pendingLoginFrom(r *http.Request) service.PendingLogin {
+func pendingLoginFrom(r *http.Request) (service.PendingLogin, string) {
 	cookie, err := r.Cookie(oauthCookie)
 	if err != nil {
-		return service.PendingLogin{}
+		return service.PendingLogin{}, ""
 	}
 
 	parts := strings.Split(cookie.Value, oauthCookieDivider)
 
-	if len(parts) != 3 {
-		return service.PendingLogin{}
+	if len(parts) != 3 && len(parts) != 4 {
+		return service.PendingLogin{}, ""
 	}
 
-	return service.PendingLogin{State: parts[0], Nonce: parts[1], Verifier: parts[2]}
+	pending := service.PendingLogin{State: parts[0], Nonce: parts[1], Verifier: parts[2]}
+
+	if len(parts) == 3 {
+		return pending, ""
+	}
+
+	return pending, consentRequestFrom(parts[3])
 }

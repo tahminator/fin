@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -31,6 +32,15 @@ type Config struct {
 	SecretKey         []byte
 	PlaidCountryCodes []string
 	Version           string
+	MCP               MCPConfig
+}
+
+type MCPConfig struct {
+	Enabled         bool
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	GrantMaxAge     time.Duration
+	AllowedOrigins  []string
 }
 
 func NewFromEnv() (Config, error) {
@@ -52,6 +62,13 @@ func NewFromEnv() (Config, error) {
 		SecretKey:         []byte(env.required("SECRET_KEY")),
 		PlaidCountryCodes: env.list("PLAID_COUNTRY_CODES", []string{"US"}),
 		Version:           env.optional("VERSION", ""),
+		MCP: MCPConfig{
+			Enabled:         env.boolean("MCP_ENABLED", true),
+			AccessTokenTTL:  env.duration("MCP_ACCESS_TOKEN_TTL", time.Hour),
+			RefreshTokenTTL: env.duration("MCP_REFRESH_TOKEN_TTL", 30*24*time.Hour),
+			GrantMaxAge:     env.duration("MCP_GRANT_MAX_AGE", 90*24*time.Hour),
+			AllowedOrigins:  env.list("MCP_ALLOWED_ORIGINS", nil),
+		},
 	}
 
 	env.errs = append(env.errs, cfg.validate()...)
@@ -78,6 +95,8 @@ func (c Config) validate() []error {
 		errs = append(errs, errors.New("SYNC_COOLDOWN must not be negative"))
 	}
 
+	errs = append(errs, c.validateMCP()...)
+
 	if c.AppEnv == Production && c.CookieDomain == "" {
 		errs = append(errs, errors.New("COOKIE_DOMAIN is required in production"))
 	}
@@ -87,6 +106,37 @@ func (c Config) validate() []error {
 	}
 
 	return errs
+}
+
+func (c Config) validateMCP() []error {
+	var errs []error
+
+	if c.MCP.AccessTokenTTL <= 0 || c.MCP.AccessTokenTTL > 24*time.Hour {
+		errs = append(errs, errors.New("MCP_ACCESS_TOKEN_TTL must be between 1s and 24h"))
+	}
+
+	if c.MCP.RefreshTokenTTL <= 0 || c.MCP.GrantMaxAge <= 0 {
+		errs = append(errs, errors.New("MCP_REFRESH_TOKEN_TTL and MCP_GRANT_MAX_AGE must be positive"))
+	}
+
+	if c.AppEnv != Production || !c.MCP.Enabled {
+		return errs
+	}
+
+	parsed, err := url.Parse(c.PublicURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" {
+		errs = append(errs, errors.New("PUBLIC_URL must be an https origin with no path or trailing slash when the MCP server is enabled"))
+	}
+
+	return errs
+}
+
+func (c Config) OAuthIssuer() string {
+	return c.PublicURL
+}
+
+func (c Config) MCPResource() string {
+	return c.PublicURL + "/mcp"
 }
 
 func (c Config) GoogleRedirectURL() string {

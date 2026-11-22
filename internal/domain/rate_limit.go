@@ -11,11 +11,20 @@ var ErrThrottled = errors.New("throttled")
 type RateLimitScope string
 
 const (
-	RateLimitScopeSync RateLimitScope = "sync"
+	RateLimitScopeSync           RateLimitScope = "sync"
+	RateLimitScopeOAuthRegister  RateLimitScope = "oauth_register"
+	RateLimitScopeOAuthToken     RateLimitScope = "oauth_token"
+	RateLimitScopeOAuthAuthorize RateLimitScope = "oauth_authorize"
+	RateLimitScopeMCPGrant       RateLimitScope = "mcp_grant"
 )
 
 func (s RateLimitScope) Valid() bool {
-	return s == RateLimitScopeSync
+	switch s {
+	case RateLimitScopeSync, RateLimitScopeOAuthRegister, RateLimitScopeOAuthToken, RateLimitScopeOAuthAuthorize, RateLimitScopeMCPGrant:
+		return true
+	}
+
+	return false
 }
 
 type RateLimit struct {

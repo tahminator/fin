@@ -28,12 +28,12 @@ type ConsentRequest struct {
 	Verified     bool           `json:"verified" doc:"True when the app proved its identity with a client metadata document on its own domain"`
 	LogoURL      *string        `json:"logoUrl"`
 	RedirectHost string         `json:"redirectHost" doc:"Where the user returns after deciding"`
-	Scopes       []domain.Scope `json:"scopes" enum:"fin:read,fin:sync"`
+	Scopes       []domain.Scope `json:"scopes" enum:"fin:read,fin:sync" nullable:"false"`
 	ExpiresAt    time.Time      `json:"expiresAt"`
 }
 
 type ConsentDecisionBody struct {
-	Scopes []domain.Scope `json:"scopes" enum:"fin:read,fin:sync" minItems:"1" doc:"Scopes the user approves; must include fin:read and be a subset of the request"`
+	Scopes []domain.Scope `json:"scopes" enum:"fin:read,fin:sync" nullable:"false" minItems:"1" doc:"Scopes the user approves; must include fin:read and be a subset of the request"`
 }
 
 type ConsentRedirect struct {
@@ -45,7 +45,7 @@ type OAuthGrant struct {
 	ClientName string         `json:"clientName"`
 	ClientHost string         `json:"clientHost"`
 	Verified   bool           `json:"verified"`
-	Scopes     []domain.Scope `json:"scopes" enum:"fin:read,fin:sync"`
+	Scopes     []domain.Scope `json:"scopes" enum:"fin:read,fin:sync" nullable:"false"`
 	CreatedAt  time.Time      `json:"createdAt"`
 	LastUsedAt *time.Time     `json:"lastUsedAt"`
 	ExpiresAt  time.Time      `json:"expiresAt"`

@@ -21,3 +21,9 @@ export type Account = Schemas["Account"];
 export type Transaction = Schemas["Transaction"];
 
 export type Notification = Schemas["Notification"];
+
+export type ConsentRequest = Schemas["ConsentRequest"];
+
+export type OAuthGrant = Schemas["OAuthGrant"];
+
+export type OAuthScope = ConsentRequest["scopes"][number];

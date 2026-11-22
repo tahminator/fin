@@ -16,8 +16,7 @@ const transactionDaysRequested = 730
 func (p *Provider) CreateLinkToken(ctx context.Context, creds domain.Credential, userID, redirectURI string) (string, error) {
 	started := time.Now()
 
-	request := p.linkTokenRequest(userID, redirectURI)
-	request.Products = []plaidsdk.Products{plaidsdk.ProductsTransactions}
+	request := p.initialLinkTokenRequest(userID, redirectURI)
 	request.Transactions = &plaidsdk.LinkTokenTransactions{DaysRequested: new(transactionDaysRequested)}
 
 	token, err := p.createLinkToken(ctx, creds, request)
@@ -79,9 +78,20 @@ func (p *Provider) linkTokenRequest(userID, redirectURI string) *plaidsdk.LinkTo
 	}
 }
 
+func (p *Provider) initialLinkTokenRequest(userID, redirectURI string) *plaidsdk.LinkTokenCreateRequest {
+	request := p.linkTokenRequest(userID, redirectURI)
+	request.Products = []plaidsdk.Products{
+		plaidsdk.ProductsTransactions,
+		plaidsdk.ProductsInvestments,
+	}
+
+	return request
+}
+
 func (p *Provider) updateLinkTokenRequest(userID, accessToken, redirectURI string) *plaidsdk.LinkTokenCreateRequest {
 	request := p.linkTokenRequest(userID, redirectURI)
 	request.AccessToken = &accessToken
+	request.AdditionalConsentedProducts = []plaidsdk.Products{plaidsdk.ProductsInvestments}
 
 	return request
 }

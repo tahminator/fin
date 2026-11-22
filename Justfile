@@ -38,6 +38,10 @@ migration name:
 seed email client_id secret env="sandbox":
     @go run ./cmd/seed -email {{quote(email)}} -client-id {{quote(client_id)}} -secret {{quote(secret)}} -env {{quote(env)}}
 
+[doc("Store a user's Alpaca market data key (DATABASE_URL from .env)")]
+seed-alpaca email key_id secret_key:
+    @go run ./cmd/seed -provider alpaca -env production -email {{quote(email)}} -client-id {{quote(key_id)}} -secret {{quote(secret_key)}}
+
 [doc("Add fictional sample data to the local database")]
 seed-dev email:
     psql "$DATABASE_URL" -v email={{quote(email)}} -f db/seed/local.sql

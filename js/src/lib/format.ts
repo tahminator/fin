@@ -23,6 +23,30 @@ export function isNegative(amount: string): boolean {
   return amount.startsWith("-");
 }
 
+export type ChangeTone = "up" | "down" | "flat";
+
+export function changeTone(amount: string): ChangeTone {
+  if (Number(amount) === 0) {
+    return "flat";
+  }
+
+  return isNegative(amount) ? "down" : "up";
+}
+
+export function formatSignedMoney(amount: string, currency: string | null): string {
+  const formatted = formatMoney(amount, currency);
+
+  return isNegative(amount) || Number(amount) === 0 ? formatted : `+${formatted}`;
+}
+
+export function formatPercent(percent: string): string {
+  return `${isNegative(percent) || Number(percent) === 0 ? "" : "+"}${percent}%`;
+}
+
+export function formatShares(quantity: string): string {
+  return `${quantity} ${quantity === "1" ? "share" : "shares"}`;
+}
+
 export function formatDate(date: string): string {
   const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
@@ -33,6 +57,12 @@ export function formatShortDate(date: string): string {
   const formatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
   return formatter.format(new Date(`${date}T00:00:00`));
+}
+
+export function formatTime(timestamp: string): string {
+  const formatter = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+
+  return formatter.format(new Date(timestamp));
 }
 
 export function formatDateTime(timestamp: string): string {

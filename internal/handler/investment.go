@@ -10,6 +10,7 @@ import (
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/repository"
+	"github.com/tahminator/fin/internal/service"
 )
 
 type InvestmentHolding struct {
@@ -54,19 +55,21 @@ type ListInvestmentHoldingsInput struct {
 type ListInvestmentTransactionsInput struct {
 	PageParams
 	AccountID        string   `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
+	SecurityID       string   `query:"securityId" format:"uuid" doc:"Only transactions of this security"`
 	ExcludeAccountID []string `query:"excludeAccountId,explode" format:"uuid" doc:"Exclude transactions of these accounts"`
 }
 
 type InvestmentHandler struct {
 	investments repository.InvestmentRepository
+	portfolio   *service.PortfolioService
 }
 
 type InvestmentHoldingsOutput struct {
 	Body []InvestmentHolding
 }
 
-func NewInvestmentHandler(investments repository.InvestmentRepository) *InvestmentHandler {
-	return &InvestmentHandler{investments: investments}
+func NewInvestmentHandler(investments repository.InvestmentRepository, portfolio *service.PortfolioService) *InvestmentHandler {
+	return &InvestmentHandler{investments: investments, portfolio: portfolio}
 }
 
 func (h *InvestmentHandler) Register(api huma.API) {
@@ -87,6 +90,15 @@ func (h *InvestmentHandler) Register(api huma.API) {
 		Tags:        []string{"investments"},
 		Security:    cookieAuth,
 	}, h.listTransactions)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-investment-performance",
+		Method:      http.MethodGet,
+		Path:        "/investments/performance",
+		Summary:     "Portfolio value over a time range, by security and by account",
+		Tags:        []string{"investments"},
+		Security:    cookieAuth,
+	}, h.performance)
 }
 
 func (h *InvestmentHandler) listHoldings(ctx context.Context, input *ListInvestmentHoldingsInput) (*InvestmentHoldingsOutput, error) {
@@ -105,6 +117,11 @@ func (h *InvestmentHandler) listHoldings(ctx context.Context, input *ListInvestm
 
 func (h *InvestmentHandler) listTransactions(ctx context.Context, input *ListInvestmentTransactionsInput) (*PageOutput[InvestmentTransaction], error) {
 	filter, err := investmentFilter(input.AccountID, input.ExcludeAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	filter.SecurityID, err = optionalUUID("securityId", input.SecurityID)
 	if err != nil {
 		return nil, err
 	}

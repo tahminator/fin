@@ -1,4 +1,4 @@
-import { HouseIcon, LandmarkIcon, ReceiptTextIcon } from "lucide-react";
+import { ChartLineIcon, HouseIcon, LandmarkIcon, ReceiptTextIcon } from "lucide-react";
 import { ViewTransition } from "react";
 import type { ReactNode } from "react";
 import { NavLink } from "react-router";
@@ -25,7 +25,7 @@ function ReauthBadge() {
 }
 
 interface TabItemProps {
-  to: "/" | "/transactions" | "/connections";
+  to: "/" | "/transactions" | "/investments" | "/connections";
   label: string;
   icon: ReactNode;
   badge?: ReactNode;
@@ -71,6 +71,11 @@ export function TabBar() {
           to="/transactions"
           label="Transactions"
           icon={<ReceiptTextIcon className="size-6" />}
+        />
+        <TabItem
+          to="/investments"
+          label="Investments"
+          icon={<ChartLineIcon className="size-6" />}
         />
         <TabItem
           to="/connections"

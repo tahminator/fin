@@ -7,6 +7,7 @@ import (
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/identity"
+	"github.com/tahminator/fin/internal/marketdata"
 	"github.com/tahminator/fin/internal/metrics"
 	"github.com/tahminator/fin/internal/provider"
 	"github.com/tahminator/fin/internal/repository"
@@ -213,8 +214,31 @@ func (f *fakeProvider) InvestmentTransactions(ctx context.Context, creds domain.
 
 type fakeInvestments struct {
 	repository.InvestmentRepository
-	replaceHoldings    func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error
-	upsertTransactions func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, transactions []domain.InvestmentTransaction) error
+	replaceHoldings       func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error
+	upsertTransactions    func(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, transactions []domain.InvestmentTransaction) error
+	listHoldingsByUser    func(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentHolding, error)
+	listTransactionsSince func(ctx context.Context, userID uuid.UUID, since time.Time) ([]domain.InvestmentTransaction, error)
+}
+
+func (f *fakeInvestments) ListHoldingsByUser(ctx context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentHolding, error) {
+	return f.listHoldingsByUser(ctx, userID, filter)
+}
+
+func (f *fakeInvestments) ListTransactionsSince(ctx context.Context, userID uuid.UUID, since time.Time) ([]domain.InvestmentTransaction, error) {
+	return f.listTransactionsSince(ctx, userID, since)
+}
+
+type fakeMarket struct {
+	bars         func(ctx context.Context, creds domain.Credential, symbols []string, timeframe marketdata.Timeframe, start, end time.Time) (map[string][]marketdata.Bar, error)
+	latestTrades func(ctx context.Context, creds domain.Credential, symbols []string) (map[string]marketdata.Trade, error)
+}
+
+func (f *fakeMarket) Bars(ctx context.Context, creds domain.Credential, symbols []string, timeframe marketdata.Timeframe, start, end time.Time) (map[string][]marketdata.Bar, error) {
+	return f.bars(ctx, creds, symbols, timeframe, start, end)
+}
+
+func (f *fakeMarket) LatestTrades(ctx context.Context, creds domain.Credential, symbols []string) (map[string]marketdata.Trade, error) {
+	return f.latestTrades(ctx, creds, symbols)
 }
 
 func (f *fakeInvestments) ReplaceHoldings(ctx context.Context, userID uuid.UUID, accountIDs map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error {

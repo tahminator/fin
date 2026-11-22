@@ -18,6 +18,7 @@ import (
 	"github.com/tahminator/fin/internal/encryption"
 	"github.com/tahminator/fin/internal/handler"
 	"github.com/tahminator/fin/internal/identity"
+	"github.com/tahminator/fin/internal/marketdata"
 	"github.com/tahminator/fin/internal/mcpserver"
 	"github.com/tahminator/fin/internal/metrics"
 	"github.com/tahminator/fin/internal/oauth"
@@ -30,6 +31,7 @@ import (
 const (
 	providerTimeout   = 30 * time.Second
 	cardArtTimeout    = 10 * time.Second
+	marketDataTimeout = 20 * time.Second
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 15 * time.Second
 )
@@ -130,7 +132,7 @@ func serve() error {
 		Accounts:       handler.NewAccountHandler(accounts),
 		CardArt:        handler.NewCardArtHandler(cardArtService),
 		Transactions:   handler.NewTransactionHandler(transactions),
-		Investments:    handler.NewInvestmentHandler(investments),
+		Investments:    handler.NewInvestmentHandler(investments, service.NewPortfolioService(investments, credentials, marketdata.NewAlpaca(&http.Client{Timeout: marketDataTimeout}))),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),
 		OAuthConsent:   handler.NewOAuthConsentHandler(oauthService),

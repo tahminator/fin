@@ -24,6 +24,7 @@ type InvestmentHolding struct {
 	SecurityExternalID   string     `db:"-"`
 	SecurityName         *string    `db:"security_name"`
 	Ticker               *string    `db:"ticker_symbol"`
+	SecurityType         *string    `db:"security_type"`
 	InstitutionPrice     string     `db:"institution_price"`
 	InstitutionPriceAsOf *time.Time `db:"institution_price_as_of"`
 	InstitutionValue     string     `db:"institution_value"`
@@ -43,6 +44,7 @@ type InvestmentTransaction struct {
 	SecurityExternalID  *string    `db:"-"`
 	SecurityName        *string    `db:"security_name"`
 	Ticker              *string    `db:"ticker_symbol"`
+	SecurityType        *string    `db:"security_type"`
 	ExternalID          string     `db:"external_id"`
 	CancelExternalID    *string    `db:"cancel_external_id"`
 	PostedOn            time.Time  `db:"posted_on"`

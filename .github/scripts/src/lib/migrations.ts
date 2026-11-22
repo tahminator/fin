@@ -47,3 +47,14 @@ export async function migrateUp(databaseUrl: string) {
     );
   }
 }
+
+export async function migrateDown(databaseUrl: string, targetVersion: number) {
+  const { exitCode } =
+    await $`migrate -path ${MIGRATIONS_DIR} -database ${databaseUrl} goto ${targetVersion}`.nothrow();
+
+  if (exitCode !== 0) {
+    throw new Error(
+      `Rolling back the production database failed with exit code ${exitCode}. The database may be left dirty at a partially applied migration.`,
+    );
+  }
+}

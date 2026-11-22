@@ -102,18 +102,19 @@ async function main() {
     }
 
     const current = await readProductionTag();
-    // re-trying while this PR's earlier /try is still live keeps the original image to revert to
-    const revertTo = state?.tried === current ? state.revertTo : current;
-    if (revertTo === tag) {
-      throw new Error(
-        `Production already runs \`${tag}\`, but this PR has no recorded image to revert to.`,
-      );
-    }
-
     const before = await readSchemaVersion(DATABASE_URL);
     if (before.dirty) {
       throw new Error(
         `The production database is dirty at ${describeSchemaVersion(before)}, so nothing was migrated or deployed. Fix it manually, then comment /try again.`,
+      );
+    }
+
+    const revertTo = state?.tried === current ? state.revertTo : current;
+    const revertSchemaVersion =
+      state?.tried === current ? state.revertSchemaVersion : (before.version ?? null);
+    if (revertTo === tag) {
+      throw new Error(
+        `Production already runs \`${tag}\`, but this PR has no recorded image to revert to.`,
       );
     }
 
@@ -130,6 +131,13 @@ async function main() {
         ? `No pending migrations (${describeSchemaVersion(after)}).`
         : `Migrated production from ${describeSchemaVersion(before)} to ${describeSchemaVersion(after)}.`;
 
+    state = {
+      tried: tag,
+      revertTo,
+      revertSchemaVersion,
+      triedSchemaVersion: after.version ?? null,
+    };
+
     await updateStatusCheck(ghClient, checkRunId, {
       title: "Deploying to production",
       summary: `${migration} Deploying \`${image}\` to production, replacing \`${current}\`.`,
@@ -138,11 +146,10 @@ async function main() {
     if (current !== tag) {
       await deployToProduction(ghClient, tag);
     }
-    state = { tried: tag, revertTo };
 
     const summary = `@${author} deployed \`${image}\` (${sha}) to production with \`/try\`, replacing \`${current}\`. ([run](${runUrl}))
 
-${migration} Comment \`/revert\` to restore \`${revertTo}\`; it does not roll back database migrations, so the restored image runs against the migrated schema.`;
+${migration} Comment \`/revert\` to restore \`${revertTo}\` and roll the database back to ${revertSchemaVersion === null ? "no migrations" : `version ${revertSchemaVersion}`}.`;
 
     await reportToPr(ghClient, prId, `### Production is running this PR\n\n${summary}`, state);
     await completeStatusCheck(ghClient, checkRunId, "success", {

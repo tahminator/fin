@@ -4,6 +4,7 @@ import { hideBin } from "yargs/helpers";
 
 import { DOCKER_IMAGE } from "../lib/consts";
 import { parseCiEnv } from "../lib/env";
+import { describeSchemaVersion, migrateDown, readSchemaVersion } from "../lib/migrations";
 import {
   deployToProduction,
   readProductionTag,
@@ -40,11 +41,13 @@ const { prId, sha, author, runUrl } = await yargs(hideBin(process.argv))
   .parse();
 
 async function main() {
-  const { _GITHUB_APP_APP_ID, _GITHUB_APP_INSTALLATION_ID, _GITHUB_APP_PEM_CONTENT } = parseCiEnv([
-    "_GITHUB_APP_APP_ID",
-    "_GITHUB_APP_INSTALLATION_ID",
-    "_GITHUB_APP_PEM_CONTENT",
-  ]);
+  const { _GITHUB_APP_APP_ID, _GITHUB_APP_INSTALLATION_ID, _GITHUB_APP_PEM_CONTENT, DATABASE_URL } =
+    parseCiEnv([
+      "_GITHUB_APP_APP_ID",
+      "_GITHUB_APP_INSTALLATION_ID",
+      "_GITHUB_APP_PEM_CONTENT",
+      "DATABASE_URL",
+    ]);
 
   const ghClient = await GitHubClient.createWithGithubAppToken({
     appId: _GITHUB_APP_APP_ID,
@@ -78,6 +81,34 @@ async function main() {
       );
     }
 
+    const currentSchema = await readSchemaVersion(DATABASE_URL);
+    if (currentSchema.dirty) {
+      throw new Error(
+        `The production database is dirty at ${describeSchemaVersion(currentSchema)}, so nothing was reverted.`,
+      );
+    }
+    const schemaVersion = currentSchema.version ?? null;
+    if (schemaVersion !== state.triedSchemaVersion && schemaVersion !== state.revertSchemaVersion) {
+      throw new Error(
+        `Production is at ${describeSchemaVersion(currentSchema)}, not this PR's schema ${state.triedSchemaVersion === null ? "with no migrations" : `at version ${state.triedSchemaVersion}`}, so migrations were not rolled back.`,
+      );
+    }
+
+    await updateStatusCheck(ghClient, checkRunId, {
+      title: "Rolling back production database",
+      summary: `Rolling back the production database to ${state.revertSchemaVersion === null ? "no migrations" : `version ${state.revertSchemaVersion}`} from ${describeSchemaVersion(currentSchema)}.`,
+    });
+
+    if ((currentSchema.version ?? null) !== state.revertSchemaVersion) {
+      await migrateDown(DATABASE_URL, state.revertSchemaVersion ?? 0);
+      const revertedSchema = await readSchemaVersion(DATABASE_URL);
+      if (revertedSchema.dirty || (revertedSchema.version ?? null) !== state.revertSchemaVersion) {
+        throw new Error(
+          `Rolling back did not reach ${state.revertSchemaVersion === null ? "no migrations" : `version ${state.revertSchemaVersion}`}; nothing was deployed.`,
+        );
+      }
+    }
+
     await updateStatusCheck(ghClient, checkRunId, {
       title: "Restoring production",
       summary: `Restoring \`${DOCKER_IMAGE}:${state.revertTo}\` in production, replacing \`${current}\`.`,
@@ -87,7 +118,7 @@ async function main() {
 
     const summary = `@${author} restored \`${DOCKER_IMAGE}:${state.revertTo}\` in production with \`/revert\`, replacing \`${current}\`. ([run](${runUrl}))
 
-Database migrations applied by \`/try\` were not rolled back.`;
+Database migrations were rolled back to ${state.revertSchemaVersion === null ? "no migrations" : `version ${state.revertSchemaVersion}`} from ${describeSchemaVersion(currentSchema)}.`;
 
     await reportToPr(ghClient, prId, `### Production reverted\n\n${summary}`);
     await completeStatusCheck(ghClient, checkRunId, "success", {

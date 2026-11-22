@@ -16,12 +16,12 @@ type InvestmentSecurity struct {
 }
 
 type InvestmentHolding struct {
-	ID                   uuid.UUID `db:"id"`
-	AccountID            uuid.UUID `db:"account_id"`
-	AccountExternalID    string
-	AccountName          string    `db:"account_name"`
-	SecurityID           uuid.UUID `db:"security_id"`
-	SecurityExternalID   string
+	ID                   uuid.UUID  `db:"id"`
+	AccountID            uuid.UUID  `db:"account_id"`
+	AccountExternalID    string     `db:"-"`
+	AccountName          string     `db:"account_name"`
+	SecurityID           uuid.UUID  `db:"security_id"`
+	SecurityExternalID   string     `db:"-"`
 	SecurityName         *string    `db:"security_name"`
 	Ticker               *string    `db:"ticker_symbol"`
 	InstitutionPrice     string     `db:"institution_price"`
@@ -35,12 +35,12 @@ type InvestmentHolding struct {
 }
 
 type InvestmentTransaction struct {
-	ID                  uuid.UUID `db:"id"`
-	AccountID           uuid.UUID `db:"account_id"`
-	AccountExternalID   string
+	ID                  uuid.UUID  `db:"id"`
+	AccountID           uuid.UUID  `db:"account_id"`
+	AccountExternalID   string     `db:"-"`
 	AccountName         string     `db:"account_name"`
 	SecurityID          *uuid.UUID `db:"security_id"`
-	SecurityExternalID  *string
+	SecurityExternalID  *string    `db:"-"`
 	SecurityName        *string    `db:"security_name"`
 	Ticker              *string    `db:"ticker_symbol"`
 	ExternalID          string     `db:"external_id"`

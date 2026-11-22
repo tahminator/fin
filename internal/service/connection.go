@@ -17,7 +17,10 @@ import (
 	"github.com/tahminator/fin/internal/repository"
 )
 
-const syncAllLimit = 1000
+const (
+	syncAllLimit             = 1000
+	maxAccountsPerConnection = 1000
+)
 
 type SyncSummary struct {
 	Synced         int
@@ -179,7 +182,23 @@ func (s *ConnectionService) CreateReauthLinkToken(ctx context.Context, userID, c
 		return "", err
 	}
 
-	return s.provider.CreateUpdateLinkToken(ctx, credential, userID.String(), accessToken, s.redirectURI)
+	consentInvestments, err := s.hasInvestmentAccounts(ctx, userID, connectionID)
+	if err != nil {
+		return "", err
+	}
+
+	return s.provider.CreateUpdateLinkToken(ctx, credential, userID.String(), accessToken, s.redirectURI, consentInvestments)
+}
+
+func (s *ConnectionService) hasInvestmentAccounts(ctx context.Context, userID, connectionID uuid.UUID) (bool, error) {
+	accounts, _, err := s.accounts.ListByUser(ctx, userID, repository.AccountFilter{ConnectionID: &connectionID}, maxAccountsPerConnection, 0)
+	if err != nil {
+		return false, fmt.Errorf("list connection accounts: %w", err)
+	}
+
+	return slices.ContainsFunc(accounts, func(account domain.Account) bool {
+		return account.Type == domain.AccountTypeInvestment
+	}), nil
 }
 
 func (s *ConnectionService) CompleteReauth(ctx context.Context, userID, connectionID uuid.UUID) (domain.Connection, error) {
@@ -359,36 +378,46 @@ func (s *ConnectionService) pull(ctx context.Context, connection domain.Connecti
 		return fmt.Errorf("delete removed transactions: %w", err)
 	}
 
-	for _, account := range accounts {
-		if account.Type != domain.AccountTypeInvestment {
-			continue
-		}
-
-		holdings, err := s.provider.InvestmentHoldings(ctx, credential, accessToken)
-		if err != nil {
-			return fmt.Errorf("fetch investment holdings: %w", err)
-		}
-
-		securities, holdingsData := toDomainInvestmentHoldings(holdings)
-		if err := s.investments.ReplaceHoldings(ctx, connection.UserID, accountIDs, securities, holdingsData); err != nil {
-			return fmt.Errorf("save investment holdings: %w", err)
-		}
-
-		investmentTransactions, err := s.provider.InvestmentTransactions(ctx, credential, accessToken)
-		if err != nil {
-			return fmt.Errorf("fetch investment transactions: %w", err)
-		}
-
-		securities, investmentData := toDomainInvestmentTransactions(investmentTransactions)
-		if err := s.investments.UpsertTransactions(ctx, connection.UserID, accountIDs, securities, investmentData); err != nil {
-			return fmt.Errorf("save investment transactions: %w", err)
-		}
-
-		break
-	}
-
 	if err := s.connections.UpdateSyncState(ctx, connection.UserID, connection.ID, result.NextCursor, s.now()); err != nil {
 		return fmt.Errorf("save sync cursor: %w", err)
+	}
+
+	hasInvestments := slices.ContainsFunc(accounts, func(account provider.Account) bool {
+		return account.Type == domain.AccountTypeInvestment
+	})
+	if !hasInvestments {
+		return nil
+	}
+
+	err = s.pullInvestments(ctx, connection.UserID, credential, accessToken, accountIDs)
+	if errors.Is(err, domain.ErrUnsupported) {
+		slog.InfoContext(ctx, "skip investments", "connection_id", connection.ID, "err", err)
+
+		return nil
+	}
+
+	return err
+}
+
+func (s *ConnectionService) pullInvestments(ctx context.Context, userID uuid.UUID, credential domain.Credential, accessToken string, accountIDs map[string]uuid.UUID) error {
+	holdings, err := s.provider.InvestmentHoldings(ctx, credential, accessToken)
+	if err != nil {
+		return fmt.Errorf("fetch investment holdings: %w", err)
+	}
+
+	securities, holdingsData := toDomainInvestmentHoldings(holdings)
+	if err := s.investments.ReplaceHoldings(ctx, userID, accountIDs, securities, holdingsData); err != nil {
+		return fmt.Errorf("save investment holdings: %w", err)
+	}
+
+	transactions, err := s.provider.InvestmentTransactions(ctx, credential, accessToken)
+	if err != nil {
+		return fmt.Errorf("fetch investment transactions: %w", err)
+	}
+
+	securities, transactionsData := toDomainInvestmentTransactions(transactions)
+	if err := s.investments.UpsertTransactions(ctx, userID, accountIDs, securities, transactionsData); err != nil {
+		return fmt.Errorf("save investment transactions: %w", err)
 	}
 
 	return nil

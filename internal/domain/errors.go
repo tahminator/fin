@@ -9,4 +9,5 @@ var (
 	ErrReauthRequired = errors.New("re-authentication required")
 	ErrUnavailable    = errors.New("unavailable")
 	ErrInvalidToken   = errors.New("invalid access token")
+	ErrUnsupported    = errors.New("not supported")
 )

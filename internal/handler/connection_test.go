@@ -42,7 +42,7 @@ func failingProvider(t *testing.T) *fakeProvider {
 
 			return "", nil
 		},
-		createUpdateLinkToken: func(context.Context, domain.Credential, string, string, string) (string, error) {
+		createUpdateLinkToken: func(context.Context, domain.Credential, string, string, string, bool) (string, error) {
 			t.Error("provider CreateUpdateLinkToken called")
 
 			return "", nil
@@ -191,7 +191,7 @@ func TestConnectionReauthLinkTokenForOwner(t *testing.T) {
 	var gotAccessToken, gotUserID string
 
 	accountProvider := failingProvider(t)
-	accountProvider.createUpdateLinkToken = func(_ context.Context, _ domain.Credential, userID, token, _ string) (string, error) {
+	accountProvider.createUpdateLinkToken = func(_ context.Context, _ domain.Credential, userID, token, _ string, _ bool) (string, error) {
 		gotUserID = userID
 		gotAccessToken = token
 

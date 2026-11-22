@@ -14,6 +14,7 @@ import (
 	"github.com/tahminator/fin/internal/encryption"
 	"github.com/tahminator/fin/internal/metrics"
 	"github.com/tahminator/fin/internal/provider"
+	"github.com/tahminator/fin/internal/repository"
 )
 
 const (
@@ -45,11 +46,16 @@ type connectionFixture struct {
 	deletedTx   []string
 	keptAccount []uuid.UUID
 	cardArtRuns []uuid.UUID
+	listed      []domain.Account
+	securities  []domain.InvestmentSecurity
+	holdings    []domain.InvestmentHolding
+	investTx    []domain.InvestmentTransaction
 
 	credentials  *fakeCredentials
 	connections  *fakeConnections
 	accounts     *fakeAccounts
 	transactions *fakeTransactions
+	investments  *fakeInvestments
 	provider     *fakeProvider
 	recorder     *syncRecorder
 	service      *ConnectionService
@@ -169,6 +175,15 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 	}
 
 	f.accounts = &fakeAccounts{
+		listByUser: func(_ context.Context, userID uuid.UUID, filter repository.AccountFilter, _, _ int) ([]domain.Account, int, error) {
+			f.record("accounts.listByUser")
+
+			if userID != f.userID || filter.ConnectionID == nil || *filter.ConnectionID != f.connection.ID {
+				t.Errorf("accounts.ListByUser got (%v, %+v), want the fixture connection", userID, filter)
+			}
+
+			return f.listed, len(f.listed), nil
+		},
 		upsert: func(_ context.Context, userID, connectionID uuid.UUID, accounts []domain.Account) (map[string]uuid.UUID, error) {
 			f.record("accounts.upsert")
 
@@ -212,13 +227,30 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 		},
 	}
 
+	f.investments = &fakeInvestments{
+		replaceHoldings: func(_ context.Context, _ uuid.UUID, _ map[string]uuid.UUID, securities []domain.InvestmentSecurity, holdings []domain.InvestmentHolding) error {
+			f.record("investments.replaceHoldings")
+			f.securities = append(f.securities, securities...)
+			f.holdings = holdings
+
+			return nil
+		},
+		upsertTransactions: func(_ context.Context, _ uuid.UUID, _ map[string]uuid.UUID, securities []domain.InvestmentSecurity, transactions []domain.InvestmentTransaction) error {
+			f.record("investments.upsertTransactions")
+			f.securities = append(f.securities, securities...)
+			f.investTx = transactions
+
+			return nil
+		},
+	}
+
 	f.provider = &fakeProvider{
 		createLinkToken: func(context.Context, domain.Credential, string, string) (string, error) {
 			f.record("provider.createLinkToken")
 
 			return "link-token", nil
 		},
-		createUpdateLinkToken: func(_ context.Context, _ domain.Credential, _, accessToken, _ string) (string, error) {
+		createUpdateLinkToken: func(_ context.Context, _ domain.Credential, _, accessToken, _ string, _ bool) (string, error) {
 			f.record("provider.createUpdateLinkToken")
 			f.tokens = append(f.tokens, accessToken)
 
@@ -248,6 +280,25 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 
 			return nil
 		},
+		investmentHoldings: func(context.Context, domain.Credential, string) (provider.InvestmentHoldingsResult, error) {
+			f.record("provider.investmentHoldings")
+
+			return provider.InvestmentHoldingsResult{
+				Securities: []provider.InvestmentSecurity{{ExternalID: "sec-1"}, {ExternalID: "sec-1"}},
+				Holdings:   []provider.InvestmentHolding{{AccountExternalID: "acct-brokerage", SecurityExternalID: "sec-1", Quantity: "2"}},
+			}, nil
+		},
+		investmentTransactions: func(context.Context, domain.Credential, string) (provider.InvestmentTransactionsResult, error) {
+			f.record("provider.investmentTransactions")
+
+			return provider.InvestmentTransactionsResult{
+				Securities: []provider.InvestmentSecurity{{ExternalID: "sec-2"}},
+				Transactions: []provider.InvestmentTransaction{
+					{ExternalID: "inv-1", AccountExternalID: "acct-brokerage", SecurityExternalID: new("sec-2")},
+					{ExternalID: "inv-2", AccountExternalID: "acct-brokerage", SecurityExternalID: new("sec-3")},
+				},
+			}, nil
+		},
 	}
 
 	f.service = NewConnectionService(ConnectionRepositories{
@@ -255,6 +306,7 @@ func newConnectionFixture(t *testing.T) *connectionFixture {
 		Connections:  f.connections,
 		Accounts:     f.accounts,
 		Transactions: f.transactions,
+		Investments:  f.investments,
 	}, f.provider, f, f.cipher, f.recorder, SyncCooldown{}, testRedirectURI)
 	f.service.now = fixedClock
 
@@ -1128,7 +1180,7 @@ func TestCreateReauthLinkTokenRequiresNeedsReauth(t *testing.T) {
 
 			var gotUserID, gotRedirect string
 
-			f.provider.createUpdateLinkToken = func(_ context.Context, _ domain.Credential, userID, accessToken, redirectURI string) (string, error) {
+			f.provider.createUpdateLinkToken = func(_ context.Context, _ domain.Credential, userID, accessToken, redirectURI string, _ bool) (string, error) {
 				f.record("provider.createUpdateLinkToken")
 				f.tokens = append(f.tokens, accessToken)
 				gotUserID, gotRedirect = userID, redirectURI
@@ -1514,5 +1566,140 @@ func TestSyncBackfillInstitutionURLSaveFailureDoesNotFailSync(t *testing.T) {
 
 	if len(f.statuses) != 0 || len(f.lastErrors) != 0 {
 		t.Errorf("unexpected status updates %+v or last errors %v after backfill save failure", f.statuses, f.lastErrors)
+	}
+}
+
+func withBrokerageAccount(f *connectionFixture) {
+	f.provider.accounts = func(context.Context, domain.Credential, string) ([]provider.Account, error) {
+		f.record("provider.accounts")
+
+		return []provider.Account{
+			{ExternalID: "acct-1", Name: "Checking", Type: domain.AccountTypeDepository},
+			{ExternalID: "acct-brokerage", Name: "Brokerage", Type: domain.AccountTypeInvestment},
+		}, nil
+	}
+}
+
+func TestSyncPullsInvestmentsAfterSavingCursor(t *testing.T) {
+	f := newConnectionFixture(t)
+	withBrokerageAccount(f)
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	wantTail := []string{
+		"connections.updateSyncState",
+		"provider.investmentHoldings",
+		"investments.replaceHoldings",
+		"provider.investmentTransactions",
+		"investments.upsertTransactions",
+	}
+
+	if tail := f.calls[len(f.calls)-len(wantTail):]; !slices.Equal(tail, wantTail) {
+		t.Errorf("call order ends with %v, want %v", tail, wantTail)
+	}
+
+	var securityIDs []string
+	for _, security := range f.securities {
+		securityIDs = append(securityIDs, security.ExternalID)
+	}
+
+	if want := []string{"sec-1", "sec-2", "sec-3"}; !slices.Equal(securityIDs, want) {
+		t.Errorf("saved securities = %v, want each once: %v", securityIDs, want)
+	}
+
+	if len(f.holdings) != 1 || len(f.investTx) != 2 {
+		t.Errorf("saved %d holdings and %d investment transactions, want 1 and 2", len(f.holdings), len(f.investTx))
+	}
+}
+
+func TestSyncWithoutInvestmentAccountsSkipsInvestments(t *testing.T) {
+	f := newConnectionFixture(t)
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if f.called("provider.investmentHoldings") || f.called("provider.investmentTransactions") {
+		t.Errorf("investments fetched for an Item without investment accounts: %v", f.calls)
+	}
+}
+
+func TestSyncInvestmentConsentRequiredMarksNeedsReauthAfterSavingCursor(t *testing.T) {
+	f := newConnectionFixture(t)
+	withBrokerageAccount(f)
+
+	f.provider.investmentHoldings = func(context.Context, domain.Credential, string) (provider.InvestmentHoldingsResult, error) {
+		f.record("provider.investmentHoldings")
+
+		return provider.InvestmentHoldingsResult{}, fmt.Errorf("%w: no consent for investments", domain.ErrReauthRequired)
+	}
+
+	err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual)
+	if !errors.Is(err, domain.ErrReauthRequired) {
+		t.Fatalf("Sync error = %v, want %v", err, domain.ErrReauthRequired)
+	}
+
+	if f.savedCursor != "cursor-2" {
+		t.Errorf("saved cursor = %q, want cursor-2 before investments run", f.savedCursor)
+	}
+
+	if len(f.statuses) != 1 || f.statuses[0].status != domain.ConnectionStatusNeedsReauth {
+		t.Errorf("status updates = %+v, want one needs_reauth", f.statuses)
+	}
+}
+
+func TestSyncUnsupportedInvestmentsAreSkipped(t *testing.T) {
+	f := newConnectionFixture(t)
+	withBrokerageAccount(f)
+
+	f.provider.investmentHoldings = func(context.Context, domain.Credential, string) (provider.InvestmentHoldingsResult, error) {
+		f.record("provider.investmentHoldings")
+
+		return provider.InvestmentHoldingsResult{}, fmt.Errorf("%w: institution has no investments", domain.ErrUnsupported)
+	}
+
+	if err := f.service.Sync(t.Context(), f.userID, f.connection.ID, metrics.SyncTriggerManual); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if len(f.statuses) != 0 || len(f.lastErrors) != 0 {
+		t.Errorf("unexpected status updates %+v or last errors %v", f.statuses, f.lastErrors)
+	}
+}
+
+func TestCreateReauthLinkTokenConsentsInvestmentsOnlyForInvestmentAccounts(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []domain.Account
+		want     bool
+	}{
+		{name: "no investment accounts", accounts: []domain.Account{{Type: domain.AccountTypeDepository}}, want: false},
+		{name: "investment account", accounts: []domain.Account{{Type: domain.AccountTypeDepository}, {Type: domain.AccountTypeInvestment}}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newConnectionFixture(t)
+			f.connection.Status = domain.ConnectionStatusNeedsReauth
+			f.listed = tt.accounts
+
+			var got bool
+
+			f.provider.createUpdateLinkToken = func(_ context.Context, _ domain.Credential, _, _, _ string, consentInvestments bool) (string, error) {
+				got = consentInvestments
+
+				return "update-link-token", nil
+			}
+
+			if _, err := f.service.CreateReauthLinkToken(t.Context(), f.userID, f.connection.ID); err != nil {
+				t.Fatalf("CreateReauthLinkToken: %v", err)
+			}
+
+			if got != tt.want {
+				t.Errorf("consentInvestments = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

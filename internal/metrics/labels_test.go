@@ -42,8 +42,8 @@ func TestEnumLabels(t *testing.T) {
 		{
 			name:       "ProviderOperation",
 			labels:     labelValues(allProviderOperations()),
-			declared:   int(OperationInstitution) + 1,
-			outOfRange: []string{ProviderOperation(-1).String(), (OperationInstitution + 1).String()},
+			declared:   int(OperationInvestmentTransactions) + 1,
+			outOfRange: []string{ProviderOperation(-1).String(), (OperationInvestmentTransactions + 1).String()},
 		},
 		{
 			name:       "CallOutcome",

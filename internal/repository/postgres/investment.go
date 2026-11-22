@@ -3,15 +3,22 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tahminator/fin/internal/domain"
 	"github.com/tahminator/fin/internal/repository"
 )
+
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
 
 type InvestmentRepository struct {
 	pool *pgxpool.Pool
@@ -61,7 +68,7 @@ SET name          = COALESCE(EXCLUDED.name, investment_securities.name),
     updated_at    = now();
 `
 
-func (r *InvestmentRepository) upsertSecurities(ctx context.Context, securities []domain.InvestmentSecurity) error {
+func upsertSecurities(ctx context.Context, db execer, securities []domain.InvestmentSecurity) error {
 	if len(securities) == 0 {
 		return nil
 	}
@@ -82,7 +89,7 @@ func (r *InvestmentRepository) upsertSecurities(ctx context.Context, securities 
 		currencies[i] = security.Currency
 	}
 
-	_, err := r.pool.Exec(ctx, upsertInvestmentSecurities, externalIDs, names, tickers, types, subtypes, currencies)
+	_, err := db.Exec(ctx, upsertInvestmentSecurities, externalIDs, names, tickers, types, subtypes, currencies)
 	if err != nil {
 		return fmt.Errorf("upsert investment securities: %w", err)
 	}
@@ -182,72 +189,71 @@ func (r *InvestmentRepository) ReplaceHoldings(
 	securities []domain.InvestmentSecurity,
 	holdings []domain.InvestmentHolding,
 ) error {
-	if err := r.upsertSecurities(ctx, securities); err != nil {
-		return err
-	}
+	allAccountIDs := slices.Collect(maps.Values(accountIDs))
 
-	allAccountIDs := make([]uuid.UUID, 0, len(accountIDs))
-	for _, accountID := range accountIDs {
-		allAccountIDs = append(allAccountIDs, accountID)
-	}
+	resolvedAccountIDs := make([]uuid.UUID, 0, len(holdings))
+	securityExternalIDs := make([]string, 0, len(holdings))
+	institutionPrices := make([]string, 0, len(holdings))
+	institutionPriceAsOf := make([]*time.Time, 0, len(holdings))
+	institutionValues := make([]string, 0, len(holdings))
+	costBases := make([]*string, 0, len(holdings))
+	quantities := make([]string, 0, len(holdings))
+	currencies := make([]*string, 0, len(holdings))
+	vestedQuantities := make([]*string, 0, len(holdings))
+	vestedValues := make([]*string, 0, len(holdings))
 
-	if _, err := r.pool.Exec(ctx, deleteInvestmentHoldings, userID, allAccountIDs); err != nil {
-		return fmt.Errorf("delete investment holdings: %w", err)
-	}
-
-	if len(holdings) == 0 {
-		return nil
-	}
-
-	resolvedAccountIDs := make([]uuid.UUID, len(holdings))
-	securityExternalIDs := make([]string, len(holdings))
-	institutionPrices := make([]string, len(holdings))
-	institutionPriceAsOf := make([]*time.Time, len(holdings))
-	institutionValues := make([]string, len(holdings))
-	costBases := make([]*string, len(holdings))
-	quantities := make([]string, len(holdings))
-	currencies := make([]*string, len(holdings))
-	vestedQuantities := make([]*string, len(holdings))
-	vestedValues := make([]*string, len(holdings))
-
-	for i, holding := range holdings {
+	for _, holding := range holdings {
 		accountID, ok := accountIDs[holding.AccountExternalID]
 		if !ok {
 			continue
 		}
 
-		resolvedAccountIDs[i] = accountID
-		securityExternalIDs[i] = holding.SecurityExternalID
-		institutionPrices[i] = holding.InstitutionPrice
-		institutionPriceAsOf[i] = holding.InstitutionPriceAsOf
-		institutionValues[i] = holding.InstitutionValue
-		costBases[i] = holding.CostBasis
-		quantities[i] = holding.Quantity
-		currencies[i] = holding.Currency
-		vestedQuantities[i] = holding.VestedQuantity
-		vestedValues[i] = holding.VestedValue
+		resolvedAccountIDs = append(resolvedAccountIDs, accountID)
+		securityExternalIDs = append(securityExternalIDs, holding.SecurityExternalID)
+		institutionPrices = append(institutionPrices, holding.InstitutionPrice)
+		institutionPriceAsOf = append(institutionPriceAsOf, holding.InstitutionPriceAsOf)
+		institutionValues = append(institutionValues, holding.InstitutionValue)
+		costBases = append(costBases, holding.CostBasis)
+		quantities = append(quantities, holding.Quantity)
+		currencies = append(currencies, holding.Currency)
+		vestedQuantities = append(vestedQuantities, holding.VestedQuantity)
+		vestedValues = append(vestedValues, holding.VestedValue)
 	}
 
-	_, err := r.pool.Exec(
-		ctx,
-		replaceInvestmentHoldings,
-		userID,
-		resolvedAccountIDs,
-		securityExternalIDs,
-		institutionPrices,
-		institutionPriceAsOf,
-		institutionValues,
-		costBases,
-		quantities,
-		currencies,
-		vestedQuantities,
-		vestedValues,
-	)
-	if err != nil {
-		return fmt.Errorf("replace investment holdings: %w", err)
-	}
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		if err := upsertSecurities(ctx, tx, securities); err != nil {
+			return err
+		}
 
-	return nil
+		if _, err := tx.Exec(ctx, deleteInvestmentHoldings, userID, allAccountIDs); err != nil {
+			return fmt.Errorf("delete investment holdings: %w", err)
+		}
+
+		if len(resolvedAccountIDs) == 0 {
+			return nil
+		}
+
+		_, err := tx.Exec(
+			ctx,
+			replaceInvestmentHoldings,
+			userID,
+			resolvedAccountIDs,
+			securityExternalIDs,
+			institutionPrices,
+			institutionPriceAsOf,
+			institutionValues,
+			costBases,
+			quantities,
+			currencies,
+			vestedQuantities,
+			vestedValues,
+		)
+		if err != nil {
+			return fmt.Errorf("replace investment holdings: %w", err)
+		}
+
+		return nil
+	})
 }
 
 const upsertInvestmentTransactions = `
@@ -359,14 +365,6 @@ func (r *InvestmentRepository) UpsertTransactions(
 	securities []domain.InvestmentSecurity,
 	transactions []domain.InvestmentTransaction,
 ) error {
-	if err := r.upsertSecurities(ctx, securities); err != nil {
-		return err
-	}
-
-	if len(transactions) == 0 {
-		return nil
-	}
-
 	resolvedAccountIDs := make([]uuid.UUID, 0, len(transactions))
 	securityExternalIDs := make([]*string, 0, len(transactions))
 	externalIDs := make([]string, 0, len(transactions))
@@ -404,34 +402,40 @@ func (r *InvestmentRepository) UpsertTransactions(
 		currencies = append(currencies, transaction.Currency)
 	}
 
-	if len(resolvedAccountIDs) == 0 {
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		if err := upsertSecurities(ctx, tx, securities); err != nil {
+			return err
+		}
+
+		if len(resolvedAccountIDs) == 0 {
+			return nil
+		}
+
+		_, err := tx.Exec(
+			ctx,
+			upsertInvestmentTransactions,
+			userID,
+			resolvedAccountIDs,
+			securityExternalIDs,
+			externalIDs,
+			cancelExternalIDs,
+			postedOn,
+			transactionDateTimes,
+			names,
+			quantities,
+			amounts,
+			prices,
+			fees,
+			types,
+			subtypes,
+			currencies,
+		)
+		if err != nil {
+			return fmt.Errorf("upsert investment transactions: %w", err)
+		}
+
 		return nil
-	}
-
-	_, err := r.pool.Exec(
-		ctx,
-		upsertInvestmentTransactions,
-		userID,
-		resolvedAccountIDs,
-		securityExternalIDs,
-		externalIDs,
-		cancelExternalIDs,
-		postedOn,
-		transactionDateTimes,
-		names,
-		quantities,
-		amounts,
-		prices,
-		fees,
-		types,
-		subtypes,
-		currencies,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert investment transactions: %w", err)
-	}
-
-	return nil
+	})
 }
 
 const listInvestmentHoldingsByUser = `

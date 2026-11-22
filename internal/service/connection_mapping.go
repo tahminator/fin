@@ -54,18 +54,6 @@ func toDomainTransactions(transactions []provider.Transaction, accountIDs map[st
 }
 
 func toDomainInvestmentHoldings(result provider.InvestmentHoldingsResult) ([]domain.InvestmentSecurity, []domain.InvestmentHolding) {
-	securities := make([]domain.InvestmentSecurity, 0, len(result.Securities))
-	for _, security := range result.Securities {
-		securities = append(securities, domain.InvestmentSecurity{
-			ExternalID: security.ExternalID,
-			Name:       security.Name,
-			Ticker:     security.Ticker,
-			Type:       security.Type,
-			Subtype:    security.Subtype,
-			Currency:   security.Currency,
-		})
-	}
-
 	holdings := make([]domain.InvestmentHolding, 0, len(result.Holdings))
 	for _, holding := range result.Holdings {
 		holdings = append(holdings, domain.InvestmentHolding{
@@ -82,21 +70,21 @@ func toDomainInvestmentHoldings(result provider.InvestmentHoldingsResult) ([]dom
 		})
 	}
 
-	return securities, holdings
+	return toDomainInvestmentSecurities(result.Securities), holdings
 }
 
-func toDomainInvestmentTransactions(transactions []provider.InvestmentTransaction) ([]domain.InvestmentSecurity, []domain.InvestmentTransaction) {
-	securities := make([]domain.InvestmentSecurity, 0)
-	seen := make(map[string]bool)
+func toDomainInvestmentTransactions(result provider.InvestmentTransactionsResult) ([]domain.InvestmentSecurity, []domain.InvestmentTransaction) {
+	securities := result.Securities
+	known := make(map[string]bool, len(securities))
+	for _, security := range securities {
+		known[security.ExternalID] = true
+	}
 
-	mapped := make([]domain.InvestmentTransaction, 0, len(transactions))
-	for _, transaction := range transactions {
-		if transaction.SecurityExternalID != nil {
-			externalID := *transaction.SecurityExternalID
-			if !seen[externalID] {
-				seen[externalID] = true
-				securities = append(securities, domain.InvestmentSecurity{ExternalID: externalID})
-			}
+	mapped := make([]domain.InvestmentTransaction, 0, len(result.Transactions))
+	for _, transaction := range result.Transactions {
+		if id := transaction.SecurityExternalID; id != nil && !known[*id] {
+			known[*id] = true
+			securities = append(securities, provider.InvestmentSecurity{ExternalID: *id})
 		}
 
 		mapped = append(mapped, domain.InvestmentTransaction{
@@ -117,5 +105,27 @@ func toDomainInvestmentTransactions(transactions []provider.InvestmentTransactio
 		})
 	}
 
-	return securities, mapped
+	return toDomainInvestmentSecurities(securities), mapped
+}
+
+func toDomainInvestmentSecurities(securities []provider.InvestmentSecurity) []domain.InvestmentSecurity {
+	seen := make(map[string]bool, len(securities))
+	mapped := make([]domain.InvestmentSecurity, 0, len(securities))
+	for _, security := range securities {
+		if seen[security.ExternalID] {
+			continue
+		}
+
+		seen[security.ExternalID] = true
+		mapped = append(mapped, domain.InvestmentSecurity{
+			ExternalID: security.ExternalID,
+			Name:       security.Name,
+			Ticker:     security.Ticker,
+			Type:       security.Type,
+			Subtype:    security.Subtype,
+			Currency:   security.Currency,
+		})
+	}
+
+	return mapped
 }

@@ -1,6 +1,8 @@
+import { ErrorState } from "@/components/error-state";
 import { InstitutionLogo } from "@/components/institution-logo";
 import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
+import { LoadingState } from "@/components/loading-state";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useInvestmentHoldings, useInvestmentTransactions } from "@/lib/queries/investments";
 
@@ -9,11 +11,19 @@ export function InvestmentResults({ accountId }: { accountId: string | undefined
   const transactions = useInvestmentTransactions(accountId);
 
   if (holdings.isPending || transactions.isPending) {
-    return null;
+    return <LoadingState />;
+  }
+
+  if (holdings.isError) {
+    return <ErrorState error={holdings.error} onRetry={holdings.refetch} />;
+  }
+
+  if (transactions.isError) {
+    return <ErrorState error={transactions.error} onRetry={transactions.refetch} />;
   }
 
   const holdingsData = holdings.data ?? [];
-  const transactionsData = transactions.data ?? [];
+  const transactionsData = transactions.data;
 
   if (holdingsData.length === 0 && transactionsData.length === 0) {
     return null;
@@ -44,9 +54,9 @@ export function InvestmentResults({ accountId }: { accountId: string | undefined
               <InstitutionLogo url={null} />
               <ListRowLabel
                 title={
-                  transaction.ticker !== null && transaction.ticker !== ""
-                    ? `${transaction.ticker} · ${transaction.name}`
-                    : transaction.name
+                  transaction.ticker === ""
+                    ? transaction.name
+                    : `${transaction.ticker} · ${transaction.name}`
                 }
                 subtitle={`${formatDate(transaction.postedOn)} · ${transaction.accountName}`}
               />

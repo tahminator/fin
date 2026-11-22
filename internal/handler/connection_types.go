@@ -44,6 +44,7 @@ type SyncSummary struct {
 	Synced         int `json:"synced"`
 	ReauthRequired int `json:"reauthRequired"`
 	Failed         int `json:"failed"`
+	Throttled      int `json:"throttled" doc:"Connections skipped because they were synced within the sync cooldown"`
 }
 
 func newSyncSummary(summary service.SyncSummary) SyncSummary {
@@ -51,6 +52,7 @@ func newSyncSummary(summary service.SyncSummary) SyncSummary {
 		Synced:         summary.Synced,
 		ReauthRequired: summary.ReauthRequired,
 		Failed:         summary.Failed,
+		Throttled:      summary.Throttled,
 	}
 }
 

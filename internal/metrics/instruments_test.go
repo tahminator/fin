@@ -71,7 +71,7 @@ var expectedSeries = []struct {
 	{name: "fin_logins_total", collector: loginsTotal, count: 4},
 	{name: "fin_provider_requests_total", collector: providerRequestsTotal, count: 14},
 	{name: "fin_provider_request_duration_seconds", collector: providerRequestDuration, count: 14},
-	{name: "fin_syncs_total", collector: syncsTotal, count: 15},
+	{name: "fin_syncs_total", collector: syncsTotal, count: 20},
 	{name: "fin_sync_duration_seconds", collector: syncDuration, count: 5},
 	{name: "fin_scheduled_sync_runs_total", collector: scheduledRunsTotal, count: 3},
 	{name: "fin_scheduled_sync_duration_seconds", collector: scheduledRunDuration, count: 1},

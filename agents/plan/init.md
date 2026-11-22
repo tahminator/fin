@@ -798,9 +798,9 @@ RETURNING
 - Errors propagate (no fail-open): if Postgres is unreachable, the caller fails as it would on any other query.
 - Expired rows are swept by `DeleteExpired` (indexed on `expires_at`), which `RateLimiter` runs at most once every 10 minutes per process, after an `Allow`. The timestamp of the last sweep is the only thing kept in memory, and losing it only means an extra sweep.
 
-**Sync cooldown** is one use of it: `RateLimit{Scope: domain.RateLimitScopeSync, Max: 1, Window: cfg.SyncCooldown}`, keyed by connection ID. `ConnectionService` is constructed with a `rateLimiter` interface (the three methods above) and the limit; `serve.go` passes the shared `*RateLimiter`.
+**Sync cooldown** is one use of it: `RateLimit{Scope: domain.RateLimitScopeSync, Max: 1, Window: cfg.SyncCooldown}`, keyed by connection ID. `ConnectionService` is constructed with a `SyncCooldown{Limiter, Window}`, where `Limiter` is a `SyncLimiter` interface (the three methods above); `serve.go` passes the shared `*RateLimiter` and `cfg.SyncCooldown`. A zero `SyncCooldown{}` disables it, which tests use.
 
-- Enforced (`Allow`) for on-demand triggers (`manual`; any later on-demand trigger opts in the same way). `link`, `reauth` and `scheduled` call `Stamp` instead: never refused, but they start the window, so a Refresh right after a scheduled run or a fresh link is throttled.
+- Enforced (`Allow`) for on-demand triggers (`manual`; any later on-demand trigger opts in the same way). `link`, `reauth`, `account_selection` and `scheduled` call `Stamp` instead: never refused, but they start the window, so a Refresh right after a scheduled run or a fresh link is throttled.
 - Refused → `domain.ThrottledError{RetryAfter}` (matches `errors.Is(err, domain.ErrThrottled)`), no provider call, `ConnectionSynced(trigger, SyncOutcomeThrottled, 0)`.
 - The hit is recorded when a sync **starts**, which also stops two concurrent taps, even on different replicas, from running the same sync twice. A sync that fails with anything other than `ErrReauthRequired` calls `Release`, so the user can retry immediately after a transient error.
 - `SYNC_COOLDOWN=0` disables the cooldown.

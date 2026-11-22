@@ -68,7 +68,7 @@ func newRouter(t *testing.T, resolver fakeResolver) http.Handler {
 	api := server.NewAPI(mux)
 
 	auth := service.NewAuthService(fakeUsers{}, fakeSessions{}, fakeIdentity{}, metrics.Noop{}, time.Hour)
-	connections := service.NewConnectionService(service.ConnectionRepositories{}, nil, nil, nil, metrics.Noop{}, "")
+	connections := service.NewConnectionService(service.ConnectionRepositories{}, nil, nil, nil, metrics.Noop{}, service.SyncCooldown{}, "")
 
 	server.RegisterRoutes(mux, api, server.Handlers{
 		Auth:           handler.NewAuthHandler(auth, handler.CookieConfig{}),

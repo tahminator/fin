@@ -25,6 +25,7 @@ type Config struct {
 	CookieSecure      bool
 	SessionTTL        time.Duration
 	SyncSchedule      cron.Schedule
+	SyncCooldown      time.Duration
 	GoogleClientID    string
 	GoogleSecret      string
 	SecretKey         []byte
@@ -45,6 +46,7 @@ func NewFromEnv() (Config, error) {
 		CookieSecure:      env.boolean("COOKIE_SECURE", true),
 		SessionTTL:        env.duration("SESSION_TTL", 30*24*time.Hour),
 		SyncSchedule:      env.schedule("SYNC_CRON", "0 */6 * * *"),
+		SyncCooldown:      env.duration("SYNC_COOLDOWN", 10*time.Minute),
 		GoogleClientID:    env.required("GOOGLE_CLIENT_ID"),
 		GoogleSecret:      env.required("GOOGLE_CLIENT_SECRET"),
 		SecretKey:         []byte(env.required("SECRET_KEY")),
@@ -70,6 +72,10 @@ func (c Config) validate() []error {
 
 	if len(c.SecretKey) != 32 {
 		errs = append(errs, errors.New("SECRET_KEY must be exactly 32 characters"))
+	}
+
+	if c.SyncCooldown < 0 {
+		errs = append(errs, errors.New("SYNC_COOLDOWN must not be negative"))
 	}
 
 	if c.AppEnv == Production && c.CookieDomain == "" {

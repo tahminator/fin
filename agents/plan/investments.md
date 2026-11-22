@@ -79,11 +79,11 @@ Known limits: brokerage accounts that keep cash outside a `cash` holding still s
 ## 6. Frontend
 
 - Tab bar: Home, Transactions, Investments, Connections.
-- `/investments?range=&accountId=&securityId=`: all state lives in the URL.
-  - Summary card: scope title (Portfolio, account name or ticker), value, change for the range coloured by direction with an arrow icon, area chart with a dashed baseline at the start value and a crosshair tooltip, and the range picker (1H 1D 3D 1W 1M 1Y ALL).
-  - Portfolio view: holdings list (tap for a stock), accounts list (tap for an account), activity.
-  - Stock view: shares, price, market value, average cost and total return, then that stock's activity.
-  - A notice explains when market prices are off or unavailable.
+- `/investments?range=`: summary card (value, change for the range coloured by direction with an arrow icon, area chart with a dashed baseline at the start value and a crosshair tooltip, range picker 1H 1D 3D 1W 1M 1Y ALL), holdings, accounts and activity. A notice explains when market prices are off or unavailable. The range lives in the URL.
+- Detail pages are nested routes that stack like an iOS navigation controller: `/investments/accounts/:accountId`, `/investments/holdings/:securityId` and `/investments/accounts/:accountId/holdings/:securityId`. Each renders a fixed panel over its parent (which stays mounted underneath) that slides in from the right, has a back button in its top bar, and follows a swipe that starts within 32px of the left edge; releasing past a third of the width goes back, otherwise it springs back. Back uses history when there is any, else the parent link (deep links). Reduced motion skips the animations. Drill-down links pass the title in history state and use `preventScrollReset` so the page underneath keeps its scroll position.
+  - Account: value and chart for the account, its holdings, its activity.
+  - Holding: chart, shares, price, market value, average cost and total return, then that holding's activity.
+- The tab bar sits above detail panels.
 - Home and Transactions request `excludeType=investment` / `excludeAccountType=investment`.
 
 ## 7. Operations

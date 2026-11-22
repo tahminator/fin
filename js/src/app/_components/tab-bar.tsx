@@ -61,7 +61,7 @@ function TabItem({ to, label, icon, badge }: TabItemProps) {
 
 export function TabBar() {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center px-6 pb-[max(calc(env(safe-area-inset-bottom)-0.5rem),1rem)]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-6 pb-[max(calc(env(safe-area-inset-bottom)-0.5rem),1rem)]">
       <nav
         aria-label="Primary"
         className="pointer-events-auto flex w-full max-w-sm gap-1 rounded-full glass p-1"

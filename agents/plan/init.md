@@ -528,9 +528,7 @@ CREATE INDEX rate_limits_expires_at_idx ON rate_limits (expires_at);
 
 The table has no foreign keys because keys are not always rows (later scopes key by IP address); a removed connection's row simply expires.
 
-Migrations `000014_create_investment_securities`, `000015_create_investment_holdings` and `000016_create_investment_transactions` add investment data. Securities identify tradeable assets by Plaid security ID. Holdings are a per-account snapshot of quantity, value, cost basis and vested assets. Investment transactions keep the two-year Plaid history with account, security, date, quantity, amount, price, fees and transaction type/subtype. All investment rows are user-tenanted through account ownership; holdings are replaced on sync and transactions are upserted idempotently.
-
-New Links request `transactions` as a required product and `investments` as an optional one, so banks without investments still appear in Link. When an Item has investment accounts, Plaid's holdings and investment-transactions endpoints run after the regular-transaction sync has saved its cursor, so an investments failure never holds back regular transactions. `ADDITIONAL_CONSENT_REQUIRED` marks the connection `needs_reauth`; its update-mode Link token adds `investments` to `additional_consented_products` only when the connection has investment accounts. `NO_INVESTMENT_ACCOUNTS` and `PRODUCTS_NOT_SUPPORTED` skip investments without failing the sync. Investment amounts follow fin's sign convention (money leaving the account is negative). Brokerage holdings and activity are exposed through `/api/investments/holdings` and `/api/investments/transactions`, both filtered by `accountId` and `excludeAccountId`. The Transactions page shows holdings and investment activity before regular transactions and honours its `hide` filter.
+Migrations `000014_create_investment_securities`, `000015_create_investment_holdings` and `000016_create_investment_transactions` add investment data; see [investments.md](investments.md) for the tables, investment sync, Alpaca market data and the Investments tab.
 
 ```sql
 CREATE TABLE transactions (

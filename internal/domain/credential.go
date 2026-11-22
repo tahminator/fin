@@ -7,10 +7,13 @@ import (
 
 type Provider string
 
-const ProviderPlaid Provider = "plaid"
+const (
+	ProviderPlaid  Provider = "plaid"
+	ProviderAlpaca Provider = "alpaca"
+)
 
 func (p Provider) Valid() bool {
-	return p == ProviderPlaid
+	return p == ProviderPlaid || p == ProviderAlpaca
 }
 
 type ProviderEnvironment string

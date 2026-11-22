@@ -437,6 +437,7 @@ SELECT
     h.security_id,
     s.name AS security_name,
     s.ticker_symbol,
+    s.type AS security_type,
     h.institution_price::text AS institution_price,
     h.institution_price_as_of,
     h.institution_value::text AS institution_value,
@@ -480,6 +481,7 @@ SELECT
     t.security_id,
     s.name AS security_name,
     s.ticker_symbol,
+    s.type AS security_type,
     t.external_id,
     t.cancel_external_id,
     t.posted_on,
@@ -498,17 +500,62 @@ LEFT JOIN investment_securities AS s ON s.id = t.security_id
 WHERE t.user_id = $1
   AND ($2::uuid IS NULL OR t.account_id = $2)
   AND t.account_id <> ALL(coalesce($3::uuid[], '{}'))
+  AND ($6::uuid IS NULL OR t.security_id = $6)
 ORDER BY t.posted_on DESC, t.id DESC
 LIMIT $4
 OFFSET $5;
 `
+
+const listInvestmentTransactionsSince = `
+SELECT
+    t.id,
+    t.account_id,
+    a.name AS account_name,
+    t.security_id,
+    s.name AS security_name,
+    s.ticker_symbol,
+    s.type AS security_type,
+    t.external_id,
+    t.cancel_external_id,
+    t.posted_on,
+    t.transaction_datetime,
+    t.name,
+    t.quantity::text AS quantity,
+    t.amount::text AS amount,
+    t.price::text AS price,
+    t.fees::text AS fees,
+    t.type,
+    t.subtype,
+    t.currency
+FROM investment_transactions AS t
+JOIN accounts AS a ON a.id = t.account_id
+LEFT JOIN investment_securities AS s ON s.id = t.security_id
+WHERE t.user_id = $1
+  AND t.posted_on >= $2::date
+ORDER BY t.posted_on, t.id;
+`
+
+func (r *InvestmentRepository) ListTransactionsSince(ctx context.Context, userID uuid.UUID, since time.Time) ([]domain.InvestmentTransaction, error) {
+	rows, err := r.pool.Query(ctx, listInvestmentTransactionsSince, userID, since)
+	if err != nil {
+		return nil, fmt.Errorf("query investment transactions since: %w", err)
+	}
+
+	transactions, err := pgx.CollectRows(rows, pgx.RowToStructByName[domain.InvestmentTransaction])
+	if err != nil {
+		return nil, fmt.Errorf("collect investment transactions since: %w", err)
+	}
+
+	return transactions, nil
+}
 
 const countInvestmentTransactionsByUser = `
 SELECT COUNT(*) AS count
 FROM investment_transactions AS t
 WHERE t.user_id = $1
   AND ($2::uuid IS NULL OR t.account_id = $2)
-  AND t.account_id <> ALL(coalesce($3::uuid[], '{}'));
+  AND t.account_id <> ALL(coalesce($3::uuid[], '{}'))
+  AND ($4::uuid IS NULL OR t.security_id = $4);
 `
 
 func (r *InvestmentRepository) ListTransactionsByUser(
@@ -517,7 +564,7 @@ func (r *InvestmentRepository) ListTransactionsByUser(
 	filter repository.InvestmentFilter,
 	limit, offset int,
 ) ([]domain.InvestmentTransaction, int, error) {
-	rows, err := r.pool.Query(ctx, listInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs, limit, offset)
+	rows, err := r.pool.Query(ctx, listInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs, limit, offset, filter.SecurityID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query investment transactions: %w", err)
 	}
@@ -527,7 +574,7 @@ func (r *InvestmentRepository) ListTransactionsByUser(
 		return nil, 0, fmt.Errorf("collect investment transactions: %w", err)
 	}
 
-	total, err := count(ctx, r.pool, countInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs)
+	total, err := count(ctx, r.pool, countInvestmentTransactionsByUser, userID, filter.AccountID, filter.ExcludeAccountIDs, filter.SecurityID)
 	if err != nil {
 		return nil, 0, err
 	}

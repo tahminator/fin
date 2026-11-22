@@ -22,18 +22,20 @@ func main() {
 
 func run() error {
 	email := flag.String("email", "", "Google account email to allow")
-	clientID := flag.String("client-id", "", "Plaid client ID")
-	secret := flag.String("secret", "", "Plaid secret")
-	environment := flag.String("env", "sandbox", "Plaid environment: sandbox or production")
+	providerName := flag.String("provider", string(domain.ProviderPlaid), "Credential provider: plaid or alpaca")
+	clientID := flag.String("client-id", "", "Plaid client ID or Alpaca API key ID")
+	secret := flag.String("secret", "", "Plaid secret or Alpaca API secret key")
+	environment := flag.String("env", "sandbox", "Provider environment: sandbox or production")
 
 	flag.Parse()
 
-	plaidEnv := domain.ProviderEnvironment(*environment)
+	provider := domain.Provider(*providerName)
+	providerEnv := domain.ProviderEnvironment(*environment)
 
-	if *email == "" || *clientID == "" || *secret == "" || !plaidEnv.Valid() {
+	if *email == "" || *clientID == "" || *secret == "" || !provider.Valid() || !providerEnv.Valid() {
 		flag.Usage()
 
-		return errors.New("email, client-id, secret and a valid env are required")
+		return errors.New("email, client-id, secret, a valid provider and a valid env are required")
 	}
 
 	ctx := context.Background()
@@ -52,8 +54,8 @@ func run() error {
 
 	err = postgres.NewCredentialRepository(pool).Upsert(ctx, domain.Credential{
 		UserID:      user.ID,
-		Provider:    domain.ProviderPlaid,
-		Environment: plaidEnv,
+		Provider:    provider,
+		Environment: providerEnv,
 		ClientID:    *clientID,
 		Secret:      *secret,
 	})
@@ -61,7 +63,7 @@ func run() error {
 		return fmt.Errorf("upsert credential: %w", err)
 	}
 
-	fmt.Printf("allowed %s with %s %s credentials\n", user.Email, domain.ProviderPlaid, plaidEnv)
+	fmt.Printf("allowed %s with %s %s credentials\n", user.Email, provider, providerEnv)
 
 	return nil
 }

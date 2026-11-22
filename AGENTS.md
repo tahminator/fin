@@ -8,6 +8,7 @@ fin is a personal finance tracker: a Go backend (`./`), a Vite + React PWA (`./j
 - [agents/plan/](agents/plan): build plans, the source of truth for behavior, endpoints, configuration, milestones and deployment.
   - [init.md](agents/plan/init.md): the base application, CI/CD included.
   - [mcp.md](agents/plan/mcp.md): the MCP server and its OAuth authorization server at `/mcp`.
+  - [investments.md](agents/plan/investments.md): investment sync, Alpaca market data and the Investments tab.
 
 ## Working with the plans
 

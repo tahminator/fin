@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { To } from "react-router";
 
-import { useSwipeBack } from "@/app/investments/_hooks/use-swipe-back";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { useSwipeBack } from "@/lib/hooks/use-swipe-back";
 
 interface DetailPanelProps {
   title: string;

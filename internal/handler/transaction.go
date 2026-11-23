@@ -50,6 +50,19 @@ func newTransaction(transaction domain.Transaction) Transaction {
 	return mapped
 }
 
+type TransactionDetail struct {
+	Transaction
+	ExternalID string `json:"externalId"`
+}
+
+type GetTransactionInput struct {
+	TransactionID string `path:"transactionId" format:"uuid"`
+}
+
+type TransactionOutput struct {
+	Body TransactionDetail
+}
+
 type ListTransactionsInput struct {
 	PageParams
 	AccountID          string               `query:"accountId" format:"uuid" doc:"Only transactions of this account"`
@@ -67,6 +80,15 @@ func NewTransactionHandler(transactions repository.TransactionRepository) *Trans
 
 func (h *TransactionHandler) Register(api huma.API) {
 	huma.Register(api, huma.Operation{
+		OperationID: "get-transaction",
+		Method:      http.MethodGet,
+		Path:        "/transactions/{transactionId}",
+		Summary:     "Get a transaction",
+		Tags:        []string{"transactions"},
+		Security:    cookieAuth,
+	}, h.get)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-transactions",
 		Method:      http.MethodGet,
 		Path:        "/transactions",
@@ -74,6 +96,25 @@ func (h *TransactionHandler) Register(api huma.API) {
 		Tags:        []string{"transactions"},
 		Security:    cookieAuth,
 	}, h.list)
+}
+
+func (h *TransactionHandler) get(ctx context.Context, input *GetTransactionInput) (*TransactionOutput, error) {
+	id, err := uuid.Parse(input.TransactionID)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity("transactionId must be a UUID")
+	}
+
+	transaction, err := h.transactions.Get(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	detail := newTransaction(transaction)
+
+	return &TransactionOutput{Body: TransactionDetail{
+		Transaction: detail,
+		ExternalID:  transaction.ExternalID,
+	}}, nil
 }
 
 func (h *TransactionHandler) list(ctx context.Context, input *ListTransactionsInput) (*PageOutput[Transaction], error) {

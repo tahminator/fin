@@ -30,21 +30,33 @@ type InvestmentHolding struct {
 }
 
 type InvestmentTransaction struct {
-	ID                  uuid.UUID `json:"id"`
-	AccountID           uuid.UUID `json:"accountId"`
-	AccountName         string    `json:"accountName"`
-	SecurityName        *string   `json:"securityName"`
-	Ticker              *string   `json:"ticker"`
-	PostedOn            string    `json:"postedOn" format:"date"`
-	TransactionDatetime *string   `json:"transactionDatetime" format:"date-time"`
-	Name                string    `json:"name"`
-	Quantity            *string   `json:"quantity"`
-	Amount              string    `json:"amount" doc:"Decimal string; negative is cash leaving the account"`
-	Price               *string   `json:"price"`
-	Fees                *string   `json:"fees"`
-	Type                string    `json:"type"`
-	Subtype             string    `json:"subtype"`
-	Currency            *string   `json:"currency"`
+	ID                  uuid.UUID  `json:"id"`
+	AccountID           uuid.UUID  `json:"accountId"`
+	AccountName         string     `json:"accountName"`
+	SecurityID          *uuid.UUID `json:"securityId"`
+	SecurityName        *string    `json:"securityName"`
+	Ticker              *string    `json:"ticker"`
+	SecurityType        *string    `json:"securityType"`
+	ExternalID          string     `json:"externalId"`
+	CancelExternalID    *string    `json:"cancelExternalId"`
+	PostedOn            string     `json:"postedOn" format:"date"`
+	TransactionDatetime *string    `json:"transactionDatetime" format:"date-time"`
+	Name                string     `json:"name"`
+	Quantity            *string    `json:"quantity"`
+	Amount              string     `json:"amount" doc:"Decimal string; negative is cash leaving the account"`
+	Price               *string    `json:"price"`
+	Fees                *string    `json:"fees"`
+	Type                string     `json:"type"`
+	Subtype             string     `json:"subtype"`
+	Currency            *string    `json:"currency"`
+}
+
+type GetInvestmentTransactionInput struct {
+	TransactionID string `path:"transactionId" format:"uuid"`
+}
+
+type InvestmentTransactionOutput struct {
+	Body InvestmentTransaction
 }
 
 type ListInvestmentHoldingsInput struct {
@@ -74,6 +86,15 @@ func NewInvestmentHandler(investments repository.InvestmentRepository, portfolio
 
 func (h *InvestmentHandler) Register(api huma.API) {
 	huma.Register(api, huma.Operation{
+		OperationID: "get-investment-transaction",
+		Method:      http.MethodGet,
+		Path:        "/investments/transactions/{transactionId}",
+		Summary:     "Get an investment transaction",
+		Tags:        []string{"investments"},
+		Security:    cookieAuth,
+	}, h.getTransaction)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-investment-holdings",
 		Method:      http.MethodGet,
 		Path:        "/investments/holdings",
@@ -99,6 +120,20 @@ func (h *InvestmentHandler) Register(api huma.API) {
 		Tags:        []string{"investments"},
 		Security:    cookieAuth,
 	}, h.performance)
+}
+
+func (h *InvestmentHandler) getTransaction(ctx context.Context, input *GetInvestmentTransactionInput) (*InvestmentTransactionOutput, error) {
+	id, err := uuid.Parse(input.TransactionID)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity("transactionId must be a UUID")
+	}
+
+	transaction, err := h.investments.GetTransaction(ctx, UserFrom(ctx).ID, id)
+	if err != nil {
+		return nil, problem(ctx, err)
+	}
+
+	return &InvestmentTransactionOutput{Body: mapInvestmentTransaction(transaction)}, nil
 }
 
 func (h *InvestmentHandler) listHoldings(ctx context.Context, input *ListInvestmentHoldingsInput) (*InvestmentHoldingsOutput, error) {
@@ -188,27 +223,36 @@ func mapInvestmentHoldings(holdings []domain.InvestmentHolding) []InvestmentHold
 func mapInvestmentTransactions(transactions []domain.InvestmentTransaction) []InvestmentTransaction {
 	mapped := make([]InvestmentTransaction, 0, len(transactions))
 	for _, transaction := range transactions {
-		item := InvestmentTransaction{
-			ID:           transaction.ID,
-			AccountID:    transaction.AccountID,
-			AccountName:  transaction.AccountName,
-			SecurityName: transaction.SecurityName,
-			Ticker:       transaction.Ticker,
-			PostedOn:     transaction.PostedOn.Format(time.DateOnly),
-			Name:         transaction.Name,
-			Quantity:     transaction.Quantity,
-			Amount:       transaction.Amount,
-			Price:        transaction.Price,
-			Fees:         transaction.Fees,
-			Type:         transaction.Type,
-			Subtype:      transaction.Subtype,
-			Currency:     transaction.Currency,
-		}
-		if transaction.TransactionDatetime != nil {
-			value := transaction.TransactionDatetime.Format(time.RFC3339)
-			item.TransactionDatetime = &value
-		}
-		mapped = append(mapped, item)
+		mapped = append(mapped, mapInvestmentTransaction(transaction))
 	}
 	return mapped
+}
+
+func mapInvestmentTransaction(transaction domain.InvestmentTransaction) InvestmentTransaction {
+	item := InvestmentTransaction{
+		ID:               transaction.ID,
+		AccountID:        transaction.AccountID,
+		AccountName:      transaction.AccountName,
+		SecurityID:       transaction.SecurityID,
+		SecurityName:     transaction.SecurityName,
+		Ticker:           transaction.Ticker,
+		SecurityType:     transaction.SecurityType,
+		ExternalID:       transaction.ExternalID,
+		CancelExternalID: transaction.CancelExternalID,
+		PostedOn:         transaction.PostedOn.Format(time.DateOnly),
+		Name:             transaction.Name,
+		Quantity:         transaction.Quantity,
+		Amount:           transaction.Amount,
+		Price:            transaction.Price,
+		Fees:             transaction.Fees,
+		Type:             transaction.Type,
+		Subtype:          transaction.Subtype,
+		Currency:         transaction.Currency,
+	}
+	if transaction.TransactionDatetime != nil {
+		value := transaction.TransactionDatetime.Format(time.RFC3339)
+		item.TransactionDatetime = &value
+	}
+
+	return item
 }

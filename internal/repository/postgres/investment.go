@@ -549,6 +549,51 @@ func (r *InvestmentRepository) ListTransactionsSince(ctx context.Context, userID
 	return transactions, nil
 }
 
+const getInvestmentTransactionByUser = `
+SELECT
+    t.id,
+    t.account_id,
+    a.name AS account_name,
+    t.security_id,
+    s.name AS security_name,
+    s.ticker_symbol,
+    s.type AS security_type,
+    t.external_id,
+    t.cancel_external_id,
+    t.posted_on,
+    t.transaction_datetime,
+    t.name,
+    t.quantity::text AS quantity,
+    t.amount::text AS amount,
+    t.price::text AS price,
+    t.fees::text AS fees,
+    t.type,
+    t.subtype,
+    t.currency
+FROM investment_transactions AS t
+JOIN accounts AS a ON a.id = t.account_id
+LEFT JOIN investment_securities AS s ON s.id = t.security_id
+WHERE t.user_id = $1
+  AND t.id = $2;
+`
+
+func (r *InvestmentRepository) GetTransaction(ctx context.Context, userID, id uuid.UUID) (domain.InvestmentTransaction, error) {
+	rows, err := r.pool.Query(ctx, getInvestmentTransactionByUser, userID, id)
+	if err != nil {
+		return domain.InvestmentTransaction{}, fmt.Errorf("query investment transaction: %w", err)
+	}
+
+	transaction, err := pgx.CollectExactlyOneRow(
+		rows,
+		pgx.RowToStructByName[domain.InvestmentTransaction],
+	)
+	if err != nil {
+		return domain.InvestmentTransaction{}, notFound(err)
+	}
+
+	return transaction, nil
+}
+
 const countInvestmentTransactionsByUser = `
 SELECT COUNT(*) AS count
 FROM investment_transactions AS t

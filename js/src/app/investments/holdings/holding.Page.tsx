@@ -1,10 +1,10 @@
 import { useParams } from "react-router";
 
-import { DetailPanel } from "@/app/investments/_components/detail-panel";
 import { HoldingView } from "@/app/investments/_components/holding-view";
 import { accountLink, portfolioLink } from "@/app/investments/_components/investments-search";
-import { useDetailTitle } from "@/app/investments/_hooks/use-detail-title";
 import { usePortfolioRange } from "@/app/investments/_hooks/use-portfolio-range";
+import { DetailPanel } from "@/components/detail-panel";
+import { useDetailTitle } from "@/lib/hooks/use-detail-title";
 
 export function InvestmentHoldingPage() {
   const { accountId, securityId = "" } = useParams();

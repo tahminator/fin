@@ -87,27 +87,27 @@ function IdentifierSection({ data }: { data: InvestmentTransaction }) {
     <ListSection header="Identifiers">
       <ListRow>
         <ListRowLabel title="Activity ID" />
-        <p className="max-w-[60%] truncate type-caption1 text-muted-foreground">{data.id}</p>
+        <p className="max-w-[60%] truncate type-caption2 text-muted-foreground">{data.id}</p>
       </ListRow>
       <ListRow>
         <ListRowLabel title="External ID" />
-        <p className="max-w-[60%] truncate type-caption1 text-muted-foreground">
+        <p className="max-w-[60%] truncate type-caption2 text-muted-foreground">
           {data.externalId}
         </p>
       </ListRow>
       <ListRow>
         <ListRowLabel title="Canceled external ID" />
-        <p className="max-w-[60%] truncate type-caption1 text-muted-foreground">
+        <p className="max-w-[60%] truncate type-caption2 text-muted-foreground">
           {valueOrDash(data.cancelExternalId)}
         </p>
       </ListRow>
       <ListRow>
         <ListRowLabel title="Account ID" />
-        <p className="max-w-[60%] truncate type-caption1 text-muted-foreground">{data.accountId}</p>
+        <p className="max-w-[60%] truncate type-caption2 text-muted-foreground">{data.accountId}</p>
       </ListRow>
       <ListRow>
         <ListRowLabel title="Security ID" />
-        <p className="max-w-[60%] truncate type-caption1 text-muted-foreground">
+        <p className="max-w-[60%] truncate type-caption2 text-muted-foreground">
           {valueOrDash(data.securityId)}
         </p>
       </ListRow>

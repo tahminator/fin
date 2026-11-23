@@ -1,4 +1,5 @@
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, createPath } from "react-router";
+import type { Location } from "react-router";
 
 import { AuthenticatedLayout } from "@/app/_components/authenticated-layout";
 import { RootLayout } from "@/app/_components/root-layout";
@@ -59,3 +60,19 @@ export const router = createMemoryRouter(
   ],
   { initialEntries: [`${pathname}${search}${hash}`] },
 );
+
+const addressablePaths = new Set(["/consent", "/connections/oauth"]);
+
+function syncAddressBar(location: Location) {
+  const url = addressablePaths.has(location.pathname) ? createPath(location) : "/";
+
+  if (url !== createPath(globalThis.location)) {
+    globalThis.history.replaceState(null, "", url);
+  }
+}
+
+syncAddressBar(router.state.location);
+
+router.subscribe(({ location }) => {
+  syncAddressBar(location);
+});

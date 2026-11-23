@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createMemoryRouter } from "react-router";
 
 import { AuthenticatedLayout } from "@/app/_components/authenticated-layout";
 import { RootLayout } from "@/app/_components/root-layout";
@@ -20,37 +20,42 @@ export const queryClient = createQueryClient(() => {
   void router.navigate("/login", { replace: true });
 });
 
-export const router = createBrowserRouter([
-  {
-    Component: RootLayout,
-    children: [
-      { path: "/login", Component: LoginPage },
-      {
-        path: "/consent",
-        lazy: async () => {
-          const { ConsentPage } = await import("@/app/consent/consent.Page");
+const { pathname, search, hash } = globalThis.location;
 
-          return { Component: ConsentPage };
-        },
-      },
-      {
-        Component: AuthenticatedLayout,
-        children: [
-          { index: true, Component: HomePage },
-          { path: "/connections", Component: ConnectionsPage },
-          { path: "/connections/oauth", Component: OAuthReturnPage },
-          transactionsRoute,
-          investmentsRoute,
-          {
-            path: "/apps",
-            lazy: async () => {
-              const { AppsPage } = await import("@/app/apps/apps.Page");
+export const router = createMemoryRouter(
+  [
+    {
+      Component: RootLayout,
+      children: [
+        { path: "/login", Component: LoginPage },
+        {
+          path: "/consent",
+          lazy: async () => {
+            const { ConsentPage } = await import("@/app/consent/consent.Page");
 
-              return { Component: AppsPage };
-            },
+            return { Component: ConsentPage };
           },
-        ],
-      },
-    ],
-  },
-]);
+        },
+        {
+          Component: AuthenticatedLayout,
+          children: [
+            { index: true, Component: HomePage },
+            { path: "/connections", Component: ConnectionsPage },
+            { path: "/connections/oauth", Component: OAuthReturnPage },
+            transactionsRoute,
+            investmentsRoute,
+            {
+              path: "/apps",
+              lazy: async () => {
+                const { AppsPage } = await import("@/app/apps/apps.Page");
+
+                return { Component: AppsPage };
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  { initialEntries: [`${pathname}${search}${hash}`] },
+);

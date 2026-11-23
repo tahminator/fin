@@ -1304,7 +1304,7 @@ Manual verification (complex, cross-system flows):
 
 ### 6.2 Routes
 
-React Router uses an explicit route table in `src/router.ts`. The `src/app` directory mirrors URL paths; page entry points are named `name.Page.tsx`. Directories and files prefixed with `_` are private implementation details, not routes.
+React Router uses an explicit route table in `src/router.ts`, built with `createMemoryRouter` so in-app navigation never touches the browser URL or history (the installed PWA has no address bar, and stacked pages own their back swipe). Its single initial entry is the URL the app was opened at (`pathname + search + hash`), so server redirects into the SPA (`/login?error=…`, `/connections/oauth`, `/consent?…`) still land on the right page. The `src/app` directory mirrors URL paths; page entry points are named `name.Page.tsx`. Directories and files prefixed with `_` are private implementation details, not routes.
 
 ```
 src/app/

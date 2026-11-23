@@ -69,6 +69,24 @@ var Definitions = sync.OnceValue(func() map[metrics.MCPTool]ToolDefinition {
 			"Detects subscriptions, bills and paychecks: merchants paid at a regular cadence with similar amounts, with the next expected date.",
 			read, nil,
 		),
+		metrics.ToolListInvestmentHoldings: define[ListInvestmentHoldingsInput, ListInvestmentHoldingsOutput](
+			metrics.ToolListInvestmentHoldings,
+			"List investment holdings",
+			"Lists current investment positions with quantities, brokerage-reported prices and values, cost basis, account IDs and security IDs.",
+			read, nil,
+		),
+		metrics.ToolSearchInvestmentTransactions: define[SearchInvestmentTransactionsInput, SearchInvestmentTransactionsOutput](
+			metrics.ToolSearchInvestmentTransactions,
+			"Search investment activity",
+			"Finds investment buys, sells, dividends, fees and other brokerage activity, with account and security filters and paging.",
+			read, nil,
+		),
+		metrics.ToolGetInvestmentPerformance: defineOpenWorld[GetInvestmentPerformanceInput, GetInvestmentPerformanceOutput](
+			metrics.ToolGetInvestmentPerformance,
+			"Get investment performance",
+			"Returns portfolio value and change over a time range, with a value series and position and account breakdowns. Market data reports whether values use live or brokerage prices.",
+			read, map[string][]any{"range": strings2any("1h", "1d", "3d", "7d", "1mo", "1y", "all")},
+		),
 		metrics.ToolRefreshData: define[RefreshDataInput, RefreshDataOutput](
 			metrics.ToolRefreshData,
 			"Refresh bank data",

@@ -19,6 +19,11 @@ const (
 
 const PortfolioCurrency = "USD"
 
+type PortfolioFilter struct {
+	AccountID  *uuid.UUID
+	SecurityID *uuid.UUID
+}
+
 func (r PortfolioRange) Valid() bool {
 	switch r {
 	case PortfolioRangeHour, PortfolioRangeDay, PortfolioRangeThreeDays, PortfolioRangeWeek, PortfolioRangeMonth, PortfolioRangeYear, PortfolioRangeAll:

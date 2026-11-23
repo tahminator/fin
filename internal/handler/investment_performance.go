@@ -8,7 +8,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/tahminator/fin/internal/domain"
-	"github.com/tahminator/fin/internal/service"
 )
 
 type PortfolioPoint struct {
@@ -91,7 +90,7 @@ func (h *InvestmentHandler) performance(ctx context.Context, input *PortfolioPer
 		return nil, err
 	}
 
-	performance, err := h.portfolio.Performance(ctx, UserFrom(ctx).ID, input.Range, service.PortfolioFilter{AccountID: accountID, SecurityID: securityID})
+	performance, err := h.portfolio.Performance(ctx, UserFrom(ctx).ID, input.Range, domain.PortfolioFilter{AccountID: accountID, SecurityID: securityID})
 	if err != nil {
 		return nil, problem(ctx, err)
 	}

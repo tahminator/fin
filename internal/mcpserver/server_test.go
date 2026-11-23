@@ -35,10 +35,18 @@ func (f fakeVerifier) VerifyAccessToken(_ context.Context, token string) (domain
 
 type fakeData struct {
 	repository.TransactionQueryRepository
-	userIDs     []uuid.UUID
-	connections []domain.Connection
-	syncErrs    map[uuid.UUID]error
-	synced      []metrics.SyncTrigger
+	userIDs                []uuid.UUID
+	connections            []domain.Connection
+	syncErrs               map[uuid.UUID]error
+	synced                 []metrics.SyncTrigger
+	holdings               []domain.InvestmentHolding
+	investmentTransactions []domain.InvestmentTransaction
+	investmentTotal        int
+	investmentFilters      []repository.InvestmentFilter
+	investmentLimit        int
+	investmentOffset       int
+	performance            domain.PortfolioPerformance
+	portfolioFilters       []domain.PortfolioFilter
 }
 
 func (f *fakeData) ListByUser(_ context.Context, userID uuid.UUID, _, _ int) ([]domain.Connection, int, error) {
@@ -58,6 +66,29 @@ func (f *fakeData) Get(_ context.Context, userID, _ uuid.UUID) (repository.Trans
 	f.userIDs = append(f.userIDs, userID)
 
 	return repository.TransactionDetail{}, domain.ErrNotFound
+}
+
+func (f *fakeData) ListHoldingsByUser(_ context.Context, userID uuid.UUID, filter repository.InvestmentFilter) ([]domain.InvestmentHolding, error) {
+	f.userIDs = append(f.userIDs, userID)
+	f.investmentFilters = append(f.investmentFilters, filter)
+
+	return f.holdings, nil
+}
+
+func (f *fakeData) ListTransactionsByUser(_ context.Context, userID uuid.UUID, filter repository.InvestmentFilter, limit, offset int) ([]domain.InvestmentTransaction, int, error) {
+	f.userIDs = append(f.userIDs, userID)
+	f.investmentFilters = append(f.investmentFilters, filter)
+	f.investmentLimit = limit
+	f.investmentOffset = offset
+
+	return f.investmentTransactions, f.investmentTotal, nil
+}
+
+func (f *fakeData) Performance(_ context.Context, userID uuid.UUID, _ domain.PortfolioRange, filter domain.PortfolioFilter) (domain.PortfolioPerformance, error) {
+	f.userIDs = append(f.userIDs, userID)
+	f.portfolioFilters = append(f.portfolioFilters, filter)
+
+	return f.performance, nil
 }
 
 type fakeAccounts struct{}
@@ -89,6 +120,8 @@ func newServer(t *testing.T, scopes []domain.Scope, data *fakeData, limiter refu
 		Accounts:     fakeAccounts{},
 		Balances:     fakeBalances{},
 		Transactions: data,
+		Investments:  data,
+		Portfolio:    data,
 		Syncer:       data,
 		Limiter:      limiter,
 		Recorder:     metrics.Noop{},
@@ -332,6 +365,110 @@ func TestToolsPassTheTokenUserAndHideInternalErrors(t *testing.T) {
 	invalid := callTool(t, server, "search_transactions", map[string]any{"from": "2020-01-01", "to": "2026-01-01"})
 	if invalid["isError"] != true {
 		t.Errorf("a 6-year range was accepted: %v", invalid)
+	}
+}
+
+func TestInvestmentToolsQueryTokenUsersData(t *testing.T) {
+	accountID := uuid.New()
+	securityID := uuid.New()
+	holdingID := uuid.New()
+	transactionID := uuid.New()
+	currency := "USD"
+	ticker := "AAPL"
+	now := time.Date(2026, time.November, 23, 15, 0, 0, 0, time.UTC)
+	data := &fakeData{
+		holdings: []domain.InvestmentHolding{{
+			ID:               holdingID,
+			AccountID:        accountID,
+			AccountName:      "Brokerage",
+			SecurityID:       securityID,
+			Ticker:           &ticker,
+			InstitutionPrice: "100",
+			InstitutionValue: "200",
+			Quantity:         "2",
+			Currency:         &currency,
+		}},
+		investmentTransactions: []domain.InvestmentTransaction{{
+			ID:          transactionID,
+			AccountID:   accountID,
+			AccountName: "Brokerage",
+			SecurityID:  &securityID,
+			Ticker:      &ticker,
+			PostedOn:    now,
+			Name:        "Buy AAPL",
+			Amount:      "-200",
+			Type:        "buy",
+			Subtype:     "buy",
+			Currency:    &currency,
+		}},
+		investmentTotal: 3,
+		performance: domain.PortfolioPerformance{
+			Range:      domain.PortfolioRangeYear,
+			Currency:   currency,
+			Start:      now.AddDate(-1, 0, 0),
+			Points:     []domain.PortfolioPoint{{Time: now, Value: "200"}},
+			StartValue: "150",
+			EndValue:   "200",
+			Change:     "50",
+			Positions:  []domain.PositionPerformance{{SecurityID: securityID, Ticker: &ticker, Quantity: "2", Price: "100", Value: "200"}},
+			Accounts:   []domain.AccountPerformance{{AccountID: accountID, Name: "Brokerage", Value: "200"}},
+			MarketData: domain.MarketDataLive,
+		},
+	}
+	server, grant := newServer(t, []domain.Scope{domain.ScopeRead}, data, refusingLimiter{})
+
+	holdings := callTool(t, server, "list_investment_holdings", map[string]any{
+		"account_id": accountID.String(),
+	})["structuredContent"].(map[string]any)
+	holding := holdings["holdings"].([]any)[0].(map[string]any)
+	if holding["id"] != holdingID.String() || holding["security_id"] != securityID.String() {
+		t.Errorf("holding = %v", holding)
+	}
+
+	transactions := callTool(t, server, "search_investment_transactions", map[string]any{
+		"account_id":  accountID.String(),
+		"security_id": securityID.String(),
+		"page":        2,
+		"page_size":   1,
+	})["structuredContent"].(map[string]any)
+	transaction := transactions["transactions"].([]any)[0].(map[string]any)
+	if transaction["id"] != transactionID.String() || transactions["has_next"] != true {
+		t.Errorf("transactions = %v", transactions)
+	}
+
+	performance := callTool(t, server, "get_investment_performance", map[string]any{
+		"range":       "1y",
+		"account_id":  accountID.String(),
+		"security_id": securityID.String(),
+	})["structuredContent"].(map[string]any)
+	if performance["range"] != "1y" || performance["market_data"] != "live" {
+		t.Errorf("performance = %v", performance)
+	}
+
+	if len(data.investmentFilters) != 2 || len(data.portfolioFilters) != 1 || data.investmentLimit != 1 || data.investmentOffset != 1 {
+		t.Fatalf("investment queries = filters %v, portfolio filters %v, limit %d, offset %d", data.investmentFilters, data.portfolioFilters, data.investmentLimit, data.investmentOffset)
+	}
+
+	if filter := data.investmentFilters[0]; filter.AccountID == nil || *filter.AccountID != accountID || filter.SecurityID != nil {
+		t.Errorf("holdings filter = %+v", filter)
+	}
+
+	for name, filter := range map[string]repository.InvestmentFilter{
+		"transactions": data.investmentFilters[1],
+		"performance": {
+			AccountID:  data.portfolioFilters[0].AccountID,
+			SecurityID: data.portfolioFilters[0].SecurityID,
+		},
+	} {
+		if filter.AccountID == nil || *filter.AccountID != accountID || filter.SecurityID == nil || *filter.SecurityID != securityID {
+			t.Errorf("%s filter = %+v", name, filter)
+		}
+	}
+
+	for _, id := range data.userIDs {
+		if id != grant.User.ID {
+			t.Errorf("repository called for user %s, want %s", id, grant.User.ID)
+		}
 	}
 }
 

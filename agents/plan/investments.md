@@ -11,6 +11,7 @@ This plan changes these sections of earlier plans:
 - init.md §5.8 (Observability): provider operations `investment_holdings` and `investment_transactions`.
 - init.md §6.2 (Routes): a fourth tab, `/investments`.
 - init.md §8 (Justfile): `seed-alpaca`.
+- mcp.md §6–§7 (Tools and wiring): three read-only investment query tools use the investment repository and portfolio service through narrow interfaces.
 
 ## 1. Decisions
 
@@ -77,7 +78,18 @@ Known limits: brokerage accounts that keep cash outside a `cash` holding still s
 | `GET /api/accounts`                  | `excludeType` (account types)                                                                                  |
 | `GET /api/summary`, `/summary/cash-flow`, `/transactions` | `excludeAccountType` (account types)                                                       |
 
-## 6. Frontend
+## 6. MCP tools
+
+All three tools require `fin:read`, enforce the token user's ID in every repository and portfolio call, and return only fin IDs. Plaid security IDs, transaction external IDs, credentials and provider errors never appear.
+
+| Tool                             | Input                                                                                | Output                                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_investment_holdings`       | `account_id`, `exclude_account_ids`                                                  | Current positions with account and security IDs, quantities, brokerage prices and values, cost basis and currency; capped at 1,000 with `truncated` |
+| `search_investment_transactions` | `account_id`, `security_id`, `exclude_account_ids`, `page`, `page_size` (maximum 500) | Paged buys, sells, dividends, fees and other activity with `total` and `has_next`                                                                  |
+| `get_investment_performance`     | `range`, `account_id`, `security_id`                                                 | The §4 value series, change, position and account breakdowns, and market-data status                                                               |
+
+Investment repository access is restricted by an `mcpserver.InvestmentReader` interface containing only `ListHoldingsByUser` and `ListTransactionsByUser`. Performance uses a separate `PortfolioReader` interface containing only `Performance`; `internal/mcpserver` does not import `internal/service`.
+## 7. Frontend
 
 - Tab bar: Home, Transactions, Investments, Connections.
 - `/investments?range=`: summary card (value, change for the range coloured by direction with an arrow icon, area chart with a dashed baseline at the start value and a crosshair tooltip, range picker 1H 1D 3D 1W 1M 1Y ALL), holdings, accounts and activity. A notice explains when market prices are off or unavailable. The range lives in the URL.
@@ -87,7 +99,7 @@ Known limits: brokerage accounts that keep cash outside a `cash` holding still s
 - The tab bar sits above detail panels.
 - Home and Transactions request `excludeType=investment` / `excludeAccountType=investment`.
 
-## 7. Operations
+## 8. Operations
 
 - Add each user's key in production with `just seed-alpaca email key_id secret_key` against the production `DATABASE_URL`.
 - The production network must reach `data.alpaca.markets`.

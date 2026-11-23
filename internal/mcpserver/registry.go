@@ -64,6 +64,14 @@ func define[In, Out any](name metrics.MCPTool, title, description string, scope 
 	}
 }
 
+func defineOpenWorld[In, Out any](name metrics.MCPTool, title, description string, scope domain.Scope, enums map[string][]any) ToolDefinition {
+	definition := define[In, Out](name, title, description, scope, enums)
+	openWorld := true
+	definition.Tool.Annotations.OpenWorldHint = &openWorld
+
+	return definition
+}
+
 func setEnum(schema *jsonschema.Schema, field string, values []any) {
 	property, ok := schema.Properties[field]
 	if !ok {

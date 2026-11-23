@@ -123,7 +123,7 @@ func pointValues(points []domain.PortfolioPoint) []string {
 func TestPerformanceValuesRebuiltQuantitiesAtMarketPrices(t *testing.T) {
 	f := newPortfolioFixture()
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestPerformanceWithoutAlpacaKeyUsesPlaidPrices(t *testing.T) {
 	f := newPortfolioFixture()
 	f.credErr = domain.ErrNotFound
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestPerformanceMarketFailureFallsBackToPlaidPrices(t *testing.T) {
 	f := newPortfolioFixture()
 	f.barsErr = domain.ErrUnavailable
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestPerformanceIncludesPositionsSoldDuringTheRange(t *testing.T) {
 	})
 	f.bars["MSFT"] = []marketdata.Bar{{Time: time.Date(2026, time.November, 19, 19, 55, 0, 0, time.UTC), Close: "410"}}
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{SecurityID: &soldID})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{SecurityID: &soldID})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestPerformanceAllStartsAtFirstTrade(t *testing.T) {
 	first := time.Date(2025, time.June, 2, 0, 0, 0, 0, time.UTC)
 	f.transactions = append([]domain.InvestmentTransaction{{AccountID: f.accountID, SecurityID: &f.appleID, PostedOn: first, Quantity: ptr("6"), Type: "buy", Subtype: "buy"}}, f.transactions...)
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeAll, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeAll, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestPerformanceSkipsOtherCurrencies(t *testing.T) {
 	f := newPortfolioFixture()
 	f.holdings = append(f.holdings, domain.InvestmentHolding{AccountID: f.accountID, SecurityID: uuid.New(), InstitutionPrice: "10", Quantity: "10", Currency: ptr("CAD")})
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestPerformanceDayRangeShowsLastSessionWhenMarketIsClosed(t *testing.T) {
 	}}
 	f.trades = map[string]marketdata.Trade{"AAPL": {Time: friday, Price: "110"}}
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestPerformanceBuyingIsNotAGain(t *testing.T) {
 	f.trades = map[string]marketdata.Trade{"AAPL": {Time: portfolioNow, Price: "110"}}
 	f.holdings = f.holdings[:1]
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestPerformanceEndsAtLatestTradeWhenMarketIsClosed(t *testing.T) {
 	}}
 	f.trades = map[string]marketdata.Trade{"AAPL": {Time: afterHours, Price: "112"}}
 
-	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, PortfolioFilter{})
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
 	}

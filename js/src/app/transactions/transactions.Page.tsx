@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from "react-router";
+import { Link, Outlet, useSearchParams } from "react-router";
 import { z } from "zod";
 
 import { TransactionResults } from "@/app/transactions/_components/transaction-results";
@@ -64,6 +64,7 @@ export function TransactionsPage() {
         }
       />
       <TransactionResults accountId={accountId} excludeAccountId={hide} />
+      <Outlet />
     </>
   );
 }

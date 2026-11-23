@@ -20,6 +20,8 @@ export type Account = Schemas["Account"];
 
 export type Transaction = Schemas["Transaction"];
 
+export type TransactionDetail = Schemas["TransactionDetail"];
+
 export type InvestmentTransaction = Schemas["InvestmentTransaction"];
 
 export type PortfolioPerformance = Schemas["PortfolioPerformance"];

@@ -38,3 +38,9 @@ export function useInvestmentTransactions(scope: InvestmentScope) {
     },
   );
 }
+
+export function useInvestmentTransaction(transactionId: string) {
+  return $api.useQuery("get", "/api/investments/transactions/{transactionId}", {
+    params: { path: { transactionId } },
+  });
+}

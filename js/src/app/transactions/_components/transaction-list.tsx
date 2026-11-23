@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 import { InstitutionLogo } from "@/components/institution-logo";
 import { ListRow, ListRowLabel, ListSection } from "@/components/list-section";
 import { LoadMoreButton } from "@/components/load-more-button";
@@ -36,22 +38,29 @@ function TransactionRow({
   const account = accountsById.get(transaction.accountId);
 
   return (
-    <ListRow>
-      <InstitutionLogo url={account?.institutionLogoUrl ?? null} />
-      <ListRowLabel
-        title={transaction.merchantName ?? transaction.name}
-        subtitle={
-          transaction.pending ? `Pending · ${transaction.accountName}` : transaction.accountName
-        }
-      />
-      <p
-        className={cn(
-          "shrink-0 type-body tabular-nums",
-          isNegative(transaction.amount) ? null : "text-success",
-        )}
+    <ListRow className="p-0">
+      <Link
+        to={`/transactions/${transaction.id}`}
+        state={{ title: transaction.merchantName ?? transaction.name }}
+        preventScrollReset
+        className="flex min-h-13 w-full items-center gap-3 px-4 py-2 active:bg-fill"
       >
-        {formatMoney(transaction.amount, transaction.currency)}
-      </p>
+        <InstitutionLogo url={account?.institutionLogoUrl ?? null} />
+        <ListRowLabel
+          title={transaction.merchantName ?? transaction.name}
+          subtitle={
+            transaction.pending ? `Pending · ${transaction.accountName}` : transaction.accountName
+          }
+        />
+        <p
+          className={cn(
+            "shrink-0 type-body tabular-nums",
+            isNegative(transaction.amount) ? null : "text-success",
+          )}
+        >
+          {formatMoney(transaction.amount, transaction.currency)}
+        </p>
+      </Link>
     </ListRow>
   );
 }

@@ -20,3 +20,9 @@ export function useTransactions(accountId: string | undefined, excludeAccountId:
     },
   );
 }
+
+export function useTransaction(transactionId: string) {
+  return $api.useQuery("get", "/api/transactions/{transactionId}", {
+    params: { path: { transactionId } },
+  });
+}

@@ -1,10 +1,10 @@
 import { Outlet, useParams } from "react-router";
 
 import { AccountView } from "@/app/investments/_components/account-view";
-import { DetailPanel } from "@/app/investments/_components/detail-panel";
 import { portfolioLink } from "@/app/investments/_components/investments-search";
-import { useDetailTitle } from "@/app/investments/_hooks/use-detail-title";
 import { usePortfolioRange } from "@/app/investments/_hooks/use-portfolio-range";
+import { DetailPanel } from "@/components/detail-panel";
+import { useDetailTitle } from "@/lib/hooks/use-detail-title";
 
 export function InvestmentAccountPage() {
   const { accountId = "" } = useParams();

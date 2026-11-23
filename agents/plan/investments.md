@@ -72,6 +72,7 @@ Known limits: brokerage accounts that keep cash outside a `cash` holding still s
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `GET /api/investments/performance`   | `range` (enum, default `1d`), `accountId`, `securityId`. Returns points, start/end values, change, positions (with cost basis, average cost, total return), accounts, `marketData` |
 | `GET /api/investments/transactions`  | Paged; `accountId`, `securityId`, `excludeAccountId`                                                          |
+| `GET /api/investments/transactions/{transactionId}` | Full investment activity detail; user-tenanted |
 | `GET /api/investments/holdings`      | Raw holdings; `accountId`, `excludeAccountId`                                                                  |
 | `GET /api/accounts`                  | `excludeType` (account types)                                                                                  |
 | `GET /api/summary`, `/summary/cash-flow`, `/transactions` | `excludeAccountType` (account types)                                                       |

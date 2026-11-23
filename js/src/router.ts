@@ -7,7 +7,7 @@ import { OAuthReturnPage } from "@/app/connections/oauth.Page";
 import { HomePage } from "@/app/home.Page";
 import { investmentsRoute } from "@/app/investments/investments-route";
 import { LoginPage } from "@/app/login.Page";
-import { TransactionsPage } from "@/app/transactions/transactions.Page";
+import { transactionsRoute } from "@/app/transactions/transactions-route";
 import { createQueryClient } from "@/lib/query-client";
 
 export const queryClient = createQueryClient(() => {
@@ -39,7 +39,7 @@ export const router = createBrowserRouter([
           { index: true, Component: HomePage },
           { path: "/connections", Component: ConnectionsPage },
           { path: "/connections/oauth", Component: OAuthReturnPage },
-          { path: "/transactions", Component: TransactionsPage },
+          transactionsRoute,
           investmentsRoute,
           {
             path: "/apps",

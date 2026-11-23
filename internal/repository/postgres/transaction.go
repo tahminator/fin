@@ -20,6 +20,43 @@ func NewTransactionRepository(pool *pgxpool.Pool) *TransactionRepository {
 	return &TransactionRepository{pool: pool}
 }
 
+const getTransactionByUser = `
+SELECT
+    t.id,
+    t.account_id,
+    a.name             AS account_name,
+    t.external_id,
+    t.amount::text     AS amount,
+    t.currency,
+    t.posted_on,
+    t.authorized_on,
+    t.name,
+    t.merchant_name,
+    t.category,
+    t.pending
+FROM transactions AS t
+JOIN accounts AS a ON a.id = t.account_id
+WHERE t.user_id = $1
+  AND t.id = $2;
+`
+
+func (r *TransactionRepository) Get(ctx context.Context, userID, id uuid.UUID) (domain.Transaction, error) {
+	rows, err := r.pool.Query(ctx, getTransactionByUser, userID, id)
+	if err != nil {
+		return domain.Transaction{}, fmt.Errorf("query transaction: %w", err)
+	}
+
+	transaction, err := pgx.CollectExactlyOneRow(
+		rows,
+		pgx.RowToStructByName[domain.Transaction],
+	)
+	if err != nil {
+		return domain.Transaction{}, notFound(err)
+	}
+
+	return transaction, nil
+}
+
 const listTransactionsByUser = `
 SELECT
     t.id,

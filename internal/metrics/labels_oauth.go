@@ -119,6 +119,9 @@ const (
 	ToolAggregateTransactions
 	ToolCashFlow
 	ToolFindRecurring
+	ToolListInvestmentHoldings
+	ToolSearchInvestmentTransactions
+	ToolGetInvestmentPerformance
 	ToolRefreshData
 )
 
@@ -142,6 +145,12 @@ func (t MCPTool) String() string {
 		return "cash_flow"
 	case ToolFindRecurring:
 		return "find_recurring"
+	case ToolListInvestmentHoldings:
+		return "list_investment_holdings"
+	case ToolSearchInvestmentTransactions:
+		return "search_investment_transactions"
+	case ToolGetInvestmentPerformance:
+		return "get_investment_performance"
 	case ToolRefreshData:
 		return "refresh_data"
 	}
@@ -160,6 +169,9 @@ func AllMCPTools() []MCPTool {
 		ToolAggregateTransactions,
 		ToolCashFlow,
 		ToolFindRecurring,
+		ToolListInvestmentHoldings,
+		ToolSearchInvestmentTransactions,
+		ToolGetInvestmentPerformance,
 		ToolRefreshData,
 	}
 }

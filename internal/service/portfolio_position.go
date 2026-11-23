@@ -51,7 +51,7 @@ func optionalDecimal(value *string) *big.Rat {
 	return parseDecimal(*value)
 }
 
-func buildPositions(holdings []domain.InvestmentHolding, transactions []domain.InvestmentTransaction, filter PortfolioFilter) []*position {
+func buildPositions(holdings []domain.InvestmentHolding, transactions []domain.InvestmentTransaction, filter domain.PortfolioFilter) []*position {
 	positions := make(map[positionKey]*position)
 
 	for _, holding := range holdings {

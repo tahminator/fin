@@ -23,11 +23,6 @@ const (
 	cashSecurityType = "cash"
 )
 
-type PortfolioFilter struct {
-	AccountID  *uuid.UUID
-	SecurityID *uuid.UUID
-}
-
 type PortfolioService struct {
 	investments repository.InvestmentRepository
 	credentials repository.CredentialRepository
@@ -52,7 +47,7 @@ type marketPrices struct {
 	latest map[string]marketdata.Trade
 }
 
-func (s *PortfolioService) Performance(ctx context.Context, userID uuid.UUID, portfolioRange domain.PortfolioRange, filter PortfolioFilter) (domain.PortfolioPerformance, error) {
+func (s *PortfolioService) Performance(ctx context.Context, userID uuid.UUID, portfolioRange domain.PortfolioRange, filter domain.PortfolioFilter) (domain.PortfolioPerformance, error) {
 	now := s.now().UTC()
 
 	holdings, err := s.investments.ListHoldingsByUser(ctx, userID, repository.InvestmentFilter{AccountID: filter.AccountID})

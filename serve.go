@@ -121,6 +121,7 @@ func serve() error {
 		recorder,
 	)
 	scheduler := service.NewSyncScheduler(cfg.SyncSchedule, connections, connectionService, recorder, logger)
+	portfolioService := service.NewPortfolioService(investments, credentials, marketdata.NewAlpaca(&http.Client{Timeout: marketDataTimeout}))
 
 	mux := http.NewServeMux()
 	api := server.NewAPI(mux)
@@ -132,7 +133,7 @@ func serve() error {
 		Accounts:       handler.NewAccountHandler(accounts),
 		CardArt:        handler.NewCardArtHandler(cardArtService),
 		Transactions:   handler.NewTransactionHandler(transactions),
-		Investments:    handler.NewInvestmentHandler(investments, service.NewPortfolioService(investments, credentials, marketdata.NewAlpaca(&http.Client{Timeout: marketDataTimeout}))),
+		Investments:    handler.NewInvestmentHandler(investments, portfolioService),
 		Notifications:  handler.NewNotificationHandler(notificationService),
 		Version:        handler.NewVersionHandler(cfg.Version),
 		OAuthConsent:   handler.NewOAuthConsentHandler(oauthService),
@@ -147,6 +148,8 @@ func serve() error {
 			Accounts:     accounts,
 			Balances:     summary,
 			Transactions: postgres.NewTransactionQueryRepository(pool),
+			Investments:  investments,
+			Portfolio:    portfolioService,
 			Syncer:       connectionService,
 			Limiter:      rateLimiter,
 			Recorder:     recorder,

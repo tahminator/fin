@@ -2,7 +2,7 @@
 
 Phase 3 of fin. The base application (backend, frontend, infrastructure, CI/CD) is planned in [init.md](init.md); references written as "init.md §N" point there, plain "§N" points within this file. Conventions from [STYLEGUIDE.md](../../STYLEGUIDE.md) apply unchanged.
 
-A public [Model Context Protocol](https://modelcontextprotocol.io) server at `PUBLIC_URL/mcp`, served by the same `fin serve` process and deployment. Any MCP client (Claude, Claude Code, Cursor, the MCP Inspector, custom agents) connects with OAuth on behalf of an allow-listed user and can query, filter and aggregate that user's connections, accounts, balances and transactions. With the user's permission it can also **refresh** the user's already-linked connections when the data is stale (§6 `refresh_data`). Nothing reachable through MCP can create, re-authenticate or remove a bank connection: linking and fixing banks through Plaid Link stays a human-only, in-app flow.
+A public [Model Context Protocol](https://modelcontextprotocol.io) server at `PUBLIC_URL/mcp`, served by the same `fin serve` process and deployment. Any MCP client (Claude, Claude Code, Cursor, the MCP Inspector, custom agents) connects with OAuth on behalf of an allow-listed user and can query, filter and aggregate that user's connections, accounts, balances, transactions and investments. With the user's permission it can also **refresh** the user's already-linked connections when the data is stale (§6 `refresh_data`). Nothing reachable through MCP can create, re-authenticate or remove a bank connection: linking and fixing banks through Plaid Link stays a human-only, in-app flow.
 
 ## 1. Decisions
 
@@ -48,6 +48,7 @@ internal/
     ├── tools_accounts.go         list_connections, list_accounts, get_balances
     ├── tools_transactions.go     search_transactions, get_transaction, list_facets
     ├── tools_aggregate.go        aggregate_transactions, cash_flow
+    ├── tools_investments.go      list_investment_holdings, search_investment_transactions, get_investment_performance
     ├── tools_recurring.go        find_recurring
     ├── tools_refresh.go          refresh_data
     └── openapi.go                Document(api): documentation-only OpenAPI operation for /mcp + x-mcp-tools
@@ -250,7 +251,7 @@ Expired authorizations and tokens are deleted opportunistically by `OAuthService
 
 ## 6. Tools
 
-Every tool except `refresh_data` is annotated `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false`. All tools declare an `outputSchema`, and return `structuredContent` plus the same JSON as a text block for clients that ignore structured output. Conventions shared by every tool:
+Every tool except `refresh_data` is annotated `readOnlyHint: true`, `destructiveHint: false` and `idempotentHint: true`. `get_investment_performance` has `openWorldHint: true` because it can query Alpaca market data; the other query tools use `openWorldHint: false`. All tools declare an `outputSchema`, and return `structuredContent` plus the same JSON as a text block for clients that ignore structured output. Conventions shared by every tool:
 
 - Money is a decimal **string**, outflows negative ([init.md §0](init.md)). Every amount travels with its `currency`; nothing ever sums across currencies (aggregations always group by currency implicitly).
 - Dates are `YYYY-MM-DD` (`posted_on`), timestamps RFC 3339.
@@ -282,6 +283,9 @@ Every tool except `refresh_data` is annotated `readOnlyHint: true`, `destructive
 | `aggregate_transactions` | `TransactionQuery` + `group_by` (0–3 of `day`, `week`, `month`, `quarter`, `year`, `weekday`, `category`, `merchant`, `account`, `connection`, `account_type`, `direction`, `pending`) + `metrics` (1+ of `sum`, `inflow`, `outflow`, `count`, `avg`, `min`, `max`, `median`) + `order_by` (a metric or dimension, asc/desc) + `limit` (≤ 1000) | rows of `{dimensions…, currency, metrics…}`, `truncated` flag. Covers "spend by category per month", "top 10 merchants this year", "average weekday spend", "income by account"                                        |
 | `cash_flow`              | `TransactionQuery` + `interval` (`day`, `week`, `month`, `quarter`, `year`); `exclude_transfers` defaults to `true` here                                                                                                                                                                                                                        | per period and currency: inflow, outflow (positive), net, savings rate                                                                                                                                                 |
 | `find_recurring`         | `from`/`to` (default 13 months), `min_occurrences` (default 3)                                                                                                                                                                                                                                                                                  | candidate subscriptions/bills: merchant, typical amount, cadence (`weekly`, `biweekly`, `monthly`, `quarterly`, `yearly`), last and next expected date, occurrences                                                    |
+| `list_investment_holdings` | `account_id`, `exclude_account_ids`                                                                                                                                                                                                                                                                                                     | Current holdings with account and security IDs, quantities, brokerage prices and values, cost basis and currency; capped at 1,000 rows with `truncated` |
+| `search_investment_transactions` | `account_id`, `security_id`, `exclude_account_ids`, `page`, `page_size` (≤ 500)                                                                                                                                                                                                                                                  | Investment buys, sells, dividends, fees and other brokerage activity with account and security details, `total` and `has_next` |
+| `get_investment_performance` | `range` (`1h`, `1d`, `3d`, `7d`, `1mo`, `1y`, `all`), `account_id`, `security_id`                                                                                                                                                                                                                                                       | Portfolio value series and start/end change, with position and account breakdowns and `market_data` status |
 | `refresh_data`           | `connection_ids` (default: all of the user's connections)                                                                                                                                                                                                                                                                                       | per connection: `synced`, `throttled` (with `retry_after_seconds`), `needs_reauth` ("sign in again in the fin app"), or `failed`, with `last_synced_at`; plus counts. Requires `fin:sync`                              |
 
 `aggregate_transactions` is the flexible-analysis core. It never sees SQL from the caller: `group_by`, `metrics` and `order_by` are Go enums mapped to fixed SQL expressions in `repository/postgres/transaction_query.go` (e.g. `month` → `date_trunc('month', t.posted_on)::date`, `merchant` → `coalesce(t.merchant_name, t.name)`, `median` → `percentile_cont(0.5) WITHIN GROUP (ORDER BY t.amount)`, `outflow` → `-sum(t.amount) FILTER (WHERE t.amount < 0)`); every value is a bind parameter, `t.user_id = $1` is always the first predicate, and `t.currency` is always a grouping column. The query builder is a pure function (`buildAggregateQuery(spec) (string, []any)`) and is the one part of `repository/postgres` that gets unit tests: golden SQL per dimension/metric, every identifier comes from the whitelist, user id is always `$1`.
@@ -312,6 +316,8 @@ oauthAuthorizations := postgres.NewOAuthAuthorizationRepository(pool)
 oauthGrants := postgres.NewOAuthGrantRepository(pool)
 oauthTokens := postgres.NewOAuthTokenRepository(pool)
 transactionQueries := postgres.NewTransactionQueryRepository(pool)
+investments := postgres.NewInvestmentRepository(pool)
+portfolioService := service.NewPortfolioService(investments, credentials, marketdata.NewAlpaca(&http.Client{Timeout: marketDataTimeout}))
 
 metadataFetcher := oauth.NewMetadataDocumentFetcher(httpClient, oauth.PublicAddressesOnly)
 oauthService := service.NewOAuthService(cfg.OAuth(), oauthClients, oauthAuthorizations, oauthGrants, oauthTokens, metadataFetcher, recorder)
@@ -320,15 +326,17 @@ mcpHandler := mcpserver.NewHandler(mcpserver.Deps{
 	Verifier:     oauthService,
 	Connections:  connections,
 	Accounts:     accounts,
-	Summary:      summary,
+	Balances:     summary,
 	Transactions: transactionQueries,
+	Investments:  investments,
+	Portfolio:    portfolioService,
 	Syncer:       connectionService,
 	Recorder:     recorder,
 	Config:       cfg.MCP(),
 })
 ```
 
-`mcpserver.Deps` holds **repository interfaces**, one `TokenVerifier` interface (`VerifyAccessToken(ctx, token) (domain.User, []domain.Scope, error)`) and one `connectionSyncer` interface (`Sync` only), all declared inside `mcpserver`. None of them exposes link, exchange, re-auth or remove. `.golangci.yml` enables `depguard` with a rule scoped to `internal/mcpserver/**` denying `github.com/tahminator/fin/internal/provider`, `.../encryption`, `.../service` and `github.com/plaid/plaid-go`; `serve.go` is where `ConnectionService` is handed over as the interface. `ConnectionRepository` is passed as a read-only interface (`ListByUser` only), so the repository methods that mutate connections are out of reach too.
+`mcpserver.Deps` holds **read-only repository interfaces**, one narrow portfolio query interface, one `TokenVerifier` interface (`VerifyAccessToken(ctx, token) (domain.User, []domain.Scope, error)`) and one `connectionSyncer` interface (`Sync` only), all declared inside `mcpserver`. None of them exposes link, exchange, re-auth or remove. `InvestmentRepository` is handed over only through an interface containing its two read methods, and `PortfolioService` only through `Performance`; `mcpserver` does not import `internal/service`. `.golangci.yml` enables `depguard` with a rule scoped to `internal/mcpserver/**` denying `github.com/tahminator/fin/internal/provider`, `.../encryption`, `.../service` and `github.com/plaid/plaid-go`; `serve.go` is where the concrete services are handed over as interfaces. `ConnectionRepository` is passed as a read-only interface (`ListByUser` only), so the repository methods that mutate connections are out of reach too.
 
 ## 8. Configuration
 
@@ -355,8 +363,8 @@ New `iota` label enums in `metrics/labels.go`: `RouteGroup` gains `mcp` and `oau
 
 | Metric                                            | Type      | Labels                  | Max series      |
 | ------------------------------------------------- | --------- | ----------------------- | --------------- |
-| `fin_mcp_tool_calls_total` (`mcpserver`)          | counter   | `tool`, `outcome`       | 10 × 4          |
-| `fin_mcp_tool_duration_seconds`                   | histogram | `tool`                  | 10 × buckets    |
+| `fin_mcp_tool_calls_total` (`mcpserver`)          | counter   | `tool`, `outcome`       | 13 × 4          |
+| `fin_mcp_tool_duration_seconds`                   | histogram | `tool`                  | 13 × buckets    |
 | `fin_oauth_token_requests_total` (`OAuthService`) | counter   | `grant_type`, `outcome` | 12              |
 | `fin_oauth_client_registrations_total`            | counter   | `source`, `outcome`     | 4               |
 | `fin_oauth_consents_total`                        | counter   | `decision`              | 2               |

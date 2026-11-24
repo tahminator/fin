@@ -1,5 +1,6 @@
 import { MarketDataNotice } from "@/app/investments/_components/market-data-notice";
 import { MarketPerformanceSummary } from "@/app/investments/_components/portfolio-summary";
+import { RangePicker } from "@/app/investments/_components/range-picker";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -28,7 +29,12 @@ export function MarketPerformanceView({
   const [position] = data.positions;
 
   if (position === undefined) {
-    return <EmptyState title="Nothing held here" description="Try a longer time range." />;
+    return (
+      <>
+        <EmptyState title="Nothing held here" description="Try a longer time range." />
+        <RangePicker range={range} />
+      </>
+    );
   }
 
   const points = position.marketPricePoints;
@@ -40,6 +46,7 @@ export function MarketPerformanceView({
           title="Market history unavailable"
           description="There isn't enough historical market pricing for this security and range."
         />
+        <RangePicker range={range} />
       </>
     );
   }

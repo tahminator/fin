@@ -178,6 +178,32 @@ func TestPerformanceValuesRebuiltQuantitiesAtMarketPrices(t *testing.T) {
 	}
 }
 
+func TestPerformanceUsesLatestTradeForEachSecurity(t *testing.T) {
+	f := newPortfolioFixture()
+	second := f.holdings[0]
+	second.SecurityID = uuid.New()
+	second.Ticker = ptr("MSFT")
+	second.Quantity = "1"
+	f.holdings = append(f.holdings, second)
+	f.bars["MSFT"] = f.bars["AAPL"]
+	f.trades["MSFT"] = marketdata.Trade{Time: portfolioNow.Add(-time.Second), Price: "125"}
+
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{})
+	if err != nil {
+		t.Fatalf("Performance: %v", err)
+	}
+
+	if performance.EndValue != "1375.00" {
+		t.Errorf("end value = %s, want 1375.00", performance.EndValue)
+	}
+
+	for _, p := range performance.Positions {
+		if p.SecurityID == second.SecurityID && (p.MarketPriceChange == nil || *p.MarketPriceChange != "25.00") {
+			t.Errorf("MSFT market price change = %v, want 25.00", p.MarketPriceChange)
+		}
+	}
+}
+
 func TestPerformanceForSecurityIncludesPerShareMarketPriceHistory(t *testing.T) {
 	f := newPortfolioFixture()
 

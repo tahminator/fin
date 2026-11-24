@@ -159,8 +159,7 @@ func (s *PortfolioService) prices(ctx context.Context, userID uuid.UUID, positio
 }
 
 type seriesEnd struct {
-	time   time.Time
-	trades bool
+	time time.Time
 }
 
 func endOf(now time.Time, prices marketPrices) seriesEnd {
@@ -180,7 +179,7 @@ func endOf(now time.Time, prices marketPrices) seriesEnd {
 
 	switch {
 	case lastTrade.After(lastBar):
-		return seriesEnd{time: lastTrade, trades: true}
+		return seriesEnd{time: lastTrade}
 	case !lastBar.IsZero():
 		return seriesEnd{time: lastBar}
 	}
@@ -189,17 +188,12 @@ func endOf(now time.Time, prices marketPrices) seriesEnd {
 }
 
 func valuesOf(p *position, times []time.Time, prices marketPrices, end seriesEnd) []*big.Rat {
-	symbol := p.symbol()
-	bars := prices.bars[symbol]
 	values := make([]*big.Rat, len(times))
 
 	for i, t := range times {
-		price := p.price
-
-		if trade, ok := prices.latest[symbol]; ok && symbol != "" && end.trades && t.Equal(end.time) && trade.Time.Equal(end.time) {
-			price = parseDecimal(trade.Price)
-		} else if closePrice, ok := closeAt(bars, t); ok {
-			price = closePrice
+		price, ok := p.marketPriceAt(prices, t, end)
+		if !ok {
+			price = p.price
 		}
 
 		values[i] = new(big.Rat).Mul(p.quantityAt(t), price)

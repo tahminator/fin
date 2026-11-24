@@ -211,12 +211,6 @@ func (p *position) symbol() string {
 	return marketSymbol(p.ticker, p.securityType)
 }
 
-func (p *position) marketPriced(prices marketPrices) bool {
-	symbol := p.symbol()
-
-	return symbol != "" && len(prices.bars[symbol]) > 0
-}
-
 func (p *position) marketPriceChange(prices marketPrices, start, end time.Time, seriesEnd seriesEnd) (*string, *string) {
 	startPrice, ok := p.marketPriceAt(prices, start, seriesEnd)
 	if !ok {
@@ -251,14 +245,14 @@ func (p *position) marketPriceAt(prices marketPrices, t time.Time, seriesEnd ser
 		return nil, false
 	}
 
-	price, ok := closeAt(prices.bars[p.symbol()], t)
-	if !ok {
-		return nil, false
+	symbol := p.symbol()
+	bars := prices.bars[symbol]
+
+	if trade, ok := prices.latest[symbol]; ok && symbol != "" && t.Equal(seriesEnd.time) && !trade.Time.After(t) {
+		if len(bars) == 0 || trade.Time.After(bars[len(bars)-1].Time) {
+			return parseDecimal(trade.Price), true
+		}
 	}
 
-	if trade, ok := prices.latest[p.symbol()]; ok && seriesEnd.trades && t.Equal(seriesEnd.time) && trade.Time.Equal(seriesEnd.time) {
-		price = parseDecimal(trade.Price)
-	}
-
-	return price, true
+	return closeAt(bars, t)
 }

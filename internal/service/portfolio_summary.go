@@ -114,7 +114,8 @@ func summarizeSecurities(positions []*position, times []time.Time, startDay time
 			order = append(order, p.securityID)
 		}
 
-		a.performance.MarketPriced = a.performance.MarketPriced || p.marketPriced(prices)
+		_, marketPriced := p.marketPriceAt(prices, lastTime, end)
+		a.performance.MarketPriced = a.performance.MarketPriced || marketPriced
 		a.quantity.Add(a.quantity, p.quantityAt(lastTime))
 		a.totals.add(p, startDay)
 

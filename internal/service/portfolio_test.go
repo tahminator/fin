@@ -157,6 +157,14 @@ func TestPerformanceValuesRebuiltQuantitiesAtMarketPrices(t *testing.T) {
 		t.Errorf("AAPL = %+v", apple)
 	}
 
+	if apple.MarketPriceChange == nil || *apple.MarketPriceChange != "20.00" || apple.MarketPriceChangePercent == nil || *apple.MarketPriceChangePercent != "20.00" {
+		t.Errorf("AAPL market price change = %v (%v), want 20.00 per share (20.00%%)", apple.MarketPriceChange, apple.MarketPriceChangePercent)
+	}
+
+	if len(apple.MarketPricePoints) != 0 {
+		t.Errorf("unfiltered market price points = %+v, want no per-security series", apple.MarketPricePoints)
+	}
+
 	if apple.AverageCost == nil || *apple.AverageCost != "100.00" || apple.TotalReturn == nil || *apple.TotalReturn != "200.00" || apple.TotalReturnPercent == nil || *apple.TotalReturnPercent != "20.00" {
 		t.Errorf("AAPL returns = %v %v %v, want 100.00, 200.00, 20.00", apple.AverageCost, apple.TotalReturn, apple.TotalReturnPercent)
 	}
@@ -167,6 +175,24 @@ func TestPerformanceValuesRebuiltQuantitiesAtMarketPrices(t *testing.T) {
 
 	if len(performance.Accounts) != 1 || performance.Accounts[0].Value != "1250.00" || performance.Accounts[0].StartValue != "1090.00" || performance.Accounts[0].Change != "160.00" {
 		t.Errorf("accounts = %+v", performance.Accounts)
+	}
+}
+
+func TestPerformanceForSecurityIncludesPerShareMarketPriceHistory(t *testing.T) {
+	f := newPortfolioFixture()
+
+	performance, err := f.service.Performance(t.Context(), f.userID, domain.PortfolioRangeDay, domain.PortfolioFilter{SecurityID: &f.appleID})
+	if err != nil {
+		t.Fatalf("Performance: %v", err)
+	}
+
+	if len(performance.Positions) != 1 {
+		t.Fatalf("positions = %+v, want only AAPL", performance.Positions)
+	}
+
+	points := performance.Positions[0].MarketPricePoints
+	if want := []string{"100.00", "110.00", "120.00"}; !slices.Equal(pointValues(points), want) {
+		t.Errorf("market price points = %v, want per-share history %v", pointValues(points), want)
 	}
 }
 
@@ -185,6 +211,14 @@ func TestPerformanceWithoutAlpacaKeyUsesPlaidPrices(t *testing.T) {
 
 	if performance.MarketData != domain.MarketDataNotConfigured {
 		t.Errorf("market data = %s, want not_configured", performance.MarketData)
+	}
+
+	if len(performance.Positions) == 0 || performance.Positions[0].MarketPriceChange != nil || performance.Positions[0].MarketPriceChangePercent != nil {
+		t.Errorf("market price change = %+v, want unavailable without Alpaca data", performance.Positions)
+	}
+
+	if len(performance.Positions) == 0 || len(performance.Positions[0].MarketPricePoints) != 0 {
+		t.Errorf("market price points = %+v, want no historical market data", performance.Positions)
 	}
 
 	if want := []string{"1180.00", "1200.00"}; !slices.Equal(pointValues(performance.Points), want) {

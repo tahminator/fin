@@ -25,6 +25,18 @@ function positionSubtitle(position: PositionPerformance): string {
     : `${position.name} · ${formatShares(position.quantity)}`;
 }
 
+function positionChangeLabel(position: PositionPerformance, currency: string): string {
+  if (position.marketPriceChange !== null) {
+    return position.marketPriceChangePercent === null
+      ? formatMoney(position.marketPriceChange, currency)
+      : formatPercent(position.marketPriceChangePercent);
+  }
+
+  return position.changePercent === null
+    ? formatMoney(position.change, currency)
+    : formatPercent(position.changePercent);
+}
+
 function TickerBadge({ position }: { position: PositionPerformance }) {
   const label = isCash(position) ? "$" : (position.ticker ?? position.name ?? "?").slice(0, 4);
 
@@ -50,7 +62,7 @@ export function PositionList({ positions, currency, range, accountId }: Position
   return (
     <ListSection
       header="Holdings"
-      footer="Change is your market gain over the selected range; buying or selling shares doesn't count as gain or loss."
+      footer="When market data is available, the percentage is the security's price change, independent of shares owned. Dollar change reflects your position."
     >
       {positions.map((position) => (
         <ListRow key={position.securityId} className="p-0">
@@ -67,12 +79,10 @@ export function PositionList({ positions, currency, range, accountId }: Position
               <p
                 className={cn(
                   "type-subheadline tabular-nums",
-                  toneClasses[changeTone(position.change)],
+                  toneClasses[changeTone(position.marketPriceChange ?? position.change)],
                 )}
               >
-                {position.changePercent === null
-                  ? formatMoney(position.change, currency)
-                  : formatPercent(position.changePercent)}
+                {positionChangeLabel(position, currency)}
               </p>
             </div>
           </Link>

@@ -21,7 +21,7 @@ export function usePortfolioPerformance(range: PortfolioRange, scope: Investment
     "get",
     "/api/investments/performance",
     { params: { query: { range, ...scopeQuery(scope) } } },
-    { placeholderData: keepPreviousData },
+    { placeholderData: keepPreviousData, refetchInterval: 30_000 },
   );
 }
 

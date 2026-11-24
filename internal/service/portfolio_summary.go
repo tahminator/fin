@@ -45,7 +45,7 @@ func gainOf(gain, basis *big.Rat) (string, *string) {
 	return formatMoney(gain), &formatted
 }
 
-func summarize(portfolioRange domain.PortfolioRange, start time.Time, times []time.Time, positions []*position, prices marketPrices) domain.PortfolioPerformance {
+func summarize(portfolioRange domain.PortfolioRange, start time.Time, times []time.Time, positions []*position, prices marketPrices, end seriesEnd, includeMarketPricePoints bool) domain.PortfolioPerformance {
 	startDay := dayOf(start)
 	totals := newPerformanceTotals()
 	series := make([]*big.Rat, len(times))
@@ -78,13 +78,13 @@ func summarize(portfolioRange domain.PortfolioRange, start time.Time, times []ti
 		EndValue:      formatMoney(series[len(series)-1]),
 		Change:        change,
 		ChangePercent: changePercent,
-		Positions:     summarizeSecurities(positions, times, startDay, prices),
+		Positions:     summarizeSecurities(positions, times, startDay, prices, end, includeMarketPricePoints),
 		Accounts:      summarizeAccounts(positions, startDay),
 		MarketData:    prices.status,
 	}
 }
 
-func summarizeSecurities(positions []*position, times []time.Time, startDay time.Time, prices marketPrices) []domain.PositionPerformance {
+func summarizeSecurities(positions []*position, times []time.Time, startDay time.Time, prices marketPrices, end seriesEnd, includeMarketPricePoints bool) []domain.PositionPerformance {
 	type aggregate struct {
 		performance domain.PositionPerformance
 		totals      *performanceTotals
@@ -100,9 +100,15 @@ func summarizeSecurities(positions []*position, times []time.Time, startDay time
 		a, ok := bySecurity[p.securityID]
 		if !ok {
 			a = &aggregate{
-				performance: domain.PositionPerformance{SecurityID: p.securityID, Name: p.name, Ticker: p.ticker, SecurityType: p.securityType},
-				totals:      newPerformanceTotals(),
-				quantity:    new(big.Rat),
+				performance: domain.PositionPerformance{
+					SecurityID:        p.securityID,
+					Name:              p.name,
+					Ticker:            p.ticker,
+					SecurityType:      p.securityType,
+					MarketPricePoints: []domain.PortfolioPoint{},
+				},
+				totals:   newPerformanceTotals(),
+				quantity: new(big.Rat),
 			}
 			bySecurity[p.securityID] = a
 			order = append(order, p.securityID)
@@ -111,6 +117,14 @@ func summarizeSecurities(positions []*position, times []time.Time, startDay time
 		a.performance.MarketPriced = a.performance.MarketPriced || p.marketPriced(prices)
 		a.quantity.Add(a.quantity, p.quantityAt(lastTime))
 		a.totals.add(p, startDay)
+
+		if a.performance.MarketPriceChange == nil {
+			a.performance.MarketPriceChange, a.performance.MarketPriceChangePercent = p.marketPriceChange(prices, times[0], lastTime, end)
+		}
+
+		if includeMarketPricePoints && len(a.performance.MarketPricePoints) == 0 {
+			a.performance.MarketPricePoints = p.marketPricePoints(times, prices, end)
+		}
 
 		if costBasis := parseOptionalDecimal(p.costBasis); costBasis != nil {
 			if a.costBasis == nil {

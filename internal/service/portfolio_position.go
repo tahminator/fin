@@ -216,3 +216,49 @@ func (p *position) marketPriced(prices marketPrices) bool {
 
 	return symbol != "" && len(prices.bars[symbol]) > 0
 }
+
+func (p *position) marketPriceChange(prices marketPrices, start, end time.Time, seriesEnd seriesEnd) (*string, *string) {
+	startPrice, ok := p.marketPriceAt(prices, start, seriesEnd)
+	if !ok {
+		return nil, nil
+	}
+
+	endPrice, ok := p.marketPriceAt(prices, end, seriesEnd)
+	if !ok {
+		return nil, nil
+	}
+
+	change, percent := changeOf(startPrice, endPrice)
+
+	return &change, percent
+}
+
+func (p *position) marketPricePoints(times []time.Time, prices marketPrices, seriesEnd seriesEnd) []domain.PortfolioPoint {
+	points := make([]domain.PortfolioPoint, 0, len(times))
+
+	for _, t := range times {
+		price, ok := p.marketPriceAt(prices, t, seriesEnd)
+		if ok {
+			points = append(points, domain.PortfolioPoint{Time: t, Value: formatMoney(price)})
+		}
+	}
+
+	return points
+}
+
+func (p *position) marketPriceAt(prices marketPrices, t time.Time, seriesEnd seriesEnd) (*big.Rat, bool) {
+	if prices.status != domain.MarketDataLive {
+		return nil, false
+	}
+
+	price, ok := closeAt(prices.bars[p.symbol()], t)
+	if !ok {
+		return nil, false
+	}
+
+	if trade, ok := prices.latest[p.symbol()]; ok && seriesEnd.trades && t.Equal(seriesEnd.time) && trade.Time.Equal(seriesEnd.time) {
+		price = parseDecimal(trade.Price)
+	}
+
+	return price, true
+}

@@ -188,12 +188,17 @@ func endOf(now time.Time, prices marketPrices) seriesEnd {
 }
 
 func valuesOf(p *position, times []time.Time, prices marketPrices, end seriesEnd) []*big.Rat {
+	fallback := p.price
+	if bars := prices.bars[p.symbol()]; len(bars) > 0 {
+		fallback = parseDecimal(bars[0].Close)
+	}
+
 	values := make([]*big.Rat, len(times))
 
 	for i, t := range times {
 		price, ok := p.marketPriceAt(prices, t, end)
 		if !ok {
-			price = p.price
+			price = fallback
 		}
 
 		values[i] = new(big.Rat).Mul(p.quantityAt(t), price)

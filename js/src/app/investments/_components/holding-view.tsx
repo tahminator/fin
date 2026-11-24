@@ -34,7 +34,12 @@ export function HoldingView({ range, scope }: { range: PortfolioRange; scope: In
         title={position.securityType === "cash" ? "Cash" : (position.name ?? "Holding")}
         performance={data}
       />
-      <PositionDetails position={position} currency={data.currency} />
+      <PositionDetails
+        position={position}
+        currency={data.currency}
+        range={range}
+        accountId={scope.accountId}
+      />
       <InvestmentActivity scope={scope} />
     </>
   );

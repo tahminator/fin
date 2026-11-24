@@ -47,21 +47,24 @@ type PortfolioPoint struct {
 }
 
 type PositionPerformance struct {
-	SecurityID         uuid.UUID
-	Name               *string
-	Ticker             *string
-	SecurityType       *string
-	Quantity           string
-	Price              string
-	Value              string
-	StartValue         string
-	Change             string
-	ChangePercent      *string
-	CostBasis          *string
-	AverageCost        *string
-	TotalReturn        *string
-	TotalReturnPercent *string
-	MarketPriced       bool
+	SecurityID               uuid.UUID
+	Name                     *string
+	Ticker                   *string
+	SecurityType             *string
+	Quantity                 string
+	Price                    string
+	Value                    string
+	StartValue               string
+	Change                   string
+	ChangePercent            *string
+	MarketPriceChange        *string
+	MarketPriceChangePercent *string
+	MarketPricePoints        []PortfolioPoint
+	CostBasis                *string
+	AverageCost              *string
+	TotalReturn              *string
+	TotalReturnPercent       *string
+	MarketPriced             bool
 }
 
 type AccountPerformance struct {

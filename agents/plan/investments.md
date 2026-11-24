@@ -61,7 +61,7 @@ Migrations `000014_create_investment_securities`, `000015_create_investment_hold
 3. Fetch bars for every equity or ETF ticker from the range start minus a lookback (4 days intraday, 10 days daily) so each range opens on a real price, plus the latest trade for the final point.
 4. For `1h` and `1d`, when the market is closed and the window has no bars, the window shifts to end at the last bar (the most recent session), as Robinhood does.
 5. Series times are the range start, every bar time in the window and an end point: the latest trade when it is newer than the last bar (normally a moment ago while the market is open), otherwise the last bar, so a closed market ends on its last session rather than on today. Without market data the end point is now. A position's price at `t` is the last close at or before `t`; holdings without market data (cash, mutual funds, bonds, crypto) use the brokerage's price throughout.
-6. Totals are summed per point, per security and per account, with gain as in §1.
+6. Totals are summed per point, per security and per account, with gain as in §1. Each equity or ETF position also returns the selected range's per-share market price change and percentage, independent of the quantity held. When `securityId` is filtered, it also returns the underlying per-share market price series for a separate security-performance chart; these are absent when Alpaca market prices are unavailable.
 
 Without an Alpaca key the response is `marketData: not_configured` and every value uses the brokerage's price, so only quantity changes move the chart. If Alpaca fails, `marketData: unavailable` with the same fallback; the failure is logged, not returned.
 
@@ -71,7 +71,7 @@ Known limits: brokerage accounts that keep cash outside a `cash` holding still s
 
 | Endpoint                             | Notes                                                                                                         |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `GET /api/investments/performance`   | `range` (enum, default `1d`), `accountId`, `securityId`. Returns points, start/end values, change, positions (with cost basis, average cost, total return), accounts, `marketData` |
+| `GET /api/investments/performance`   | `range` (enum, default `1d`), `accountId`, `securityId`. Returns points, start/end values, change, positions (with per-share market price change and filtered per-share market price series when available, cost basis, average cost, total return), accounts, `marketData` |
 | `GET /api/investments/transactions`  | Paged; `accountId`, `securityId`, `excludeAccountId`                                                          |
 | `GET /api/investments/transactions/{transactionId}` | Full investment activity detail; user-tenanted |
 | `GET /api/investments/holdings`      | Raw holdings; `accountId`, `excludeAccountId`                                                                  |
@@ -92,10 +92,10 @@ Investment repository access is restricted by an `mcpserver.InvestmentReader` in
 ## 7. Frontend
 
 - Tab bar: Home, Transactions, Investments, Connections.
-- `/investments?range=`: summary card (value, change for the range coloured by direction with an arrow icon, area chart with a dashed baseline at the start value and a crosshair tooltip, range picker 1H 1D 3D 1W 1M 1Y ALL), holdings, accounts and activity. A notice explains when market prices are off or unavailable. The range lives in the URL.
+- `/investments?range=`: summary card (value, change for the range coloured by direction with an arrow icon, area chart with a dashed baseline at the start value and a crosshair tooltip, range picker 1H 1D 3D 1W 1M 1Y ALL), holdings, accounts and activity. Performance refreshes every 30 seconds while open. A notice explains when market prices are off or unavailable. The range lives in the URL.
 - Detail pages are nested routes that stack like an iOS navigation controller: `/investments/accounts/:accountId`, `/investments/holdings/:securityId` and `/investments/accounts/:accountId/holdings/:securityId`. Each renders a fixed panel over its parent (which stays mounted underneath) that slides in from the right, has a back button in its top bar, and follows a swipe that starts within 32px of the left edge; releasing past a third of the width goes back, otherwise it springs back. Back uses history when there is any, else the parent link (deep links). Reduced motion skips the animations. Drill-down links pass the title in history state and use `preventScrollReset` so the page underneath keeps its scroll position.
   - Account: value and chart for the account, its holdings, its activity.
-  - Holding: chart, shares, price, market value, average cost and total return, then that holding's activity.
+  - Holding: chart, shares, price, selected-range per-share market price change when available, market value, average cost and total return, then that holding's activity. The market price change opens a nested swipeable market-performance page with the per-share price chart, independent of shares owned.
 - The tab bar sits above detail panels.
 - Home and Transactions request `excludeType=investment` / `excludeAccountType=investment`.
 

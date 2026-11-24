@@ -37,10 +37,19 @@ export function accountLink(range: PortfolioRange, accountId: string) {
 }
 
 export function holdingLink(range: PortfolioRange, securityId: string, accountId?: string) {
-  return withRange(
-    accountId === undefined
-      ? `/investments/holdings/${securityId}`
-      : `/investments/accounts/${accountId}/holdings/${securityId}`,
-    range,
-  );
+  return withRange(holdingPath(securityId, accountId), range);
+}
+
+export function marketPerformanceLink(
+  range: PortfolioRange,
+  securityId: string,
+  accountId?: string,
+) {
+  return withRange(`${holdingPath(securityId, accountId)}/market-performance`, range);
+}
+
+function holdingPath(securityId: string, accountId?: string) {
+  return accountId === undefined
+    ? `/investments/holdings/${securityId}`
+    : `/investments/accounts/${accountId}/holdings/${securityId}`;
 }

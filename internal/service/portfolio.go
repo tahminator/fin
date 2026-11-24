@@ -76,7 +76,7 @@ func (s *PortfolioService) Performance(ctx context.Context, userID uuid.UUID, po
 		return !p.heldIn(dayOf(start))
 	})
 
-	return summarize(portfolioRange, start, times, positions, prices), nil
+	return summarize(portfolioRange, start, times, positions, prices, end, filter.SecurityID != nil), nil
 }
 
 func windowFor(portfolioRange domain.PortfolioRange, now time.Time, transactions []domain.InvestmentTransaction) rangeWindow {
@@ -196,7 +196,7 @@ func valuesOf(p *position, times []time.Time, prices marketPrices, end seriesEnd
 	for i, t := range times {
 		price := p.price
 
-		if trade, ok := prices.latest[symbol]; ok && symbol != "" && end.trades && t.Equal(end.time) {
+		if trade, ok := prices.latest[symbol]; ok && symbol != "" && end.trades && t.Equal(end.time) && trade.Time.Equal(end.time) {
 			price = parseDecimal(trade.Price)
 		} else if closePrice, ok := closeAt(bars, t); ok {
 			price = closePrice

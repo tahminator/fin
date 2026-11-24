@@ -16,21 +16,24 @@ type PortfolioPoint struct {
 }
 
 type PositionPerformance struct {
-	SecurityID         uuid.UUID `json:"securityId"`
-	Name               *string   `json:"name"`
-	Ticker             *string   `json:"ticker"`
-	SecurityType       *string   `json:"securityType"`
-	Quantity           string    `json:"quantity" doc:"Decimal string; shares held now"`
-	Price              string    `json:"price" doc:"Decimal string; latest price per share"`
-	Value              string    `json:"value" doc:"Decimal string; value now"`
-	StartValue         string    `json:"startValue" doc:"Decimal string; value at the start of the range"`
-	Change             string    `json:"change" doc:"Decimal string; value now minus value at the start of the range"`
-	ChangePercent      *string   `json:"changePercent" doc:"Decimal string percentage; null when the start value is zero"`
-	CostBasis          *string   `json:"costBasis" doc:"Decimal string; total cost basis when the brokerage reports it"`
-	AverageCost        *string   `json:"averageCost" doc:"Decimal string; cost basis per share"`
-	TotalReturn        *string   `json:"totalReturn" doc:"Decimal string; value now minus cost basis"`
-	TotalReturnPercent *string   `json:"totalReturnPercent" doc:"Decimal string percentage of cost basis"`
-	MarketPriced       bool      `json:"marketPriced" doc:"Whether the value uses market prices rather than the brokerage's price"`
+	SecurityID               uuid.UUID        `json:"securityId"`
+	Name                     *string          `json:"name"`
+	Ticker                   *string          `json:"ticker"`
+	SecurityType             *string          `json:"securityType"`
+	Quantity                 string           `json:"quantity" doc:"Decimal string; shares held now"`
+	Price                    string           `json:"price" doc:"Decimal string; latest price per share"`
+	Value                    string           `json:"value" doc:"Decimal string; value now"`
+	StartValue               string           `json:"startValue" doc:"Decimal string; value at the start of the range"`
+	Change                   string           `json:"change" doc:"Decimal string; value now minus value at the start of the range"`
+	ChangePercent            *string          `json:"changePercent" doc:"Decimal string percentage; null when the start value is zero"`
+	MarketPriceChange        *string          `json:"marketPriceChange" doc:"Decimal string change per share over the range, when market prices are available"`
+	MarketPriceChangePercent *string          `json:"marketPriceChangePercent" doc:"Decimal string percentage change in the security price over the range"`
+	MarketPricePoints        []PortfolioPoint `json:"marketPricePoints" nullable:"false" doc:"Per-share market prices over the selected range when a security filter is set"`
+	CostBasis                *string          `json:"costBasis" doc:"Decimal string; total cost basis when the brokerage reports it"`
+	AverageCost              *string          `json:"averageCost" doc:"Decimal string; cost basis per share"`
+	TotalReturn              *string          `json:"totalReturn" doc:"Decimal string; value now minus cost basis"`
+	TotalReturnPercent       *string          `json:"totalReturnPercent" doc:"Decimal string percentage of cost basis"`
+	MarketPriced             bool             `json:"marketPriced" doc:"Whether the value uses market prices rather than the brokerage's price"`
 }
 
 type AccountPerformance struct {
@@ -120,21 +123,24 @@ func newPortfolioPoint(point domain.PortfolioPoint) PortfolioPoint {
 
 func newPositionPerformance(position domain.PositionPerformance) PositionPerformance {
 	return PositionPerformance{
-		SecurityID:         position.SecurityID,
-		Name:               position.Name,
-		Ticker:             position.Ticker,
-		SecurityType:       position.SecurityType,
-		Quantity:           position.Quantity,
-		Price:              position.Price,
-		Value:              position.Value,
-		StartValue:         position.StartValue,
-		Change:             position.Change,
-		ChangePercent:      position.ChangePercent,
-		CostBasis:          position.CostBasis,
-		AverageCost:        position.AverageCost,
-		TotalReturn:        position.TotalReturn,
-		TotalReturnPercent: position.TotalReturnPercent,
-		MarketPriced:       position.MarketPriced,
+		SecurityID:               position.SecurityID,
+		Name:                     position.Name,
+		Ticker:                   position.Ticker,
+		SecurityType:             position.SecurityType,
+		Quantity:                 position.Quantity,
+		Price:                    position.Price,
+		Value:                    position.Value,
+		StartValue:               position.StartValue,
+		Change:                   position.Change,
+		ChangePercent:            position.ChangePercent,
+		MarketPriceChange:        position.MarketPriceChange,
+		MarketPriceChangePercent: position.MarketPriceChangePercent,
+		MarketPricePoints:        mapItems(position.MarketPricePoints, newPortfolioPoint),
+		CostBasis:                position.CostBasis,
+		AverageCost:              position.AverageCost,
+		TotalReturn:              position.TotalReturn,
+		TotalReturnPercent:       position.TotalReturnPercent,
+		MarketPriced:             position.MarketPriced,
 	}
 }
 

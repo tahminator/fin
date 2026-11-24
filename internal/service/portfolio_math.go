@@ -93,11 +93,7 @@ func closeAt(bars []marketdata.Bar, t time.Time) (*big.Rat, bool) {
 	}
 
 	if index == 0 {
-		if len(bars) == 0 {
-			return nil, false
-		}
-
-		return parseDecimal(bars[0].Close), true
+		return nil, false
 	}
 
 	return parseDecimal(bars[index-1].Close), true
